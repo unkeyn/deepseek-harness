@@ -1,6 +1,7 @@
 /** Provider-specific credential health classification contract. */
 import { Context, Service } from '@deepseek-ai/cordis'
 
+/** Conservative action selected after classifying one provider failure. */
 export type HealthDisposition =
   | { kind: 'healthy' }
   | { kind: 'cooldown'; retryAfterMs?: number }
@@ -10,6 +11,7 @@ export type HealthDisposition =
   | { kind: 'remove'; reason: string }
   | { kind: 'retain' }
 
+/** Provider evidence used for classification; it never contains secret values. */
 export interface ProviderFailureEvidence {
   readonly provider: string
   readonly model: string
@@ -22,6 +24,10 @@ export interface ProviderFailureEvidence {
 /** Provider-owned classifier registry; callers supply evidence, never secret values. */
 export abstract class CredentialHealth extends Service {
   constructor(ctx: Context) { super(ctx, 'credentialHealth') }
+  /** Classify provider evidence without retrying or mutating credentials.
+   * @param evidence provider failure facts.
+   * @returns the conservative health disposition.
+   */
   abstract classify(evidence: ProviderFailureEvidence): HealthDisposition
 }
 

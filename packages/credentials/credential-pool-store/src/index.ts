@@ -14,8 +14,11 @@ const FAILURE_DISPOSITIONS = new Set<FailureDisposition>([
   'healthy', 'cooldown', 'quarantine', 'model-exclude', 'reauthenticate', 'remove', 'retain',
 ])
 
+/** Durable pool metadata store configuration. */
 export interface Config {
+  /** Storage backend name. */
   backend?: string
+  /** KV unit name. */
   unitName?: string
 }
 
@@ -24,6 +27,7 @@ export const Config: z<Config> = z.object({
   unitName: z.string().default(UNIT_NAME),
 })
 
+/** Provider route owned by one credential pool. */
 export interface PoolRecord {
   readonly id: PoolId
   readonly provider: string
@@ -46,6 +50,7 @@ export interface CredentialHealthState {
   readonly lastSuccessAt?: number
 }
 
+/** Non-secret credential metadata and health state. */
 export interface CredentialRecord {
   readonly id: CredentialId
   readonly pool: PoolId
@@ -59,6 +64,7 @@ export interface CredentialRecord {
   readonly generation: number
 }
 
+/** Versioned durable pool metadata snapshot. */
 export interface PoolSnapshot {
   readonly version: typeof FORMAT_VERSION
   /** Monotonic snapshot generation advanced after every durable mutation. */
@@ -74,6 +80,7 @@ export interface CredentialMutationVersion {
   readonly version: number
 }
 
+/** Updated credential and its next CAS token. */
 export interface CredentialMutationResult {
   readonly credential: CredentialRecord
   readonly version: CredentialMutationVersion
@@ -129,10 +136,14 @@ export class CredentialPoolStore extends Service {
     this.snapshot = validateSnapshot(loaded.global)
   }
 
-  /** Read a detached metadata snapshot. */
+  /** Read a detached metadata snapshot.
+   * @returns the current pool snapshot.
+   */
   getSnapshot(): PoolSnapshot { return detachSnapshot(this.snapshot) }
 
-  /** Create or replace one pool, rejecting provider changes for existing entries. */
+  /** Create or replace one pool, rejecting provider changes for existing entries.
+   * @param record pool id and provider route.
+   */
   async upsertPool(record: PoolRecord): Promise<void> {
     await this.enqueue((current) => {
       const id = poolId(String(record.id))
@@ -147,7 +158,9 @@ export class CredentialPoolStore extends Service {
     })
   }
 
-  /** Create or replace one entry after validating its pool, reference, and health state. */
+  /** Create or replace one entry after validating its pool, reference, and health state.
+   * @param record non-secret credential metadata.
+   */
   async upsertCredential(record: Omit<CredentialRecord, 'generation'> & { readonly generation?: number }): Promise<void> {
     await this.enqueue((current) => {
       const id = credentialId(String(record.id))
@@ -171,7 +184,12 @@ export class CredentialPoolStore extends Service {
     })
   }
 
-  /** Replace non-secret health state when the credential CAS token is current. */
+  /** Replace non-secret health state when the credential CAS token is current.
+   * @param id credential identifier.
+   * @param expected credential CAS token.
+   * @param health validated health state.
+   * @returns updated metadata and next CAS token.
+   */
   async updateCredentialHealth(
     id: CredentialId,
     expected: CredentialMutationVersion,
@@ -180,12 +198,23 @@ export class CredentialPoolStore extends Service {
     return this.mutateCredential(id, expected, () => ({ health: validateHealth(health, id) }))
   }
 
-  /** Enable or disable a credential without resolving or writing its secret. */
+  /** Enable or disable a credential without resolving or writing its secret.
+   * @param id credential identifier.
+   * @param expected credential CAS token.
+   * @param enabled requested enabled state.
+   * @returns updated metadata and next CAS token.
+   */
   async setCredentialEnabled(id: CredentialId, expected: CredentialMutationVersion, enabled: boolean): Promise<CredentialMutationResult> {
     return this.mutateCredential(id, expected, () => ({ enabled: validateBoolean(enabled, `credential '${id}' enabled`) }))
   }
 
-  /** Mark a credential as requiring reauthentication without touching credential values. */
+  /** Mark a credential as requiring reauthentication without touching credential values.
+   * @param id credential identifier.
+   * @param expected credential CAS token.
+   * @param reason reauthentication reason.
+   * @param failure optional classified failure.
+   * @returns updated metadata and next CAS token.
+   */
   async setCredentialReauthentication(
     id: CredentialId,
     expected: CredentialMutationVersion,
@@ -200,7 +229,10 @@ export class CredentialPoolStore extends Service {
     }))
   }
 
-  /** Remove one credential when the caller still owns its CAS token. */
+  /** Remove one credential when the caller still owns its CAS token.
+   * @param id credential identifier.
+   * @param expected optional credential CAS token.
+   */
   async removeCredential(id: CredentialId, expected?: CredentialMutationVersion): Promise<void> {
     await this.enqueue((current) => {
       if (expected !== undefined) {

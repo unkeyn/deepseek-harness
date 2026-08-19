@@ -12,16 +12,25 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 export const name = 'credential-broker-memory'
 export const inject = []
 
+/** One in-memory credential reference and its scheduling limits. */
 export interface EntryConfig {
+  /** Pool identifier used in the lease projection. */
   pool: string
+  /** Credential identifier used for exclusion and completion. */
   credential: string
+  /** Reference resolved through `ctx.credentials`. */
   reference: string
+  /** Authentication kind exposed to the provider adapter. */
   authKind: AuthKind
+  /** Maximum simultaneous leases for this entry. */
   maxConcurrent?: number
+  /** Selection priority, with higher values selected first. */
   priority?: number
 }
 
+/** In-memory broker configuration. */
 export interface Config {
+  /** Entries available to the deterministic provider. */
   entries: EntryConfig[]
 }
 
@@ -112,6 +121,10 @@ export class MemoryCredentialBroker extends CredentialBroker {
     })
   }
 
+  /** Release one live lease.
+   * @param id lease identifier returned by {@link acquire}.
+   * @param _completion terminal outcome retained for interface symmetry.
+   */
   override complete(id: LeaseId, _completion: LeaseCompletion): void {
     const entry = this.live.get(id)
     if (entry === undefined) throw new Error(`lease ${id} is not live`)
@@ -124,6 +137,7 @@ export class MemoryCredentialBroker extends CredentialBroker {
     return [...new Set(this.entries.map(entry => entry.pool))]
   }
 
+  /** Dispose pending waiters and release all in-memory lease counters. */
   close(): void {
     this.closed = true
     for (const waiter of this.waiters.splice(0)) {

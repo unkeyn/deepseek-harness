@@ -22,6 +22,7 @@ export type {
 
 /** Raised when a dead or rejected refresh token requires interactive login. */
 export class OAuthReauthenticationRequired extends Error {
+  /** Stable machine-readable error code. */
   readonly code = 'OAUTH_REAUTHENTICATE'
   constructor(readonly accountId: string, reason: string) {
     super(`OAuth account '${accountId}' requires reauthentication: ${reason}`)
@@ -31,6 +32,7 @@ export class OAuthReauthenticationRequired extends Error {
 
 /** Raised when a provider does not expose a requested OAuth operation. */
 export class OAuthUnsupportedOperationError extends Error {
+  /** Stable machine-readable error code. */
   readonly code = 'OAUTH_UNSUPPORTED_OPERATION'
   constructor(readonly provider: string, readonly operation: string) {
     super(`${provider} OAuth does not support ${operation}`)
@@ -57,13 +59,19 @@ export class OAuthLifecycle {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(referencePrefix)) throw new TypeError('OAuth reference prefix must be an identifier')
   }
 
-  /** Complete a provider callback and persist both token values by generated references. */
+  /** Complete a provider callback and persist both token values by generated references.
+   * @param callback provider callback value.
+   * @returns detached redacted account metadata.
+   */
   async login(callback: string): Promise<OAuthAccountSnapshot> {
     const result = await this.provider.completeLogin(callback)
     return this.persistLogin(result)
   }
 
-  /** Complete a provider setup-token login when the provider exposes that mode. */
+  /** Complete a provider setup-token login when the provider exposes that mode.
+   * @param setupToken provider setup token.
+   * @returns detached redacted account metadata.
+   */
   async loginSetupToken(setupToken: string): Promise<OAuthAccountSnapshot> {
     if (this.provider.completeSetupToken === undefined) {
       throw new OAuthUnsupportedOperationError('OAuth provider', 'setup-token login')
@@ -88,7 +96,11 @@ export class OAuthLifecycle {
     return { ...account }
   }
 
-  /** Return a valid access token, deduplicating concurrent refreshes for one account. */
+  /** Return a valid access token, deduplicating concurrent refreshes for one account.
+   * @param accountId provider account identity.
+   * @param now current time used for expiry checks.
+   * @returns the current or refreshed access token.
+   */
   async accessToken(accountId: string, now = Date.now()): Promise<string> {
     const account = this.requireAccount(accountId)
     if (account.status === 'reauthenticate') throw new OAuthReauthenticationRequired(accountId, account.reauthenticateReason ?? 'provider rejected refresh')
@@ -108,6 +120,8 @@ export class OAuthLifecycle {
   /**
    * Bind provider-owned authorization and request semantics to this lifecycle.
    * Access-token refresh and reauthentication errors are handled by `accessToken`.
+   * @param provider provider request adapter.
+   * @returns a lifecycle-bound request adapter.
    */
   adapter<Request, Authorization, Response>(
     provider: ProviderOAuthAdapter<Request, Authorization, Response>,
@@ -115,14 +129,20 @@ export class OAuthLifecycle {
     return new OAuthRequestAdapter(this, provider)
   }
 
-  /** Return redacted metadata, optionally restricted by this provider's account policy. */
+  /** Return redacted metadata, optionally restricted by this provider's account policy.
+   * @param allowedAccountIds optional account allowlist.
+   * @returns detached account metadata.
+   */
   snapshot(allowedAccountIds?: ReadonlySet<string>): readonly OAuthAccountSnapshot[] {
     return [...this.accounts.values()]
       .filter(account => allowedAccountIds === undefined || allowedAccountIds.has(account.accountId))
       .map(account => ({ ...account }))
   }
 
-  /** Refresh active accounts whose expiry falls within the supplied skew window. */
+  /** Refresh active accounts whose expiry falls within the supplied skew window.
+   * @param now current time used for expiry checks.
+   * @param skewMs refresh lead time.
+   */
   async refreshDue(now = Date.now(), skewMs = 5 * 60_000): Promise<void> {
     if (!Number.isFinite(now) || !Number.isFinite(skewMs) || skewMs < 0) throw new TypeError('refresh clock values must be finite')
     const targets = [...this.accounts.values()]
@@ -130,7 +150,10 @@ export class OAuthLifecycle {
     await Promise.all(targets.map(account => this.accessToken(account.accountId, now).then(() => undefined)))
   }
 
-  /** Remove local references first, then report provider revocation guidance/result. */
+  /** Remove local references first, then report provider revocation guidance/result.
+   * @param accountId provider account identity.
+   * @returns local cleanup and revocation status.
+   */
   async logout(accountId: string): Promise<OAuthLogoutResult> {
     const account = this.requireAccount(accountId)
     const accessToken = await this.store.resolve(account.accessRef)
@@ -211,20 +234,33 @@ export class OAuthRequestAdapter<Request, Authorization, Response> {
     private readonly provider: ProviderOAuthAdapter<Request, Authorization, Response>,
   ) {}
 
-  /** Build provider authorization data after resolving or refreshing the account token. */
+  /** Build provider authorization data after resolving or refreshing the account token.
+   * @param accountId provider account identity.
+   * @param request provider request data.
+   * @returns provider authorization data.
+   */
   async authorization(accountId: string, request: Request): Promise<Authorization> {
     const accessToken = await this.lifecycle.accessToken(accountId)
     return this.provider.authorization(accessToken, request)
   }
 
-  /** Execute a provider request after resolving or refreshing the account token. */
+  /** Execute a provider request after resolving or refreshing the account token.
+   * @param accountId provider account identity.
+   * @param request provider request data.
+   * @returns provider response.
+   */
   async request(accountId: string, request: Request): Promise<Response> {
     const accessToken = await this.lifecycle.accessToken(accountId)
     return this.provider.request(accessToken, request)
   }
 }
 
-/** Filter redacted accounts using the provider entry from an account-pool policy. */
+/** Filter redacted accounts using the provider entry from an account-pool policy.
+ * @param accounts redacted account metadata.
+ * @param provider provider route.
+ * @param accountPool optional provider account policy.
+ * @returns accounts allowed for the provider.
+ */
 export function filterOAuthAccounts(
   accounts: readonly OAuthAccountSnapshot[],
   provider: string,
@@ -235,7 +271,10 @@ export function filterOAuthAccounts(
   return accounts.filter(account => allowed.has(account.accountId))
 }
 
-/** Classify failures that invalidate the refresh credential rather than the network attempt. */
+/** Classify failures that invalidate the refresh credential rather than the network attempt.
+ * @param error provider refresh failure.
+ * @returns whether interactive login is required.
+ */
 export function isDefinitiveOAuthFailure(error: unknown): boolean {
   const message = errorMessage(error).toLowerCase()
   return message.includes('invalid_grant') || message.includes('invalid refresh') || message.includes('revoked')
@@ -264,6 +303,7 @@ export class OAuthRefreshScheduler {
     this.nextSweepAt = this.now()
   }
 
+  /** Start periodic refresh sweeps. */
   start(): void {
     if (this.timer !== undefined) return
     this.nextSweepAt = this.now()
@@ -271,15 +311,20 @@ export class OAuthRefreshScheduler {
     this.timer = setInterval(() => { void this.tick() }, this.intervalMs)
   }
 
+  /** Stop periodic refresh sweeps. */
   stop(): void {
     if (this.timer !== undefined) clearInterval(this.timer)
     this.timer = undefined
   }
 
+  /** Return the current scheduler projection.
+   * @returns interval, skew, and next-sweep metadata.
+   */
   getSchedule(): { enabled: boolean; intervalMs: number; skewMs: number; nextSweepAt: number } {
     return { enabled: true, intervalMs: this.intervalMs, skewMs: this.skewMs, nextSweepAt: this.nextSweepAt }
   }
 
+  /** Run one deduplicated refresh sweep. */
   async tick(): Promise<void> {
     if (this.running) return
     this.running = true
@@ -362,8 +407,11 @@ export class ClaudeCodeOAuthAdapter<Request = unknown, Authorization = unknown, 
 
 /** Deterministic provider used by lifecycle tests and local previews. */
 export class FakeOAuthProvider implements OAuthProvider {
+  /** Refresh-token inputs observed by the fake provider. */
   readonly refreshCalls: string[] = []
+  /** Revocation inputs observed by the fake provider. */
   readonly revocations: Array<{ accessToken?: string; refreshToken?: string }> = []
+  /** Requests observed by the fake provider. */
   readonly requests: Array<{ accessToken: string; request: { path: string } }> = []
   private loginResult: OAuthLoginResult | undefined
   private refreshResult: OAuthRefreshResult | undefined
@@ -371,15 +419,15 @@ export class FakeOAuthProvider implements OAuthProvider {
   private refreshError: Error | undefined
   private revokeError: Error | undefined
 
-  /** Configure the next callback exchange result. */
+  /** Configure the next callback exchange result. @param result login result. */
   setLoginResult(result: OAuthLoginResult): void { this.loginResult = result }
-  /** Configure a deterministic refresh result. */
+  /** Configure a deterministic refresh result. @param result refresh result. */
   setRefreshResult(result: OAuthRefreshResult): void { this.refreshResult = result; this.refreshError = undefined }
-  /** Configure a deterministic dead refresh token failure. */
+  /** Configure a deterministic dead refresh token failure. @param error provider error. */
   setRefreshError(error: Error): void { this.refreshError = error; this.refreshResult = undefined }
-  /** Configure provider revocation failure. */
+  /** Configure provider revocation failure. @param error optional provider error. */
   setRevokeError(error: Error | undefined): void { this.revokeError = error }
-  /** Configure a deterministic provider request result. */
+  /** Configure a deterministic provider request result. @param result provider response. */
   setRequestResult(result: { status: number; body: string }): void { this.requestResult = { ...result } }
   async completeLogin(_callback: string): Promise<OAuthLoginResult> {
     if (this.loginResult === undefined) throw new Error('fake OAuth login result is not configured')
@@ -395,9 +443,11 @@ export class FakeOAuthProvider implements OAuthProvider {
     this.revocations.push({ ...tokens })
     if (this.revokeError !== undefined) throw this.revokeError
   }
+  /** Build deterministic bearer authorization for a request. */
   authorization(accessToken: string, request: { path: string }): { path: string; authorization: string } {
     return { path: request.path, authorization: `Bearer ${accessToken}` }
   }
+  /** Record and return a deterministic provider response. */
   async request(accessToken: string, request: { path: string }): Promise<{ status: number; body: string }> {
     this.requests.push({ accessToken, request: { ...request } })
     if (this.requestResult === undefined) throw new Error('fake OAuth request result is not configured')

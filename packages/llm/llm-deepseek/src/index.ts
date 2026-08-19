@@ -40,6 +40,7 @@ export type { DeepSeekAdapterOptions, DeepSeekCatalogModel, DeepSeekConnectionOp
 export type { RequestDefaults } from './serialize.ts'
 export type * from './types.ts'
 
+/** Provider request facts passed to the injected OAuth transport. */
 export interface DeepSeekOAuthRequest {
   /** Endpoint used by the composed DeepSeek route. */
   readonly baseURL: string
@@ -47,11 +48,13 @@ export interface DeepSeekOAuthRequest {
   readonly path: string
 }
 
+/** Provider authorization data returned by the injected OAuth transport. */
 export interface DeepSeekOAuthAuthorization {
   /** Authorization header value for the composed provider request. */
   readonly authorization: string
 }
 
+/** DeepSeek OAuth adapter contract. */
 export type DeepSeekOAuthProvider = ProviderOAuthAdapter<
   DeepSeekOAuthRequest,
   DeepSeekOAuthAuthorization,

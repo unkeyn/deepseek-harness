@@ -305,6 +305,7 @@ function rejectRemovedFields(provider: string, source: PiAiProviderProfile): voi
  * resolves to the empty (dormant) route set here rather than through a hidden
  * fallback, and each route's models and pi-ai provider are materialized once.
  * @param providers - configured provider profiles keyed by route.
+ * @param catalog - optional model capability catalog.
  * @returns validated profiles in configuration order.
  */
 export function resolveProfiles(

@@ -44,15 +44,23 @@ export abstract class CredentialBroker extends Service {
     ctx.effect(() => () => this.snapshotStream.dispose(), 'credential broker snapshot teardown')
   }
 
-  /** Return detached, secret-free broker metadata. */
+  /** Return detached, secret-free broker metadata.
+   * @returns the current metadata snapshot.
+   */
   getSnapshot(): CredentialBrokerSnapshot { return this.snapshotStream.getSnapshot() }
 
-  /** Subscribe to generation-tagged metadata changes until disposed. */
+  /** Subscribe to generation-tagged metadata changes until disposed.
+   * @param listener receives detached metadata events.
+   * @returns a disposable subscription.
+   */
   subscribeSnapshots(listener: CredentialBrokerSnapshotListener): CredentialBrokerSnapshotSubscription {
     return this.snapshotStream.subscribe(listener)
   }
 
-  /** Subscribe to metadata events through the generic source contract. */
+  /** Subscribe to metadata events through the generic source contract.
+   * @param listener receives detached metadata events.
+   * @returns a disposable subscription.
+   */
   subscribe(listener: CredentialBrokerSnapshotListener): CredentialBrokerSnapshotSubscription {
     return this.subscribeSnapshots(listener)
   }

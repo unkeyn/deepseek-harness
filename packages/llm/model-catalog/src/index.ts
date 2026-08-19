@@ -32,7 +32,10 @@ export class ModelCatalog extends Service {
 
   constructor(ctx: Context) { super(ctx, 'modelCatalog') }
 
-  /** Resolve a configured model id to capability metadata without provider guesses. */
+  /** Resolve a configured model id to capability metadata without provider guesses.
+   * @param modelId configured model identifier.
+   * @returns capability metadata, or `undefined` when absent.
+   */
   resolve(modelId: string): ModelCapabilityReference | undefined {
     const candidates = [modelId, modelId.slice(modelId.lastIndexOf('/') + 1)]
     for (const candidate of candidates) {

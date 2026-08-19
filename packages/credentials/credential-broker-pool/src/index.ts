@@ -5,6 +5,7 @@ import type { CredentialBrokerSnapshotEntry, CredentialBrokerRequest, Credential
 import type { HealthDisposition } from '@deepseek-ai/dsh-credential-health'
 import type { CredentialMutationVersion, CredentialRecord, CredentialHealthState, CredentialPoolStore } from '@deepseek-ai/dsh-credential-pool-store'
 
+/** Durable pool-backed broker that arbitrates local lease capacity. */
 export class PoolCredentialBroker extends CredentialBroker {
   static inject = ['credentialPoolStore']
 
@@ -48,11 +49,19 @@ export class PoolCredentialBroker extends CredentialBroker {
     })
   }
 
+  /** Release one live lease.
+   * @param id lease identifier returned by {@link acquire}.
+   * @param _completion terminal outcome retained for interface symmetry.
+   */
   override complete(id: LeaseId, _completion: LeaseCompletion): void {
     this.release(id)
   }
 
-  /** Complete a lease once, then persist the classifier's metadata-only health decision. */
+  /** Complete a lease once, then persist the classifier's metadata-only health decision.
+   * @param id lease identifier returned by {@link acquire}.
+   * @param completion terminal provider outcome.
+   * @param disposition health policy decision to persist.
+   */
   async completeWithHealth(id: LeaseId, completion: LeaseCompletion, disposition: HealthDisposition): Promise<void> {
     const lease = this.release(id)
     if (completion.kind === 'cancelled') return
@@ -80,6 +89,7 @@ export class PoolCredentialBroker extends CredentialBroker {
 
   override listPools() { return this.store().getSnapshot().pools.map(pool => pool.id) }
 
+  /** Dispose pending waiters and release all local lease counters. */
   close(): void {
     this.closed = true
     for (const waiter of this.waiters.splice(0)) {
