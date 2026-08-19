@@ -36,7 +36,7 @@ function meter(
   return render(
     <ContextMeter
       useProjection={projections(values)}
-      compact={compact}
+      {...compact === undefined ? {} : { compact }}
       busy={busy}
       t={translate}
     />,
