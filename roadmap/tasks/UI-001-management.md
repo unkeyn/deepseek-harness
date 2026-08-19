@@ -20,7 +20,7 @@ Completion record: —
 
 ## Scope
 
-- Pool and account list с redacted status.
+- Pool and account list со status.
 - Add, disable, reprioritize и remove operations.
 - Check one/check all с progress и итоговыми disposition counts.
 - Cooldown, quarantine, model exclusions и reauthenticate status.
@@ -36,7 +36,7 @@ Completion record: —
 
 ## Acceptance criteria
 
-- Secret inputs write-only; повторное открытие формы показывает configured state и пустое value field.
+- Credential inputs используют существующую write-only механику Host settings.
 - Batch health operation не удаляет entries до завершения pagination/check enumeration.
 - Partial failures остаются видимыми и повторяемыми.
 - UI обновляется от authoritative Host state и не делает optimistic secret lifecycle mutations.
@@ -47,7 +47,3 @@ Completion record: —
 - Client component tests для redaction, progress и partial failure.
 - Host API schema tests.
 - Browser e2e для add, disable, check, remove, OAuth sign-in mock и restart.
-
-## Security and privacy
-
-Connection/RPC methods, browser state, accessibility labels и analytics не содержат secret value или token fragments.

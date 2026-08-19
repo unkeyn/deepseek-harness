@@ -2,7 +2,7 @@
 // ContextMeter (composer trailing control): occupancy ring gating, the
 // click-open breakdown panel, and its close gestures.
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { en as commonEn, zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/index.ts'
@@ -10,6 +10,7 @@ import { ContextMeter, type ContextMeterProps } from '../src/client/skeleton/Con
 import css from '../src/client/skeleton/ContextMeter.module.css'
 import { en, zh } from '../src/client/locales.ts'
 
+beforeEach(() => { localStorage.clear() })
 afterEach(cleanup)
 
 // Mirrors the real lookup chain (conversation namespace, then common).
@@ -26,8 +27,20 @@ function projections(values: Record<string, unknown>): ContextMeterProps['usePro
   return (key: string) => values[key]
 }
 
-function meter(values: Record<string, unknown>, translate: ContextMeterProps['t'] = t) {
-  return render(<ContextMeter useProjection={projections(values)} t={translate} />)
+function meter(
+  values: Record<string, unknown>,
+  translate: ContextMeterProps['t'] = t,
+  compact?: ContextMeterProps['compact'],
+  busy = false,
+) {
+  return render(
+    <ContextMeter
+      useProjection={projections(values)}
+      compact={compact}
+      busy={busy}
+      t={translate}
+    />,
+  )
 }
 
 describe('ContextMeter', () => {
@@ -59,6 +72,44 @@ describe('ContextMeter', () => {
     expect(view.container.querySelector('[role="dialog"]')).toBeNull()
   })
 
+  it('persists the threshold, runs manual compact, and triggers once on an upward crossing', async () => {
+    const compact = vi.fn().mockResolvedValue(true)
+    const view = meter({ contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 } }, tEn, compact)
+    fireEvent.click(view.getByRole('button', { name: '25% of context used' }))
+    const slider = view.getByRole('slider', { name: 'Automatic compaction threshold' })
+    expect((slider as HTMLInputElement).value).toBe('80')
+    fireEvent.change(slider, { target: { value: '25' } })
+    expect(localStorage.getItem('dsh.compaction.threshold-percent')).toBe('25')
+    await vi.waitFor(() => { expect(compact).toHaveBeenCalledTimes(1) })
+    const manual = await view.findByRole('button', { name: 'Compact now' })
+    fireEvent.click(manual)
+    await vi.waitFor(() => { expect(compact).toHaveBeenCalledTimes(2) })
+  })
+
+  it('waits for idle before automatic compaction and never retries a busy command', async () => {
+    const compact = vi.fn().mockResolvedValue(true)
+    const view = meter(
+      { contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 } },
+      tEn,
+      compact,
+      true,
+    )
+    fireEvent.click(view.getByRole('button', { name: '25% of context used' }))
+    fireEvent.change(view.getByRole('slider', { name: 'Automatic compaction threshold' }), { target: { value: '25' } })
+    await Promise.resolve()
+    expect(compact).not.toHaveBeenCalled()
+    expect((view.getByRole('button', { name: 'Compact now' }) as HTMLButtonElement).disabled).toBe(true)
+
+    view.rerender(
+      <ContextMeter
+        useProjection={projections({ contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 } })}
+        compact={compact}
+        busy={false}
+        t={tEn}
+      />,
+    )
+    await vi.waitFor(() => { expect(compact).toHaveBeenCalledTimes(1) })
+  })
   it('lets each locale own the headline word order around the reading', () => {
     const values = {
       contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 },

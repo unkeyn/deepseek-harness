@@ -21,6 +21,7 @@ import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
 import type { ResolvedRetryPolicy, RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
+import type { ModelCatalog } from '@deepseek-ai/dsh-model-catalog'
 import { MODALITIES, resolveRouteModels, SUPPORTED_THINKING_FORMATS, THINKING_LEVELS } from './catalog.ts'
 import type {
   PiAiCompatProfile,
@@ -60,6 +61,9 @@ export type {
   PiAiReasoningEfforts,
   PiAiThinkingFormat,
 } from './catalog.ts'
+
+/** Configuration for one pi-ai provider route; the `providers` dict key IS the route. */
+export type PiAiReplayMode = 'native' | 'portable'
 
 /** Configuration for one pi-ai provider route; the `providers` dict key IS the route. */
 export interface PiAiProviderProfile {
@@ -136,13 +140,15 @@ export interface PiAiProviderProfile {
   websocketConnectTimeoutMs?: number
   /** Maximum provider idle time while one stream read is outstanding. */
   streamIdleTimeoutMs?: number
+  /** Whether assistant history keeps provider-native metadata across requests. */
+  replayMode?: PiAiReplayMode
   /** Provider-owned model-request retry policy; omission uses normal defaults. */
   retryPolicy?: RetryPolicyConfig
 }
 
 /** Validated profile with its route stamped and every adapter-owned default resolved. */
 export interface ResolvedPiAiProviderProfile
-  extends Omit<PiAiProviderProfile, 'apiKeyEnv' | 'retryPolicy' | 'models' | 'displayName'> {
+  extends Omit<PiAiProviderProfile, 'apiKeyEnv' | 'retryPolicy' | 'models' | 'displayName' | 'replayMode'> {
   /** Harness route key and the `Models` collection key (the configuration dict key). */
   provider: string
   /** Resolved display name for selectors and configuration surfaces. */
@@ -153,6 +159,8 @@ export interface ResolvedPiAiProviderProfile
   streamIdleTimeoutMs: number
   /** Immutable retry policy captured with this provider route. */
   retryPolicy: ResolvedRetryPolicy
+  /** Resolved assistant-history replay policy. */
+  replayMode: PiAiReplayMode
   /**
    * The pi-ai provider this route registers, built from the resolved models.
    * Construction happens here so an unserviceable protocol or an underspecified
@@ -248,6 +256,7 @@ const profile = z.object({
   timeoutMs: z.natural(),
   websocketConnectTimeoutMs: z.natural(),
   streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
+  replayMode: z.union(['native', 'portable']),
   retryPolicy: RetryPolicySchema,
 })
 
@@ -300,6 +309,7 @@ function rejectRemovedFields(provider: string, source: PiAiProviderProfile): voi
  */
 export function resolveProfiles(
   providers: Readonly<Record<string, PiAiProviderProfile>> | undefined,
+  catalog?: ModelCatalog,
 ): Map<string, ResolvedPiAiProviderProfile> {
   if (Array.isArray(providers)) {
     throw new Error('llm-pi-ai: providers is now a dict keyed by provider route, not an array of profiles')
@@ -336,7 +346,7 @@ export function resolveProfiles(
     // always shown route keys, and a catalog route must not silently rename
     // itself on every configuration surface just because it gained a profile.
     const displayName = source.displayName ?? provider
-    const catalog = resolveRouteModels({
+    const routeCatalog = resolveRouteModels({
       provider,
       ...source.api === undefined ? {} : { api: source.api },
       ...source.baseURL === undefined ? {} : { baseURL: source.baseURL },
@@ -346,24 +356,33 @@ export function resolveProfiles(
       defaultInput,
       defaultContextWindow: source.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
       defaultMaxTokens: source.defaultMaxTokens ?? DEFAULT_MAX_TOKENS,
+      ...catalog === undefined ? {} : { catalog },
     })
-    const { apiKeyEnv, retryPolicy, models: _models, displayName: _displayName, ...rest } = source
+    const {
+      apiKeyEnv,
+      retryPolicy,
+      replayMode,
+      models: _models,
+      displayName: _displayName,
+      ...rest
+    } = source
     resolved.set(provider, {
       ...rest,
       provider,
       displayName,
       ...apiKeyEnv === undefined ? {} : { apiKeyEnv: credentialRef(apiKeyEnv) },
       streamIdleTimeoutMs,
+      replayMode: replayMode ?? 'native',
       retryPolicy: resolveRetryPolicy(retryPolicy, `llm-pi-ai: provider "${provider}" retryPolicy`),
       ...rest.headers === undefined ? {} : { headers: { ...rest.headers } },
       ...rest.thinkingBudgets === undefined ? {} : { thinkingBudgets: { ...rest.thinkingBudgets } },
-      configuredMaxTokens: catalog.configuredMaxTokens,
+      configuredMaxTokens: routeCatalog.configuredMaxTokens,
       piProvider: buildProvider({
         provider,
         displayName,
         ...source.api === undefined ? {} : { api: source.api },
         ...source.baseURL === undefined ? {} : { baseURL: source.baseURL },
-        models: catalog.models,
+        models: routeCatalog.models,
         namesCredential: apiKeyEnv !== undefined,
       }),
     })

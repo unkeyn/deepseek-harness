@@ -121,9 +121,35 @@ describe('web e2e: whole-session stats survive history paging', () => {
     expect(await page.locator('[data-chat-flow-key^="9:turn-tail"]').count()).toBe(TURNS)
   }, 60_000)
 
+  it('centers the complete stats strip on the composer at a narrow viewport', async () => {
+    await page.setViewportSize({ width: 480, height: 800 })
+    const strip = page.getByLabel(new RegExp(FULL_COUNTS, 'u'))
+    const composer = page.locator('[data-composer-card]')
+    const geometry = await Promise.all([
+      strip.evaluate((element) => {
+        const groups = [...element.children].map(child => child.getBoundingClientRect())
+        const rect = element.getBoundingClientRect()
+        return {
+          center: rect.left + rect.width / 2,
+          rowCount: groups.length,
+          text: element.textContent,
+          visibleGroups: groups.every(group => group.left >= rect.left && group.right <= rect.right),
+        }
+      }),
+      composer.evaluate((element) => {
+        const rect = element.getBoundingClientRect()
+        return rect.left + rect.width / 2
+      }),
+    ])
+    expect(geometry[0].text).toContain(FULL_COUNTS)
+    expect(geometry[0].rowCount).toBeLessThanOrEqual(2)
+    expect(geometry[0].visibleGroups).toBe(true)
+    expect(Math.abs(geometry[0].center - geometry[1])).toBeLessThan(1)
+  })
   it('matches the paged-stats aria golden', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-stats-paged-aria'))
     const snapshot = (await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd))
+      .replace(/dsh-web-e2e-ws-[A-Za-z0-9]+/g, '{{workspace}}')
       .split(SEED_ID).join('{{seededId}}')
     await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
   })

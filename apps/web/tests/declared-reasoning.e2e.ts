@@ -1,6 +1,7 @@
-// Web e2e scenario: a hand-declared model's `reasoningEfforts` reaches the
-// composer's effort pane — the levels a settings profile declares are exactly
-// what the picker offers, and picking one records it with the Agent default.
+// Web e2e scenario: a hand-declared model's reasoning and input capabilities
+// reach the assembled application. The reasoning levels a settings profile
+// declares are exactly what the Composer offers, and image input is projected
+// without provider or model-name heuristics.
 // Zero model calls: declaring, describing, and switching are settings/llm
 // traffic only, so there is no fixture and a stray stream would fail loud.
 import { readFile } from 'node:fs/promises'
@@ -44,6 +45,7 @@ describe.skipIf(MODE === 'record')('web e2e: declared reasoning efforts reach th
             id: 'acme-think',
             name: 'Acme Think',
             reasoningEfforts: { off: null, high: 'high', max: 'ultra' },
+            input: ['text', 'image'],
           }],
         },
       },
@@ -61,7 +63,10 @@ describe.skipIf(MODE === 'record')('web e2e: declared reasoning efforts reach th
     await scaffold?.close()
   })
 
-  it('offers exactly the declared levels and records the picked one', async () => {
+  it('offers exactly the declared levels, projects image input, and records the picked effort', async () => {
+    await expect(scaffold.ctx.llm.resolveModelInfo('acme-gateway', 'acme-think')).resolves.toMatchObject({
+      inputModalities: ['text', 'image'],
+    })
     onTestFailed(() => saveFailureShot(page, 'web-e2e-declared-reasoning'))
     const trigger = page.getByRole('button', { name: /^选择模型/ })
     await trigger.waitFor({ timeout: 15_000 })

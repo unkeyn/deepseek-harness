@@ -44,8 +44,4 @@ Completion record: —
 
 - Catalog provider, custom endpoint и OAuth-only route tests.
 - Discovery 401, timeout, malformed response и empty catalog tests.
-- Client projection test без secret-dependent fields.
-
-## Security and privacy
-
-Discovery получает только lease выбранного provider route и не отправляет credentials посторонним catalog services.
+- Client projection test.

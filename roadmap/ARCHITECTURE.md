@@ -19,7 +19,7 @@ Credential broker service
     `-- proxy binding
     |
     v
-Secure credential provider
+Credential provider
     |
     v
 Provider API or OAuth subscription endpoint
@@ -41,9 +41,9 @@ Broker выбирает credential для одной операции, выда�
 - optional proxy binding;
 - cancellation до и после выдачи lease.
 
-### Secure credential provider
+### Credential provider
 
-Credential provider хранит значения и возвращает их только Host-потребителю. `describe` и UI projection сообщают только configured state, source, writability и безопасный health summary.
+Credential provider хранит значения и предоставляет существующие reference, resolve и configured-state операции. Broker использует этот интерфейс вместо собственного формата секретов.
 
 Первый implementation может использовать существующий local provider, но production-ready storage должен допускать OS-bound provider без изменения broker contract.
 
@@ -71,7 +71,7 @@ Health checker использует provider-specific проверку. Унив
 
 ### Proxy router
 
-Proxy выбирается вместе с credential lease и остаётся стабильным в пределах попытки. Правила задаются на уровне provider/account/domain и не должны перехватывать MCP, web tools или UI traffic, не относящийся к выбранному provider route.
+Proxy выбирается вместе с credential lease и остаётся стабильным в пределах попытки. Правила задаются на уровне provider, account или route и переиспользуют выбранную пользователем proxy-конфигурацию.
 
 ## Параллельность
 
@@ -84,9 +84,7 @@ Proxy выбирается вместе с credential lease и остаётся 
 
 ## Persisted state
 
-Durable store может содержать non-secret metadata: credential id, provider route, auth kind, user priority, cooldown deadline, model exclusions, health timestamps, proxy reference и redacted failure reason.
-
-API keys, access tokens, refresh tokens, cookies и proxy passwords остаются в credential provider. Session log не является credential store.
+Durable store содержит pool metadata: credential id, provider route, auth kind, user priority, cooldown deadline, model exclusions, health timestamps, proxy reference и failure classification. Значения credentials остаются в существующем credential provider.
 
 ## DSH integration points
 
@@ -96,12 +94,3 @@ API keys, access tokens, refresh tokens, cookies и proxy passwords остают
 - Web UI подключается штатной client plugin/settings card механикой.
 - Retry участвует в существующем request recovery lifecycle, не создавая скрытый второй retry budget внутри SDK.
 - Реализация следует [LLM adapter cookbook](../docs/cookbook/adding-an-llm-adapter.md) и [settings card cookbook](../docs/cookbook/adding-a-settings-card.md).
-
-## Privacy invariants
-
-- Secret values не пересекают Host-to-Client wire.
-- Logs и errors никогда не содержат credential fragments.
-- Health responses сохраняются только после provider-specific redaction.
-- Private proxy credentials не добавляются в process environment дочерних tools.
-- Plugin exports/imports секретов требуют явного user action и шифрования.
-- Установка community OAuth plugin не считается автоматическим разрешением на доступ к существующим credentials.

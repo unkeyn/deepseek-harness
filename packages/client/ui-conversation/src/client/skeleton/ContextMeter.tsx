@@ -33,17 +33,59 @@ const ROWS = [
 
 export interface ContextMeterProps {
   useProjection: UseProjection
+  /** Run the session's manual compaction command. */
+  compact?: () => Promise<boolean>
+  /** Whether a turn or manual compaction already owns the session. */
+  busy?: boolean
   /** The owning bar's locale seat, passed down as a plain prop. */
   t: ComposerBarProps['t']
 }
 
-export function ContextMeter({ useProjection, t }: ContextMeterProps) {
+const COMPACTION_THRESHOLD_KEY = 'dsh.compaction.threshold-percent'
+const DEFAULT_COMPACTION_THRESHOLD = 80
+
+function storedThreshold(): number {
+  if (typeof localStorage === 'undefined') return DEFAULT_COMPACTION_THRESHOLD
+  const value = Number(localStorage.getItem(COMPACTION_THRESHOLD_KEY))
+  return Number.isInteger(value) && value >= 25 && value <= 95 ? value : DEFAULT_COMPACTION_THRESHOLD
+}
+
+export function ContextMeter({ useProjection, compact, busy = false, t }: ContextMeterProps) {
   const pressure = useProjection('contextPressure')
   const breakdown = useProjection('contextBreakdown')
   const [open, setOpen] = useState(false)
+  const [threshold, setThreshold] = useState(storedThreshold)
+  const [compacting, setCompacting] = useState(false)
+  const [pendingAutoCompact, setPendingAutoCompact] = useState(false)
+  const autoArmed = useRef(true)
   const rootRef = useRef<HTMLSpanElement | null>(null)
   const context = contextOccupancy(pressure)
   const available = context !== null
+
+  const runCompact = (): void => {
+    if (compact === undefined || compacting || busy) return
+    setCompacting(true)
+    void compact().finally(() => { setCompacting(false) })
+  }
+
+  useEffect(() => {
+    if (context === null || compact === undefined) return
+    if (context.percent < threshold) {
+      autoArmed.current = true
+      setPendingAutoCompact(false)
+      return
+    }
+    if (!autoArmed.current) return
+    autoArmed.current = false
+    setPendingAutoCompact(true)
+  }, [compact, context?.percent, threshold])
+
+  useEffect(() => {
+    if (!pendingAutoCompact || compact === undefined || compacting || busy) return
+    setPendingAutoCompact(false)
+    setCompacting(true)
+    void compact().finally(() => { setCompacting(false) })
+  }, [busy, compact, compacting, pendingAutoCompact])
 
   // A model switch can temporarily remove capacity while this component stays
   // mounted. Close the now-unavailable panel instead of preserving stale UI.
@@ -132,6 +174,33 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
                 style={{ width: `${segment.width}%` }}
               />
             ))}
+          </div>
+          <div className={css.compactionControls}>
+            <label className={css.thresholdLabel}>
+              <span>{t('context.compactionThreshold')}</span>
+              <strong>{`${threshold}% · ~${formatTokens(Math.floor(context.contextWindow * threshold / 100))}`}</strong>
+              <input
+                type="range"
+                min="25"
+                max="95"
+                step="5"
+                value={threshold}
+                aria-label={t('context.compactionThreshold')}
+                onChange={(event) => {
+                  const value = Number(event.currentTarget.value)
+                  setThreshold(value)
+                  if (typeof localStorage !== 'undefined') localStorage.setItem(COMPACTION_THRESHOLD_KEY, String(value))
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className={css.compactButton}
+              disabled={compact === undefined || compacting || busy}
+              onClick={runCompact}
+            >
+              {t(compacting ? 'context.compacting' : 'context.compactNow')}
+            </button>
           </div>
           {breakdown !== undefined && (
             <dl className={css.rows}>

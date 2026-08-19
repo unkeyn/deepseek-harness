@@ -12,7 +12,7 @@ Image prompt admission and `session.selectModel` each read session modality stat
 
 Each live Web agent has one private promise chain shared by image-bearing prompt admission and model selection. A failed operation settles its caller normally and leaves the chain usable. Text-only prompts bypass the chain because they cannot change the modality constraint.
 
-The pending-publication set records a queued occurrence at dequeue and a steering occurrence already at enqueue (steering items never enter the queued UI mirror), and retains each until its matching `user/message` or `steering/message` event publishes. If admission ends without publishing, the transition to idle retires the entries; inbox discard retires the listed work, and session disposal retires every remaining entry. Model selection checks that set, the queued UI mirror, and `Session.deriveMessages()`, which is the current model-visible history after compaction.
+The pending-publication set records a queued occurrence at dequeue and a steering occurrence already at enqueue (steering items never enter the queued UI mirror), and retains each until its matching `user/message` or `steering/message` event publishes. If admission ends without publishing, the transition to idle retires the entries; inbox discard retires the listed work, and session disposal retires every remaining entry. Model selection checks only pending image work: an explicitly text-only target remains unavailable until that image prompt publishes or is discarded. Once the image is durable history, later text-only requests remain valid; `LlmRuntime` replaces historical image blocks with an explicit omission marker at the adapter boundary while leaving the session log and browser history unchanged.
 
 Provider adapters remain the final enforcement boundary. The host ordering only prevents its mutable route and pending image state from contradicting each other before request assembly.
 
@@ -26,4 +26,4 @@ Provider adapters remain the final enforcement boundary. The host ordering only 
 
 ## Consequences
 
-An image prompt and a concurrent model selection have deterministic order, and a text-only target cannot strand an image that has been admitted but not yet published. Selection may wait for an in-flight image admission, while unrelated prompts retain their existing concurrency. Compaction can make a text-only target valid once no pending or derived image remains.
+An image prompt and a concurrent model selection have deterministic order, and a text-only target cannot strand an image that has been admitted but not yet published. Selection may wait for in-flight image admission, while a later text-only model can continue the same session after the image turn has settled; it receives an omission marker instead of the historical image bytes.

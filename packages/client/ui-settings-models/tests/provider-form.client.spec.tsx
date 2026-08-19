@@ -31,6 +31,11 @@ const PiAiConfig = Schema.object({
       name: Schema.string(),
       contextWindow: Schema.number(),
       maxTokens: Schema.number(),
+      input: Schema.array(Schema.union(['text', 'image'])),
+      reasoningEfforts: Schema.union([
+        Schema.const(false),
+        Schema.dict(Schema.union([Schema.string(), Schema.const(null)])),
+      ]),
     })),
     reasoning: Schema.union(['off', 'high']),
   })),
@@ -211,6 +216,33 @@ describe('model list editing', () => {
       expectedRevision: 3,
       ops: [{ op: 'set', path: ['providers', 'openai', 'models'], value: [{ id: 'acme-large', contextWindow: 65_536 }] }],
     })
+  })
+
+  it('keeps catalog capabilities automatic and preserves hidden profile corrections', async () => {
+    const { mutate } = await mountSection({
+      providers: { openai: { models: [{
+        id: 'vision-reasoner',
+        reasoningEfforts: { low: 'low', high: 'high' },
+        input: ['text', 'image'],
+      }] } },
+    })
+    openEditor('openai')
+
+    const row = screen.getByLabelText(`${en.modelId} 1`).closest('[class*="modelEntry"]')
+    if (row === null) throw new Error('model row missing')
+    expect(row.querySelectorAll('select')).toHaveLength(0)
+    expect(row.textContent).not.toContain('Reasoning levels')
+    expect(row.textContent).not.toContain('Accepted input')
+
+    fireEvent.change(screen.getByLabelText(`${en.modelName} 1`), { target: { value: 'Vision Reasoner' } })
+    fireEvent.click(screen.getByText(en.apply))
+    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
+    expect(firstMutate(mutate).ops[0]?.value).toEqual([{
+      id: 'vision-reasoner',
+      name: 'Vision Reasoner',
+      reasoningEfforts: { low: 'low', high: 'high' },
+      input: ['text', 'image'],
+    }])
   })
 
   it('names a duplicate model id in the edit flow too', async () => {
@@ -698,7 +730,10 @@ describe('hand-declared providers', () => {
           apiKeyEnv: 'ACME_GATEWAY_API_KEY',
           api: 'openai-completions',
           baseURL: 'https://gateway.acme.example/v1',
-          models: [{ id: 'acme-large', contextWindow: 65_536 }],
+          models: [{
+            id: 'acme-large',
+            contextWindow: 65_536,
+          }],
         },
       }],
       // The section this card was drafted over: a route another tab declared

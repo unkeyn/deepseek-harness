@@ -132,6 +132,11 @@ export function ModelSelect(
     reload()
   }
 
+  const hasTextSelection = (): boolean => {
+    const selection = window.getSelection()
+    return selection !== null && !selection.isCollapsed && selection.toString().length > 0
+  }
+
   const close = (restoreFocus = false): void => {
     setOpen(false)
     setPane('root')
@@ -229,6 +234,7 @@ export function ModelSelect(
         title={triggerLabel}
         disabled={locked}
         onClick={() => {
+          if (hasTextSelection()) return
           if (open) {
             close()
           } else {

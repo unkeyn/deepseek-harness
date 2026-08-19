@@ -24,6 +24,7 @@
   line-height: 20px;
   font-weight: 500;
   cursor: pointer;
+  user-select: none;
 }
 
 .trigger:hover:not(:disabled) {

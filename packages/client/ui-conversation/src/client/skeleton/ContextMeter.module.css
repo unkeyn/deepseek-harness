@@ -124,6 +124,52 @@
   --meter-tint: var(--dsw-static-blue-450);
 }
 
+.compactionControls {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
+
+.thresholdLabel {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 8px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.thresholdLabel strong {
+  color: var(--dsw-alias-label-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.thresholdLabel input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--dsw-alias-state-business-primary);
+}
+
+.compactButton {
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.compactButton:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-active);
+}
+
+.compactButton:disabled {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: default;
+}
+
 .rows {
   margin: 6px 0 0;
 }

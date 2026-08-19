@@ -4,14 +4,13 @@
 
 | Milestone | Задачи | Результат | Статус |
 |---|---|---|---|
-| M0: Contracts | ARCH-001 | Утверждён capability contract и concurrency model | planned |
-| M1: API-key vertical slice | CRED-001, ROUTE-001 | Один provider route использует безопасный multi-key pool | planned |
+| M0: Contracts | ARCH-001 | Утверждён capability contract и concurrency model | in-progress |
+| M1: API-key vertical slice | CRED-001, ROUTE-001 | Один provider route использует multi-key pool | in-progress |
 | M2: Resilience | HEALTH-001 | Rotation, cooldown, quarantine и failover проверены | planned |
 | M3: Catalog | CATALOG-001 | Picker показывает только реально доступные provider models | planned |
-| M4: OAuth | OAUTH-001 | Один официальный OAuth flow работает через тот же broker | planned |
-| M5: Proxy routing | PROXY-001 | Account-bound proxy policy не затрагивает чужой traffic | planned |
-| M6: Operations | UI-001 | Web/CLI управляют pools без раскрытия секретов | planned |
-| M7: Hardening | HARDEN-001 | Security, concurrency, recovery и release checks пройдены | planned |
+| M4: OAuth | OAUTH-001 | OAuth account pools работают через тот же broker | planned |
+| M5: Proxy routing | PROXY-001 | Provider/account routes используют выбранные proxies | planned |
+| M6: Operations | UI-001 | Web/CLI управляют pools, accounts и routes | planned |
 
 ## Dependency graph
 
@@ -22,8 +21,6 @@ ARCH-001
   |                         |-- OAUTH-001
   |                         `-- PROXY-001
   `-------------------------------- UI-001
-
-All completed work ---------------- HARDEN-001
 ```
 
 ## Release slices
@@ -38,8 +35,8 @@ HEALTH-001 и CATALOG-001 завершены. Неработающий credentia
 
 ### Slice C: OAuth and proxy preview
 
-OAUTH-001 и PROXY-001 завершены для одного выбранного OAuth provider. Используются только собственные аккаунты и документированные provider flows.
+OAUTH-001 и PROXY-001 завершены для первых поддержанных provider adapters; архитектура допускает несколько аккаунтов на provider.
 
 ### Slice D: Team-ready release
 
-UI-001 и HARDEN-001 завершены. Есть upgrade notes, security review, recovery tests и понятная диагностика без секретов.
+UI-001 завершён. Есть upgrade notes, recovery tests и понятная диагностика pool/account state.

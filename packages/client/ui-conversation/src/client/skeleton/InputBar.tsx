@@ -24,6 +24,7 @@ import type {} from '@deepseek-ai/dsh-goal/client'
 // api-remotes import already places it in every client program.
 import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ComposerAttachment, ComposerBarProps } from '../contract/slots.ts'
+import type { ManualCompactionChatData } from '../contract/chat-nodes.ts'
 import { deriveDecorations } from '../input/decorations.ts'
 import type { DraftDecorations } from '../input/decorations.ts'
 import {
@@ -58,6 +59,11 @@ export function InputBar({
   const commandMenuOpen = useMenuLauncher(source => source === 'command')
   const promptError = useSession(s => s.promptError) ?? null
   const running = useSession(s => s.running) ?? false
+  const compacting = useSession(snapshot => snapshot.chat.nodes.values().some((node) => {
+    if (node.kind !== 'manual-compaction') return false
+    const data = node.data as ManualCompactionChatData
+    return data.command.outcome === null
+  })) ?? false
   const subagent = useSession(s => s.subagent) ?? null
   const removed = useSession(s => s.removed) ?? false
   // Plan mode swaps the textarea placeholder (the projection is the folded
@@ -770,7 +776,12 @@ export function InputBar({
           <div className={css.trailing}>
             {rightItems}
             {renderSlot('conversation.input.model', { locked: modelSeatLocked })}
-            <ContextMeter useProjection={useProjection} t={t} />
+            <ContextMeter
+              useProjection={useProjection}
+              {...command === undefined ? {} : { compact: () => command('/compact') }}
+              busy={running || compacting}
+              t={t}
+            />
             {interruptible && (
               <Tooltip label={t('input.stop')} side="top" delayMs={500}>
                 <button

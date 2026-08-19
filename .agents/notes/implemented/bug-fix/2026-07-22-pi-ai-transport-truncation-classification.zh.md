@@ -1,4 +1,4 @@
-# Agent Note: 从扁平化的消息文本中分类 pi-ai 传输层截断
+# Agent Note: 从扁平化的消息文本中分类 pi-ai 临时故障
 
 Status: implemented
 
@@ -6,7 +6,7 @@ Status: implemented
 
 ## 问题
 
-一次 TUI 运行的模型连接在流式输出中途断开，只浮现出一条 `terminated` 通知，而一个被截断的 Anthropic 响应则浮现出 `Anthropic stream ended before message_stop`。两者都是传输层截断——连接在提供方的终止 SSE（Server-Sent Events）事件之前就已断开——然而 `dsh-llm-pi-ai` 中的 `classifyPiAiError` 对两者都不匹配，最终落入兜底的 `PI_AI_ERROR`。由于 `PI_AI_ERROR` 不在 `llm-retry` 的 `DEFAULT_RETRYABLE_CODES`（`RATE_LIMIT`、`SERVER`、`TIMEOUT`、`TRANSPORT`）中，一次可恢复的断开被当作永久性失败处理，从未被重试。
+一次 TUI 运行的模型连接在流式输出中途断开，只浮现出一条 `terminated` 通知，而一个被截断的 Anthropic 响应则浮现出 `Anthropic stream ended before message_stop`。两者都是传输层截断——连接在提供方的终止 SSE（Server-Sent Events）事件之前就已断开——然而 `dsh-llm-pi-ai` 中的 `classifyPiAiError` 对两者都不匹配，最终落入兜底的 `PI_AI_ERROR`。一个轮换网关还会以 `Our servers are currently overloaded`，或包含 `type: upstream_unavailable` 的 HTTP 400 响应体，报告临时的内部供应商不可用；分类器把前者当成 `PI_AI_ERROR`，把后者当成 `INVALID_REQUEST`。由于这些 code 都不在 `llm-retry` 的 `DEFAULT_RETRYABLE_CODES`（`RATE_LIMIT`、`SERVER`、`TIMEOUT`、`TRANSPORT`）中，可恢复的故障被当作永久性失败处理，从未被重试。
 
 细节丢失发生在上游，且在适配器内无法恢复：pi-ai 在推送终止 `error` 事件之前，把捕获到的错误缩减为 `error.message`（`api/anthropic-messages.js`：`errorMessage = error instanceof Error ? error.message : JSON.stringify(error)`），丢弃了原始的 `Error` 及其 `cause` 链。undici 将可据以采取行动的 `SocketError` 放在 `cause` 上，却只交给 fetch 包装层一个裸的 `terminated`；pi-ai 只保留了这个词。pi-ai 的 `SimpleStreamOptions` 没有暴露任何 fetch/dispatcher/client 钩子，让我们能在细节被扁平化之前自行捕获 `cause`。
 
@@ -15,6 +15,7 @@ Status: implemented
 - `classifyPiAiError` 识别另外两种传输层措辞，并将两者都映射为 `TRANSPORT`：
   - 流式输出中途的套接字断开，呈现为裸的 `terminated`（undici）或 `Premature close`（Node 流层）；
   - 在终止事件之前被截断的流，每个 pi-ai 提供方各自抛出不同措辞（`Anthropic stream ended before message_stop`、`… before a terminal response event`、`… ended without a terminal event`、`Stream ended without finish_reason`），统一按 `stream ended before/without` 匹配。
+- 分类器会在通用 HTTP 400 匹配之前，把明确表示临时不可用的措辞（`upstream_unavailable` 和 `servers are currently overloaded`）映射为 `SERVER`。语义信号优先，因为轮换网关可能把上游供应商故障编码在一个看似永久性的状态码中。
 - 该分类器带有一条 `XXX(pi-ai upstream)` 注记，点名扁平化发生的位置并说明期望的修复方式：如果 pi-ai 有朝一日转发原始的 `Error` 或提供一个让我们捕获 `cause` 的钩子，就改为基于 `code`/`cause` 分类。在此之前分类仍是尽力而为的文本匹配。
 - `llm-pi-ai/README.md` 新增一条 Known-Limitations 条目，记录 pi-ai 会扁平化 cause 链，因此 harness code 是从消息文本中分类出来的。
 
@@ -30,6 +31,6 @@ Status: implemented
 
 ## 后果
 
-- 流式输出中途的传输层断开和终止前的流截断现在都携带 `TRANSPORT`，因此组合出的 `llm-retry` 策略会默认重试它们，而不是让该轮次失败。
+- 流式输出中途的传输层断开和终止前的流截断现在携带 `TRANSPORT`；明确的网关过载和上游不可用消息携带 `SERVER`。因此组合出的 `llm-retry` 策略会默认重试这些故障，而不是让该轮次失败。
 - 通知文本不变（`terminated` / `Anthropic stream ended before message_stop`）：cause 细节在适配器看到之前就已丢失，因此 `errorChain` 没有更多内容可渲染。只有被路由的 `code` 得到了改善。
 - 分类仍然依赖字符串匹配且依赖提供方的措辞：未来某个 pi-ai 版本若改写这些错误的措辞，就会静默回退到 `PI_AI_ERROR`，直到模式被更新。`XXX` 注记指向那个持久的修复方式（基于转发的 `code`/`cause` 路由）。

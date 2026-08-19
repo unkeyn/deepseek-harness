@@ -137,6 +137,14 @@ afterEach(() => {
 })
 
 describe('AppFrame', () => {
+  it('suppresses the browser context menu inside the application frame', () => {
+    const { frame } = mountFrame()
+    const child = frame.querySelector('[data-testid="center-content"]')!
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    expect(child.dispatchEvent(event)).toBe(false)
+    expect(event.defaultPrevented).toBe(true)
+  })
+
   it('renders three tracks from store state', () => {
     const { frame } = mountFrame()
     expect(tracks(frame)).toEqual([280, 0])

@@ -14,6 +14,7 @@
 
 import { builtinProviders, getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all'
 import type { BuiltinProvider } from '@earendil-works/pi-ai/providers/all'
+import type { ModelCatalog } from '@deepseek-ai/dsh-model-catalog'
 import type {
   Api,
   Model,
@@ -266,7 +267,10 @@ export interface RouteCatalogRequest {
   defaultMaxTokens: number
   /** Modalities for a model neither the entry nor the catalog declares. */
   defaultInput: Model<Api>['input']
+  /** Optional external reference catalog for custom provider routes. */
+  catalog?: ModelCatalog
 }
+
 
 /** Report a route the deployment cannot serve, naming the settings key at fault. */
 function invalid(provider: string, detail: string): never {
@@ -287,6 +291,32 @@ function sharedCatalogApi(defaults: ReadonlyMap<string, Model<Api>>): string | u
   return apis.size === 1 ? [...apis][0] : undefined
 }
 
+function referenceModel(catalog: ModelCatalog | undefined, id: string): Model<Api> | undefined {
+  const reference = catalog?.resolve(id)
+  if (reference === undefined) return undefined
+  const efforts = reference.thinking === undefined
+    ? undefined
+    : reference.thinking.efforts as readonly ModelThinkingLevel[]
+  const thinkingLevelMap: ThinkingLevelMap | undefined = efforts === undefined
+    ? undefined
+    : Object.fromEntries(THINKING_LEVELS.map(level => [level, efforts.includes(level) ? level : null]))
+  return {
+    id: reference.id,
+    name: reference.name,
+    api: 'openai-completions',
+    provider: 'catalog-reference',
+    baseUrl: '',
+    reasoning: reference.reasoning,
+    input: [...reference.input] as Model<Api>['input'],
+    cost: NO_COST,
+    contextWindow: reference.contextWindow ?? 262_144,
+    maxTokens: reference.maxTokens ?? 32_768,
+    ...reference.thinking === undefined ? {} : {
+      thinking: reference.thinking,
+      thinkingLevelMap: thinkingLevelMap ?? {},
+    },
+  } as Model<Api>
+}
 /** The reasoning fields one materialized model carries. */
 interface ModelReasoning {
   /** Whether the model reasons at all; `false` makes pi-ai ignore the map. */
@@ -493,7 +523,7 @@ export function resolveRouteModels(request: RouteCatalogRequest): RouteCatalog {
     if (entry.id.length === 0) invalid(provider, 'has a model with an empty id')
     if (seen.has(entry.id)) invalid(provider, `lists model "${entry.id}" more than once`)
     seen.add(entry.id)
-    const base = defaults.get(entry.id)
+    const base = defaults.get(entry.id) ?? referenceModel(request.catalog, entry.id)
     const api = request.api ?? base?.api ?? routeApi
     if (api === undefined) {
       invalid(provider, `model "${entry.id}" needs an api; the installed catalog does not describe it, so set the`

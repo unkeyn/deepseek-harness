@@ -16,6 +16,8 @@ import z from '@deepseek-ai/schemastery'
 import { assertUsableApiKey, LlmError, resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
 import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
+import { OAuthLifecycle } from '@deepseek-ai/dsh-credential-oauth'
+import type { ProviderOAuthAdapter } from '@deepseek-ai/dsh-credential-oauth'
 import { launchEnvironmentOf, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -26,7 +28,7 @@ import {
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   DeepSeekAdapter,
 } from './adapter.ts'
-import type { DeepSeekCatalogModel, DeepSeekConnectionOptions } from './adapter.ts'
+import type { DeepSeekAdapterOptions, DeepSeekCatalogModel, DeepSeekConnectionOptions } from './adapter.ts'
 
 export {
   DEFAULT_CONTEXT_WINDOW,
@@ -37,6 +39,24 @@ export {
 export type { DeepSeekAdapterOptions, DeepSeekCatalogModel, DeepSeekConnectionOptions } from './adapter.ts'
 export type { RequestDefaults } from './serialize.ts'
 export type * from './types.ts'
+
+export interface DeepSeekOAuthRequest {
+  /** Endpoint used by the composed DeepSeek route. */
+  readonly baseURL: string
+  /** Provider-specific request path when the OAuth transport needs it. */
+  readonly path: string
+}
+
+export interface DeepSeekOAuthAuthorization {
+  /** Authorization header value for the composed provider request. */
+  readonly authorization: string
+}
+
+export type DeepSeekOAuthProvider = ProviderOAuthAdapter<
+  DeepSeekOAuthRequest,
+  DeepSeekOAuthAuthorization,
+  unknown
+>
 
 export const name = 'llm-deepseek'
 export const inject = ['llm']
@@ -113,6 +133,44 @@ const BASE_URL_ENV = 'DEEPSEEK_BASE_URL'
  * newer key.
  */
 export type ResolvedDeepSeekOptions = DeepSeekConnectionOptions
+
+/** Options for composing one OAuth account into the DeepSeek provider route. */
+export interface DeepSeekOAuthAdapterOptions extends Omit<DeepSeekAdapterOptions, 'resolveApiKey'> {
+  /** Lifecycle owning the provider account and token refresh. */
+  readonly lifecycle: OAuthLifecycle
+  /** Account selected by the caller for this provider route. */
+  readonly accountId: string
+  /** Provider-owned callback and request semantics for the OAuth lifecycle. */
+  readonly provider: DeepSeekOAuthProvider
+}
+
+/**
+ * Compose provider-owned OAuth authorization with the existing DeepSeek adapter.
+ * The lifecycle resolves or refreshes the selected account for each request; the
+ * adapter continues to own DeepSeek serialization, SSE parsing, errors, and
+ * attribution headers.
+ * @param options - OAuth lifecycle, account, provider semantics, and adapter options.
+ * @returns a DeepSeek adapter using the selected OAuth account for authorization.
+ */
+export function createDeepSeekOAuthAdapter(options: DeepSeekOAuthAdapterOptions): DeepSeekAdapter {
+  const { lifecycle, accountId, provider, ...adapterOptions } = options
+  const oauth = lifecycle.adapter(provider)
+  return new DeepSeekAdapter({
+    ...adapterOptions,
+    resolveApiKey: async (connection) => {
+      const authorization = await oauth.authorization(accountId, { baseURL: connection.baseURL, path: '/chat/completions' })
+      const prefix = 'Bearer '
+      if (!authorization.authorization.startsWith(prefix)) {
+        throw new LlmError('llm-deepseek: OAuth provider returned an invalid authorization header', 'INVALID_CREDENTIAL')
+      }
+      return assertUsableApiKey(
+        authorization.authorization.slice(prefix.length),
+        'llm-deepseek',
+        `oauth_${accountId}`,
+      )
+    },
+  })
+}
 
 /** Resolve, validate, and detach the advisory model catalog. */
 function resolveModels(models: readonly DeepSeekCatalogModel[] | undefined): DeepSeekCatalogModel[] {

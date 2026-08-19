@@ -18,8 +18,7 @@ import type {
 import { Inbox, agentEvents, assembleContextFor } from '@deepseek-ai/dsh-agent'
 import type { GenerateOptions, LlmCallConfig, Message, PreparedLlmCall } from '@deepseek-ai/dsh-llm'
 import {
-  BlockAssembler,
-  LlmError,
+  BlockAssembler,  LlmError,
   createAssistantMessage,
   deepFreeze,
   errorChain,
@@ -478,7 +477,8 @@ export class ReactLoopAgent implements Agent {
     const previousContext = session.requestContext()
     if (previousContext?.provider !== requestContext.provider
       || previousContext.model !== requestContext.model
-      || previousContext.contextWindow !== requestContext.contextWindow) {
+      || previousContext.contextWindow !== requestContext.contextWindow
+    ) {
       session.append('request/context', requestContext)
     }
     signal.throwIfAborted()

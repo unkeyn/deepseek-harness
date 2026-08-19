@@ -1,8 +1,8 @@
 # HEALTH-001: Health classification, rotation and failover
 
-Status: planned
+Status: in-progress
 
-Owner: unassigned
+Owner: Codex
 
 Contributors: —
 
@@ -30,8 +30,6 @@ Completion record: —
 
 ## Не входит
 
-- Обход provider quotas.
-- Автоматическое удаление по generic 403, network error, timeout или 5xx.
 - Бесконечный retry.
 
 ## Acceptance criteria
@@ -49,7 +47,3 @@ Completion record: —
 - Fake-clock cooldown tests.
 - Multi-entry failover and exhaustion tests.
 - No-new-evidence/no-state-change test для ambiguous failures.
-
-## Security and privacy
-
-Provider response проходит redaction до persistence и UI; raw body не хранится как diagnostic convenience.

@@ -21,6 +21,7 @@ import type {
   StreamChunk,
 } from './types.ts'
 import { freezeMessage, type Message } from './message.ts'
+import type { ContentBlock } from './types.ts'
 import { resolveRetryPolicy } from './retry-policy.ts'
 import type { ResolvedRetryPolicy } from './retry-policy.ts'
 import type { ProviderRequestId } from './brand.ts'
@@ -159,6 +160,8 @@ export interface PreparedLlmCall {
   readonly retryPolicy: ResolvedRetryPolicy
   /** Detached context metadata resolved with the registration-bound call. */
   readonly context?: LlmModelContext
+  /** Exact-model input modalities captured with the registration-bound call. */
+  readonly inputModalities?: readonly ModelModality[]
   /** Config fields materialized by the captured adapter rather than proposed by the caller. */
   readonly adapterDefaults: LlmCallConfigAdapterDefaults
   /**
@@ -735,7 +738,7 @@ export class LlmRuntime extends Service {
     registration: AdapterRegistration,
     config: LlmCallConfig,
     signal?: AbortSignal,
-  ): Promise<{ config: LlmCallConfig; context?: LlmModelContext }> {
+  ): Promise<{ config: LlmCallConfig; context?: LlmModelContext; inputModalities?: readonly ModelModality[] }> {
     const info = await this.resolveModelInfoFor(registration, config.model, signal)
     const defaulted = config.maxTokens === undefined && info.defaultMaxTokens !== undefined
       ? { ...config, maxTokens: info.defaultMaxTokens }
@@ -765,6 +768,7 @@ export class LlmRuntime extends Service {
     return {
       config: resolvedConfig,
       ...info.context === undefined ? {} : { context: info.context },
+      ...info.inputModalities === undefined ? {} : { inputModalities: info.inputModalities },
     }
   }
 
@@ -783,6 +787,9 @@ export class LlmRuntime extends Service {
     const context = resolved.context === undefined
       ? undefined
       : deepFreeze(structuredClone(resolved.context))
+    const inputModalities = resolved.inputModalities === undefined
+      ? undefined
+      : deepFreeze([...resolved.inputModalities])
     const adapterDefaults = deepFreeze<LlmCallConfigAdapterDefaults>({
       ...config.reasoningEffort === undefined && resolvedConfig.reasoningEffort !== undefined
         ? { reasoningEffort: true }
@@ -797,6 +804,7 @@ export class LlmRuntime extends Service {
       retryPolicy: registration.retryPolicy,
       adapterDefaults,
       ...context === undefined ? {} : { context },
+      ...inputModalities === undefined ? {} : { inputModalities },
       stream: (options: GenerateOptions): AsyncIterable<StreamChunk> => {
         if (dispatched) {
           throw new LlmError('a prepared LLM call can only be dispatched once', 'INVALID_PREPARED_CALL')
@@ -808,7 +816,11 @@ export class LlmRuntime extends Service {
           )
         }
         dispatched = true
-        return this.streamWithRegistration(options, { registration, config: resolvedConfig })
+        return this.streamWithRegistration(options, {
+          registration,
+          config: resolvedConfig,
+          ...inputModalities === undefined ? {} : { inputModalities },
+        })
       },
     })
   }
@@ -820,17 +832,28 @@ export class LlmRuntime extends Service {
   }
 
   /** Remove replay state whose historical route is owned by another adapter. */
-  private forAdapter(options: GenerateOptions, adapter: LlmAdapter): GenerateOptions {
+  /** Remove replay state and unsupported historical images before adapter dispatch. */
+  private forAdapter(options: GenerateOptions, adapter: LlmAdapter, acceptsImages: boolean): GenerateOptions {
+    let changed = false
+    const projectContent = (content: readonly ContentBlock[]): ContentBlock[] => content.flatMap((block) => {
+      if (block.type === 'image') {
+        changed = true
+        return [{ type: 'text' as const, text: '[Image omitted: selected model does not support image input.]' }]
+      }
+      if (block.type !== 'tool-result' || acceptsImages) return [block]
+      const nested = projectContent(block.content)
+      return nested.every((item, index) => item === block.content[index]) ? [block] : [{ ...block, content: nested }]
+    })
     const messages: Message[] = options.messages.map((message) => {
       const source = message.source
-      if (message.role !== 'assistant' || source.kind !== 'model' || source.replayState === undefined) return message
-      if (this.adapters.get(source.provider)?.adapter === adapter) return message
-      return freezeMessage({
-        ...message,
-        source: { kind: 'model', provider: source.provider, model: source.model },
-      })
+      const replay = message.role === 'assistant' && source.kind === 'model' && source.replayState !== undefined
+        && this.adapters.get(source.provider)?.adapter !== adapter
+      const content = acceptsImages ? message.content : projectContent(message.content)
+      if (!replay && content.every((block, index) => block === message.content[index])) return message
+      changed = true
+      return freezeMessage({ ...message, content, ...replay ? { source: { kind: 'model', provider: source.provider, model: source.model } } : {} })
     })
-    if (messages.every((message, index) => message === options.messages[index])) return options
+    if (!changed) return options
     const filtered = { ...options, messages }
     return Object.isFrozen(options) ? deepFreeze(filtered) : filtered
   }
@@ -842,14 +865,15 @@ export class LlmRuntime extends Service {
    */
   private async * adapterStream(
     options: GenerateOptions,
-    prepared?: { registration: AdapterRegistration; config: LlmCallConfig },
+    prepared?: { registration: AdapterRegistration; config: LlmCallConfig; inputModalities?: readonly ModelModality[] },
   ): AsyncGenerator<StreamChunk> {
     let iterator: AsyncIterator<StreamChunk>
     try {
       const registration = prepared?.registration ?? this.registration(options.provider)
-      const resolvedConfig = prepared === undefined
-        ? (await this.resolveCallFor(registration, options, options.signal)).config
-        : prepared.config
+      const resolved = prepared === undefined
+        ? await this.resolveCallFor(registration, options, options.signal)
+        : prepared
+      const resolvedConfig = resolved.config
       if (prepared !== undefined && !callConfigEquals(options, resolvedConfig)) {
         throw new LlmError(
           'prepared LLM call config changed before adapter dispatch',
@@ -862,7 +886,7 @@ export class LlmRuntime extends Service {
           ? deepFreeze({ ...options, ...resolvedConfig })
           : { ...options, ...resolvedConfig }
       const adapter = registration.adapter
-      const stream = adapter.stream(this.forAdapter(resolvedOptions, adapter))
+      const stream = adapter.stream(this.forAdapter(resolvedOptions, adapter, resolved.inputModalities?.includes('image') !== false))
       iterator = stream[Symbol.asyncIterator]()
     } catch (error: unknown) {
       yield adapterFailureChunk(error, options.signal)
@@ -916,7 +940,7 @@ export class LlmRuntime extends Service {
 
   private streamWithRegistration(
     options: GenerateOptions,
-    prepared?: { registration: AdapterRegistration; config: LlmCallConfig },
+    prepared?: { registration: AdapterRegistration; config: LlmCallConfig; inputModalities?: readonly ModelModality[] },
   ): AsyncIterable<StreamChunk> {
     return this.ctx.waterfall(
       this,

@@ -26,7 +26,6 @@ Roadmap оптимизирован для нескольких разработ�
 - dependencies;
 - acceptance criteria;
 - verification commands или сценарии;
-- security/privacy considerations;
 - ссылка на owning Agent Note после его создания.
 
 ## Definition of Done
@@ -36,7 +35,6 @@ Roadmap оптимизирован для нескольких разработ�
 - acceptance criteria подтверждены;
 - добавлены contract-level tests для нового поведения;
 - обновлены package README, subsystem docs и Agent Note там, где этого требуют правила репозитория;
-- секреты не появляются в UI, RPC, logs, snapshots и session events;
 - выполнены релевантные package tests, typecheck, lint/doc gates и assembled snapshot согласно области изменения;
 - reviewer подтвердил cancellation, partial failure и restart behavior;
 - task card получает `Status: done` и ссылку на запись в [done/](done/README.md);

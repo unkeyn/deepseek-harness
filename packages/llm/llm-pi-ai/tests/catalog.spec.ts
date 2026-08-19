@@ -6,6 +6,7 @@ import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
+import ModelCatalog from '@deepseek-ai/dsh-model-catalog'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
@@ -67,13 +68,30 @@ function gateway(baseURL: string, overrides: Record<string, unknown> = {}): LlmP
   }
 }
 
-async function harness(config: LlmPiAi.Config): Promise<Context> {
+async function harness(config: LlmPiAi.Config, withCatalog = false): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(LlmRuntime)
+  if (withCatalog) await ctx.plugin(ModelCatalog)
   await ctx.plugin(LlmPiAi, config)
   return ctx
 }
 
+describe('external model capability catalog', () => {
+  it('projects reasoning and image input onto a custom route by model identity', async () => {
+    const ctx = await harness({ providers: { gateway: {
+      apiKeyEnv: KEY_ENV,
+      api: 'openai-completions',
+      baseURL: 'https://gateway.example/v1',
+      models: [{ id: 'gpt-5.6-sol' }],
+    } } }, true)
+    await expect(ctx.llm.resolveModelInfo('gateway', 'gpt-5.6-sol')).resolves.toMatchObject({
+      inputModalities: ['text', 'image'],
+      reasoning: { efforts: [
+        { id: 'low' }, { id: 'medium' }, { id: 'high' }, { id: 'xhigh' }, { id: 'max' },
+      ] },
+    })
+  })
+})
 describe('hand-declared providers', () => {
   it('serves a route pi-ai has never heard of from its own declaration', async () => {
     const server = await mockServer([{ events: textEvents }])

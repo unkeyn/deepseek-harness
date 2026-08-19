@@ -7,12 +7,13 @@ import type {
   SaveImageAttachment,
   StoredImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
-import LlmRuntime, { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, ReasoningEffortId, userAgent } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createMessage, createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, ReasoningEffortId, userAgent } from '@deepseek-ai/dsh-llm'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import { resolveProfiles } from '../src/config.ts'
+import { toPiReplayState } from '../src/replay.ts'
 import { assemble } from './assemble.ts'
 import { closeMockServers, mockServer, textEvents } from './mock-server.ts'
 
@@ -196,6 +197,86 @@ describe('PiAiAdapter provider routing', () => {
     const result = await assemble(ctx, { provider: 'openai', model: 'gpt-4.1', messages: [] })
     expect(result.finish.kind).toBe('error')
     expect(server.paths).toEqual(['/v1/responses'])
+  })
+
+  it('omits output-only status fields from replayed Responses input', async () => {
+    const server = await mockServer([{ status: 401, body: JSON.stringify({ error: { message: 'inspect request' } }) }])
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlmPiAi, {
+      providers: { openai: { apiKeyEnv: 'PI_TEST_KEY', baseURL: `${server.url}/v1` } },
+    })
+
+    await assemble(ctx, {
+      provider: 'openai',
+      model: 'gpt-4.1',
+      messages: [createMessage({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'previous answer' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      })],
+    })
+
+    const request = server.requests[0] as { input?: unknown[] } | undefined
+    expect(request?.input).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'message', role: 'assistant' }),
+    ]))
+    expect(request?.input?.some(item => typeof item === 'object' && item !== null && 'status' in item)).toBe(false)
+  })
+
+  it('sends portable replay history without supplier-native response metadata', async () => {
+    const server = await mockServer([{ status: 401, body: JSON.stringify({ error: { message: 'inspect request' } }) }])
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlmPiAi, {
+      providers: {
+        openai: {
+          apiKeyEnv: 'PI_TEST_KEY',
+          baseURL: `${server.url}/v1`,
+          replayMode: 'portable',
+        },
+      },
+    })
+
+    const replayState = toPiReplayState({
+      role: 'assistant',
+      api: 'openai-responses',
+      provider: 'openai',
+      model: 'gpt-4.1',
+      responseId: 'resp_supplier_a',
+      content: [
+        { type: 'thinking', thinking: 'private', thinkingSignature: 'signature_supplier_a' },
+        { type: 'text', text: 'previous', textSignature: 'text_signature_supplier_a' },
+      ],
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: 'stop',
+      timestamp: 0,
+    })
+    await assemble(ctx, {
+      provider: 'openai',
+      model: 'gpt-4.1',
+      messages: [createMessage({
+        role: 'assistant',
+        content: [
+          { type: 'reasoning', text: 'private' },
+          { type: 'text', text: 'previous' },
+        ],
+        source: { kind: 'model', provider: 'openai', model: 'gpt-4.1', replayState },
+      })],
+    })
+
+    const request = server.requests[0]
+    const body = JSON.stringify(request)
+    expect(body).not.toContain('resp_supplier_a')
+    expect(body).not.toContain('signature_supplier_a')
+    expect(body).not.toContain('text_signature_supplier_a')
   })
 
   it('resolves an attachment service mounted after the adapter when dispatching an image', async () => {

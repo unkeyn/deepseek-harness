@@ -45,9 +45,30 @@ function state(overrides: Partial<ModelDirectoryState> = {}): ModelDirectoryStat
   }
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
 describe('ModelSelect reasoning effort', () => {
+  it('does not open the model menu when a click finishes a text selection', () => {
+    const selection = {
+      isCollapsed: false,
+      toString: () => 'selected transcript text',
+    } as Selection
+    vi.spyOn(window, 'getSelection').mockReturnValue(selection)
+    render(<ModelSelect
+      locked={false}
+      available
+      directory={createSnapshotStore(state())}
+      load={vi.fn()}
+      select={vi.fn().mockResolvedValue(true)}
+      t={t}
+    />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^选择模型/ }))
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
   it('renders adapter metadata and submits the effort as part of the session selection', async () => {
     const directory = createSnapshotStore<ModelDirectoryState>(state())
     const select = vi.fn(async (selection: ModelSelection) => {

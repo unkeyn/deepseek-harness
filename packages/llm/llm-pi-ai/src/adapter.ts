@@ -104,6 +104,31 @@ function profileOptions(
 }
 
 /**
+ * Remove output-only status fields from Responses input items.
+ *
+ * Some OpenAI-compatible gateways validate the input union more narrowly than
+ * OpenAI and reject the optional `status` that pi-ai adds when replaying an
+ * assistant message. The field is not needed to reconstruct the conversation;
+ * the durable Harness message remains unchanged.
+ * @param payload - provider payload assembled by pi-ai.
+ * @returns a payload without top-level input-item statuses, or undefined when
+ * no rewrite is needed.
+ */
+function stripResponsesInputStatuses(payload: unknown): unknown | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined
+  const record = payload as Record<string, unknown>
+  if (!Array.isArray(record.input)) return undefined
+  let changed = false
+  const input = record.input.map((item) => {
+    if (typeof item !== 'object' || item === null || !('status' in item)) return item
+    const { status: _status, ...withoutStatus } = item as Record<string, unknown>
+    changed = true
+    return withoutStatus
+  })
+  return changed ? { ...record, input } : undefined
+}
+
+/**
  * The profile default this exact model can actually take, for DESCRIBING it.
  * A configured level the model does not support yields none rather than
  * throwing: `resolveModel` builds the model catalog, and a catalog that fails
@@ -316,14 +341,15 @@ export class PiAiAdapter extends LlmAdapter {
         this.config.onReplayDegrade?.({ provider: options.provider, model: options.model, reason })
       }
       const context = attachments === undefined
-        ? toPiContext(options, undefined, onReplayDegrade)
-        : await toPiContext(options, attachments, onReplayDegrade)
+        ? toPiContext(options, undefined, onReplayDegrade, profile.replayMode)
+        : await toPiContext(options, attachments, onReplayDegrade, profile.replayMode)
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
         ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },
         signal: watchdog.signal,
+        ...model.api === 'openai-responses' ? { onPayload: stripResponsesInputStatuses } : {},
         // Profile headers are deployment-owned; attribution names are
         // Harness-owned and therefore win collisions.
         headers: requestHeaders(profile.headers),

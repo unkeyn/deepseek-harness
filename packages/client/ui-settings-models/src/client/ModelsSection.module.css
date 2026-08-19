@@ -457,14 +457,22 @@
 .modelEntry {
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
-  padding: 6px;
+  padding: 3px;
 }
 
 .modelRow {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+}
+
+.modelRow .input {
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 18px;
 }
 
 /* Square, label-free affordances: the row's own inputs carry the meaning, so
@@ -474,8 +482,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border: none;
   border-radius: 6px;
   background: transparent;

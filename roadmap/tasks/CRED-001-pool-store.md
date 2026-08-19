@@ -1,8 +1,8 @@
-# CRED-001: Secure pool metadata and secret storage
+# CRED-001: Pool metadata and credential storage
 
-Status: planned
+Status: in-progress
 
-Owner: unassigned
+Owner: Codex
 
 Contributors: —
 
@@ -10,7 +10,7 @@ Milestone: M1
 
 Dependencies: ARCH-001
 
-Agent Note: required before implementation
+Agent Note: [credential pool durable snapshot](../../.agents/notes/implemented/architecture/2026-03-08-credential-pool-durable-snapshot.md)
 
 Completion record: —
 
@@ -22,7 +22,7 @@ Completion record: —
 
 - CRUD для pools и entries.
 - User priority, enabled state, auth kind и provider route.
-- Durable cooldown, quarantine, model exclusions и safe health summary.
+- Durable cooldown, quarantine, model exclusions и health summary.
 - Atomic writes, cross-process coordination и restart recovery.
 - Migration-ready versioning.
 - Поддержка local credential provider и будущего OS-bound provider.
@@ -39,14 +39,10 @@ Completion record: —
 - Удаление metadata не оставляет page-owned secret без явного retention decision.
 - Partial write не создаёт entry без secret reference или secret без owner metadata.
 - Store восстанавливается после restart и отклоняет повреждённый format без тихой потери entries.
-- Client-safe projection не содержит credential value, token fragment или proxy password.
+- UI projection использует configured state и credential references существующего Host API.
 
 ## Verification
 
 - Persistence, atomicity, concurrent writer и restart tests.
 - Local credential provider integration test.
-- Redaction snapshot для Host-to-Client projection.
-
-## Security and privacy
-
-Plaintext metadata не содержит секретов. Export/import не входит в первый slice и не добавляется без отдельной threat model.
+- Host-to-Client projection test.

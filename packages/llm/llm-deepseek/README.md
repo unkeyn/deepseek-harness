@@ -108,6 +108,7 @@ Loop-retained response blocks append to the next request and preserve its earlie
 
 ## Known Limitations and Deferred Work
 
+- **OAuth route composition is programmatic only** — `createDeepSeekOAuthAdapter` composes a caller-owned `OAuthLifecycle` and provider-owned `ProviderOAuthAdapter` with the DeepSeek route. The Loader cannot configure this yet because no DeepSeek OAuth callback/refresh provider or account-to-credential-broker mapping exists; adding a Loader row without those owners would not create a usable OAuth route.
 - **A settings `models` list replaces the composition list wholesale** — settings-layer merging is per-field, and arrays are one field; per-entry catalog merging would need a keyed shape.
 - **`tool_choice` is not mapped** — not part of the core vocabulary (MVP cut, shared with the pi-ai twin).
 - **Requests use raw `fetch`, not `@cordisjs/plugin-http`** — no shared proxy/interception configuration; adoption is deferred until a second adapter wants it (`TODO(http)`).

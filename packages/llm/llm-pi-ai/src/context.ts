@@ -8,6 +8,7 @@ import { CallId, contentHasImage, LlmError } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type { Context as PiContext, ImageContent, Message as PiMessage, TextContent, Tool as PiTool } from '@earendil-works/pi-ai'
+import type { PiAiReplayMode } from './config.ts'
 import { toPiAssistant } from './replay.ts'
 
 /** Join the text blocks of a harness message. */
@@ -84,7 +85,11 @@ function piContext(options: GenerateOptions, messages: PiMessage[]): PiContext {
   }
 }
 
-function textOnlyContext(options: GenerateOptions, onReplayDegrade?: (reason: string) => void): PiContext {
+function textOnlyContext(
+  options: GenerateOptions,
+  onReplayDegrade: ((reason: string) => void) | undefined,
+  replayMode: PiAiReplayMode,
+): PiContext {
   const toolNames = new Map<CallId, string>()
   const messages: PiMessage[] = []
   for (const message of options.messages) {
@@ -96,7 +101,7 @@ function textOnlyContext(options: GenerateOptions, onReplayDegrade?: (reason: st
       continue
     }
     if (message.role === 'assistant') {
-      const assistant = toPiAssistant(message, onReplayDegrade)
+      const assistant = toPiAssistant(message, replayMode, onReplayDegrade)
       for (const block of assistant.content) if (block.type === 'toolCall') toolNames.set(CallId(block.id), block.name)
       messages.push(assistant)
       continue
@@ -127,12 +132,14 @@ function textOnlyContext(options: GenerateOptions, onReplayDegrade?: (reason: st
  * @param options - the harness request; `options.system` maps to pi-ai's single `systemPrompt` slot.
  * @param attachments - absent; selects the synchronous conversion.
  * @param onReplayDegrade - forwarded to {@link toPiAssistant} for each assistant message.
+ * @param replayMode - assistant-history replay policy for this route.
  * @returns the pi-ai context; `tools` is omitted when the request declares none.
  */
 export function toPiContext(
   options: GenerateOptions,
   attachments?: undefined,
   onReplayDegrade?: (reason: string) => void,
+  replayMode?: PiAiReplayMode,
 ): PiContext
 /**
  * Convert harness history to a pi-ai Context while resolving durable images.
@@ -140,27 +147,31 @@ export function toPiContext(
  * @param options - the harness request; `options.system` maps to pi-ai's single `systemPrompt` slot.
  * @param attachments - durable byte resolver for image references.
  * @param onReplayDegrade - forwarded to {@link toPiAssistant} for each assistant message.
+ * @param replayMode - assistant-history replay policy for this route.
  * @returns the asynchronously resolved pi-ai context.
  */
 export function toPiContext(
   options: GenerateOptions,
   attachments: AttachmentStore,
   onReplayDegrade?: (reason: string) => void,
+  replayMode?: PiAiReplayMode,
 ): Promise<PiContext>
 export function toPiContext(
   options: GenerateOptions,
   attachments?: AttachmentStore,
   onReplayDegrade?: (reason: string) => void,
+  replayMode: PiAiReplayMode = 'native',
 ): PiContext | Promise<PiContext> {
   return attachments === undefined
-    ? textOnlyContext(options, onReplayDegrade)
-    : toPiContextWithImages(options, attachments, onReplayDegrade)
+    ? textOnlyContext(options, onReplayDegrade, replayMode)
+    : toPiContextWithImages(options, attachments, onReplayDegrade, replayMode)
 }
 
 async function toPiContextWithImages(
   options: GenerateOptions,
   attachments: AttachmentStore,
   onReplayDegrade?: (reason: string) => void,
+  replayMode: PiAiReplayMode = 'native',
 ): Promise<PiContext> {
   const toolNames = new Map<CallId, string>()
   const messages: PiMessage[] = []
@@ -177,7 +188,7 @@ async function toPiContextWithImages(
       continue
     }
     if (message.role === 'assistant') {
-      const assistant = toPiAssistant(message, onReplayDegrade)
+      const assistant = toPiAssistant(message, replayMode, onReplayDegrade)
       for (const block of assistant.content) {
         if (block.type === 'toolCall') toolNames.set(CallId(block.id), block.name)
       }

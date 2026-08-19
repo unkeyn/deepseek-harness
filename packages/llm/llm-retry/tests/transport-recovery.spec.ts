@@ -32,7 +32,7 @@ async function start(
 
 async function harness(
   baseURL: string,
-  options: { streamIdleTimeoutMs?: number; initialDelayMs?: number } = {},
+  options: { streamIdleTimeoutMs?: number; initialDelayMs?: number; maxRetries?: number } = {},
 ): Promise<Context> {
   vi.stubEnv('DEEPSEEK_API_KEY', 'mock-key')
   const ctx = new Context()
@@ -42,7 +42,7 @@ async function harness(
     streamIdleTimeoutMs: options.streamIdleTimeoutMs ?? 1_000,
     retryPolicy: {
       mode: 'normal',
-      maxRetries: 2,
+      maxRetries: options.maxRetries ?? 2,
       backoff: {
         initialDelayMs: options.initialDelayMs ?? 10,
         maxDelayMs: options.initialDelayMs ?? 10,
@@ -218,6 +218,29 @@ describe('bounded retry through the real DeepSeek HTTP/SSE adapter', () => {
     expect(finalAssistantText(agent)).toBe('recovered after timeout')
   }, 10_000)
 
+  it('keeps one turn running through three retries and succeeds on the fourth request', async () => {
+    const server = await start(['connection_reset', 'connection_reset', 'connection_reset', 'success'], {
+      apiKey: 'mock-key',
+      successText: 'recovered after credential-sized budget',
+    })
+    context = await harness(server.baseURL, { maxRetries: 3 })
+    const agent = context.agentLoop.create(SessionId('wire-retry-past-two'), {
+      provider: 'deepseek-official',
+      model: 'mock-model',
+    })
+
+    await sendAndWait(context, agent)
+
+    expect(server.requests).toHaveLength(4)
+    expect(agent.session.events.filter(event => event.type === 'llm/retry').map(event => event.data.retry))
+      .toEqual([1, 2, 3])
+    expect(agent.session.events.filter(event => event.type === 'step/start')).toHaveLength(1)
+    expect(agent.session.events.at(-1)).toMatchObject({
+      type: 'turn/end',
+      data: { reason: { kind: 'completed' } },
+    })
+    expect(finalAssistantText(agent)).toBe('recovered after credential-sized budget')
+  })
   it('stops after the configured transport retry budget is exhausted', async () => {
     const server = await start(['connection_reset', 'connection_reset', 'connection_reset'], {
       apiKey: 'mock-key',

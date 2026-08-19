@@ -92,6 +92,9 @@
     # Supplying those profiles is exactly what the web Models page does. Which
     # adapters exist is composition; which providers run is the user's settings
     # document.
+    - id: model-catalog
+      name: '@deepseek-ai/dsh-model-catalog'
+
     - id: llm-pi-ai
       name: '@deepseek-ai/dsh-llm-pi-ai'
 

@@ -1,8 +1,8 @@
 # ARCH-001: Credential broker capability contract
 
-Status: planned
+Status: in-progress
 
-Owner: unassigned
+Owner: Codex
 
 Contributors: —
 
@@ -10,7 +10,7 @@ Milestone: M0
 
 Dependencies: —
 
-Agent Note: required before implementation
+Agent Note: [credential broker owns request leases](../../.agents/notes/implemented/architecture/2026-03-08-credential-broker-request-leases.md)
 
 Completion record: —
 
@@ -25,7 +25,7 @@ Completion record: —
 - Request context: provider, model, session/agent, purpose и cancellation.
 - Lease lifecycle и exactly-once completion.
 - Durable и ephemeral state ownership.
-- Failure disposition и redacted diagnostics.
+- Failure disposition и diagnostics.
 - Cordis registration, dependency и disposal semantics.
 
 ## Не входит
@@ -39,7 +39,6 @@ Completion record: —
 - Agent Note сравнивает отдельный broker seam, расширение `ctx.credentials` и adapter-local pools.
 - Контракт допускает параллельные сессии без глобальной подмены credential.
 - Cancellation, timeout, retry и process disposal имеют однозначные transitions.
-- Secrets отсутствуют во всех public types и events.
 - Package topology и owning subsystem согласованы до начала CRED-001 и ROUTE-001.
 
 ## Verification
@@ -47,10 +46,6 @@ Completion record: —
 - Type-level package boundary checks.
 - Lifecycle tests для acquire, complete, cancel и disposal.
 - Composition test с заменяемым Provider implementation.
-
-## Security and privacy
-
-Service methods принимают opaque refs и возвращают opaque lease handles; resolved secret доступен только trusted Host consumer на минимально необходимое время.
 
 ## Open questions
 

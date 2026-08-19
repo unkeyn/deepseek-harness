@@ -108,6 +108,7 @@ loop 保留的响应块会追加到下一个请求，并保留其较早可复用
 
 ## 已知限制与暂缓事项
 
+- **OAuth 路由组合目前仅支持编程方式**：`createDeepSeekOAuthAdapter` 将调用方拥有的 `OAuthLifecycle` 和提供方拥有的 `ProviderOAuthAdapter` 组合到 DeepSeek 路由。Loader 目前无法配置它，因为还没有 DeepSeek OAuth 回调／刷新提供方，也没有账户到 credential broker 的映射；缺少这些所有者时增加 Loader 条目不会产生可用的 OAuth 路由。
 - **settings 的 `models` 列表会整体替换组合列表**：settings 层按字段合并，而数组是单个字段；按条目合并 catalog 需要带键的形状。
 - **未映射 `tool_choice`**：它不属于核心词汇（MVP 取舍，与 pi-ai twin 共享）。
 - **请求使用原始 `fetch`，而非 `@cordisjs/plugin-http`**：没有共享 proxy／拦截配置；采用暂缓到第二个适配器需要该功能时（`TODO(http)`）。
