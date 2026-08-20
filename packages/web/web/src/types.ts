@@ -7,21 +7,29 @@
 
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 
+/** Search intent used for task-specific provider routes. */
+export type WebSearchTask = 'general' | 'research' | 'news' | 'code' | 'academic'
+
+/** Provider metadata used by routing editors without exposing credentials. */
+export interface WebSearchProviderMetadata {
+  readonly label: string
+  readonly settingsNs?: string
+  readonly credentialRef?: string
+  readonly tasks: readonly WebSearchTask[]
+}
+
 /**
- * What one search-capable backend can return. The model-facing argument is just
- * a query; `maxResults` is a `dsh-tool-web`-layer bound passed through unchanged
- * and enforced on the way back by the seam (see {@link WebSearchResult}).
+ * What one search-capable backend is asked to search. Each request carries one
+ * query; a consumer may issue several requests. `maxResults` is a
+ * `dsh-tool-web`-layer bound passed through unchanged and enforced on the way
+ * back by the seam (see {@link WebSearchResult}).
  */
 export interface WebSearchRequest {
   readonly query: string
-  /**
-   * Upper bound on returned sources; the seam truncates to it. Omitted = no
-   * bound. `dsh-tool-web` always sets it. A provider whose API supports a
-   * result-count control (Exa's `numResults`) should apply it at the request
-   * layer as a cost/latency optimization; the seam enforces the bound
-   * regardless.
-   */
+  /** Upper bound on returned sources; omitted means no bound. */
   readonly maxResults?: number
+  /** Optional task route selected by a non-model caller. */
+  readonly task?: WebSearchTask
 }
 
 /**

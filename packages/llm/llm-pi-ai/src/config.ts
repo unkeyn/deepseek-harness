@@ -14,15 +14,22 @@
  * @module dsh-llm-pi-ai/config
  */
 
-import type { CacheRetention, ModelThinkingLevel, Provider, ThinkingBudgets, Transport } from '@earendil-works/pi-ai'
+import type { CacheRetention, ChatTemplateKwargValue, ModelThinkingLevel, Provider, ThinkingBudgets, Transport } from '@earendil-works/pi-ai'
 import z from '@deepseek-ai/schemastery'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
 import type { ResolvedRetryPolicy, RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
-import type { ModelCatalog } from '@deepseek-ai/dsh-model-catalog'
-import { MODALITIES, resolveRouteModels, SUPPORTED_THINKING_FORMATS, THINKING_LEVELS } from './catalog.ts'
+import {
+  CACHE_CONTROL_FORMATS,
+  CHAT_TEMPLATE_VARS,
+  MAX_TOKENS_FIELDS,
+  MODALITIES,
+  resolveRouteModels,
+  SUPPORTED_THINKING_FORMATS,
+  THINKING_LEVELS,
+} from './catalog.ts'
 import type {
   PiAiCompatProfile,
   PiAiModality,
@@ -34,6 +41,17 @@ import { buildProvider, supportedProtocols } from './provider.ts'
 
 /** Default maximum idle interval while an adapter stream read is outstanding. */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
+
+/**
+ * Default request-level bound on base64-encoded image payload. Every image in
+ * history is re-encoded into every request body, so an unbounded conversation
+ * eventually exceeds a provider or gateway request-size cap and the session
+ * can never complete another request. The 20MiB default admits four images at
+ * the attachment store's 3.5MiB raw-image default after base64 expansion and
+ * reserves request capacity for system prompts, history, tools, and JSON.
+ * Deployments behind stricter gateways lower it per route.
+ */
+export const DEFAULT_MAX_REQUEST_IMAGE_BYTES = 20 * 1024 * 1024
 
 /** Context capacity assumed for a model neither configuration nor the catalog sizes. */
 export const DEFAULT_CONTEXT_WINDOW = 262_144
@@ -61,9 +79,6 @@ export type {
   PiAiReasoningEfforts,
   PiAiThinkingFormat,
 } from './catalog.ts'
-
-/** Configuration for one pi-ai provider route; the `providers` dict key IS the route. */
-export type PiAiReplayMode = 'native' | 'portable'
 
 /** Configuration for one pi-ai provider route; the `providers` dict key IS the route. */
 export interface PiAiProviderProfile {
@@ -95,10 +110,11 @@ export interface PiAiProviderProfile {
    */
   modelOverrides?: Record<string, PiAiModelOverride>
   /**
-   * Reasoning-dispatch switches for every `openai-completions` model on this
-   * route; each model's own `compat` overrides per field. What neither sets
-   * keeps the installed catalog entry's value, then pi-ai's baseURL-derived
-   * detection.
+   * pi-ai wire-compatibility switches defaulting every model on this route
+   * whose protocol declares them; each model's own `compat` overrides per
+   * field. What neither sets keeps the installed catalog entry's value, then
+   * pi-ai's own detection. A switch no model on the route could read is
+   * refused rather than left looking applied.
    */
   compat?: PiAiCompatProfile
   /**
@@ -140,15 +156,20 @@ export interface PiAiProviderProfile {
   websocketConnectTimeoutMs?: number
   /** Maximum provider idle time while one stream read is outstanding. */
   streamIdleTimeoutMs?: number
-  /** Whether assistant history keeps provider-native metadata across requests. */
-  replayMode?: PiAiReplayMode
-  /** Provider-owned model-request retry policy; omission uses normal defaults. */
+  /**
+   * Maximum base64-encoded image payload per request. When a request's
+   * accumulated images exceed it, the oldest images are replaced by text
+   * placeholders until the request fits, so a long session keeps completing
+   * requests instead of being rejected by a request-size cap.
+   */
+  maxRequestImageBytes?: number
+  /** Provider-owned model-request retry policy; omission uses normal mode with five retries. */
   retryPolicy?: RetryPolicyConfig
 }
 
 /** Validated profile with its route stamped and every adapter-owned default resolved. */
 export interface ResolvedPiAiProviderProfile
-  extends Omit<PiAiProviderProfile, 'apiKeyEnv' | 'retryPolicy' | 'models' | 'displayName' | 'replayMode'> {
+  extends Omit<PiAiProviderProfile, 'apiKeyEnv' | 'retryPolicy' | 'models' | 'displayName'> {
   /** Harness route key and the `Models` collection key (the configuration dict key). */
   provider: string
   /** Resolved display name for selectors and configuration surfaces. */
@@ -157,10 +178,10 @@ export interface ResolvedPiAiProviderProfile
   apiKeyEnv?: CredentialRef
   /** Positive finite provider-idle interval after defaulting. */
   streamIdleTimeoutMs: number
+  /** Positive request-level base64 image payload bound after defaulting. */
+  maxRequestImageBytes: number
   /** Immutable retry policy captured with this provider route. */
   retryPolicy: ResolvedRetryPolicy
-  /** Resolved assistant-history replay policy. */
-  replayMode: PiAiReplayMode
   /**
    * The pi-ai provider this route registers, built from the resolved models.
    * Construction happens here so an unserviceable protocol or an underspecified
@@ -193,9 +214,43 @@ const thinkingBudgets = z.object({
   high: z.number(),
 })
 
+/**
+ * One `chat_template_kwargs` value. The `$var` member is pi-ai's placeholder
+ * for a value dispatch fills from the request's thinking state, which is what
+ * makes a chat-template gateway configurable without restating its template.
+ */
+const chatTemplateKwarg: z<ChatTemplateKwargValue> = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.const(null),
+  z.object({
+    $var: z.union(CHAT_TEMPLATE_VARS).required(),
+    omitWhenOff: z.boolean(),
+  }),
+])
+
 const compatProfile: z<PiAiCompatProfile> = z.object({
-  thinkingFormat: z.union(SUPPORTED_THINKING_FORMATS),
+  supportsStore: z.boolean(),
+  supportsDeveloperRole: z.boolean(),
   supportsReasoningEffort: z.boolean(),
+  supportsUsageInStreaming: z.boolean(),
+  maxTokensField: z.union(MAX_TOKENS_FIELDS),
+  requiresToolResultName: z.boolean(),
+  requiresAssistantAfterToolResult: z.boolean(),
+  requiresThinkingAsText: z.boolean(),
+  requiresReasoningContentOnAssistantMessages: z.boolean(),
+  thinkingFormat: z.union(SUPPORTED_THINKING_FORMATS),
+  chatTemplateKwargs: z.dict(chatTemplateKwarg),
+  supportsStrictMode: z.boolean(),
+  cacheControlFormat: z.union(CACHE_CONTROL_FORMATS),
+  supportsLongCacheRetention: z.boolean(),
+  supportsEagerToolInputStreaming: z.boolean(),
+  supportsCacheControlOnTools: z.boolean(),
+  supportsTemperature: z.boolean(),
+  forceAdaptiveThinking: z.boolean(),
+  allowEmptySignature: z.boolean(),
+  supportsStrictTools: z.boolean(),
 })
 
 /**
@@ -256,7 +311,7 @@ const profile = z.object({
   timeoutMs: z.natural(),
   websocketConnectTimeoutMs: z.natural(),
   streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
-  replayMode: z.union(['native', 'portable']),
+  maxRequestImageBytes: z.number().step(1).min(1).default(DEFAULT_MAX_REQUEST_IMAGE_BYTES),
   retryPolicy: RetryPolicySchema,
 })
 
@@ -305,12 +360,10 @@ function rejectRemovedFields(provider: string, source: PiAiProviderProfile): voi
  * resolves to the empty (dormant) route set here rather than through a hidden
  * fallback, and each route's models and pi-ai provider are materialized once.
  * @param providers - configured provider profiles keyed by route.
- * @param catalog - optional model capability catalog.
  * @returns validated profiles in configuration order.
  */
 export function resolveProfiles(
   providers: Readonly<Record<string, PiAiProviderProfile>> | undefined,
-  catalog?: ModelCatalog,
 ): Map<string, ResolvedPiAiProviderProfile> {
   if (Array.isArray(providers)) {
     throw new Error('llm-pi-ai: providers is now a dict keyed by provider route, not an array of profiles')
@@ -334,6 +387,10 @@ export function resolveProfiles(
         `llm-pi-ai: provider "${provider}" streamIdleTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`,
       )
     }
+    const maxRequestImageBytes = source.maxRequestImageBytes ?? DEFAULT_MAX_REQUEST_IMAGE_BYTES
+    if (!Number.isInteger(maxRequestImageBytes) || maxRequestImageBytes <= 0) {
+      throw new Error(`llm-pi-ai: provider "${provider}" maxRequestImageBytes must be a positive integer`)
+    }
     // Detached from the configuration object because pi-ai types `Model.input`
     // mutable. The schema's explicit default covers an absent key, so an empty
     // list here is always one someone typed — and unlike an entry's, nothing
@@ -347,7 +404,7 @@ export function resolveProfiles(
     // always shown route keys, and a catalog route must not silently rename
     // itself on every configuration surface just because it gained a profile.
     const displayName = source.displayName ?? provider
-    const routeCatalog = resolveRouteModels({
+    const catalog = resolveRouteModels({
       provider,
       ...source.api === undefined ? {} : { api: source.api },
       ...source.baseURL === undefined ? {} : { baseURL: source.baseURL },
@@ -357,33 +414,25 @@ export function resolveProfiles(
       defaultInput,
       defaultContextWindow: source.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
       defaultMaxTokens: source.defaultMaxTokens ?? DEFAULT_MAX_TOKENS,
-      ...catalog === undefined ? {} : { catalog },
     })
-    const {
-      apiKeyEnv,
-      retryPolicy,
-      replayMode,
-      models: _models,
-      displayName: _displayName,
-      ...rest
-    } = source
+    const { apiKeyEnv, retryPolicy, models: _models, displayName: _displayName, ...rest } = source
     resolved.set(provider, {
       ...rest,
       provider,
       displayName,
       ...apiKeyEnv === undefined ? {} : { apiKeyEnv: credentialRef(apiKeyEnv) },
       streamIdleTimeoutMs,
-      replayMode: replayMode ?? 'native',
+      maxRequestImageBytes,
       retryPolicy: resolveRetryPolicy(retryPolicy, `llm-pi-ai: provider "${provider}" retryPolicy`),
       ...rest.headers === undefined ? {} : { headers: { ...rest.headers } },
       ...rest.thinkingBudgets === undefined ? {} : { thinkingBudgets: { ...rest.thinkingBudgets } },
-      configuredMaxTokens: routeCatalog.configuredMaxTokens,
+      configuredMaxTokens: catalog.configuredMaxTokens,
       piProvider: buildProvider({
         provider,
         displayName,
         ...source.api === undefined ? {} : { api: source.api },
         ...source.baseURL === undefined ? {} : { baseURL: source.baseURL },
-        models: routeCatalog.models,
+        models: catalog.models,
         namesCredential: apiKeyEnv !== undefined,
       }),
     })

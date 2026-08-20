@@ -15,6 +15,7 @@ import type {
   WebSearchProvider,
   WebSearchRequest,
   WebSearchResult,
+  WebSearchTask,
 } from './types.ts'
 import { WebError } from './types.ts'
 
@@ -27,9 +28,11 @@ export type {
   WebFetchRequest,
   WebFetchResult,
   WebSearchProvider,
+  WebSearchProviderMetadata,
   WebSearchRequest,
   WebSearchResult,
   WebSearchSource,
+  WebSearchTask,
 } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -46,16 +49,22 @@ interface Selection<P> {
   readonly providers: ReadonlyMap<string, P>
 }
 
+/** Ordered routes used by search execution. */
+export interface WebSearchRoutingConfig {
+  /** Ordered fallback provider ids for the default route. */
+  readonly searchProviders?: readonly string[]
+  /** Ordered fallback provider ids keyed by task. */
+  readonly searchProvidersByTask?: Partial<Record<WebSearchTask, readonly string[]>>
+}
+
 /**
- * Config for the web seam. `searchProvider` / `fetchProvider` pin which provider
- * wins for each capability; both are optional (a single registered usable
- * provider auto-selects). Operational overrides such as environment variables
- * must feed these same fields rather than introduce a hidden priority chain.
+ * Config for the web seam. An explicit search route tries providers in order;
+ * an omitted route requires exactly one usable provider.
  */
-export interface WebRuntimeConfig {
-  /** Explicit search provider id. Omitted = auto-select when exactly one usable. */
+export interface WebRuntimeConfig extends WebSearchRoutingConfig {
+  /** Explicit search provider id retained as a one-entry route. */
   readonly searchProvider?: string
-  /** Explicit fetch provider id. Omitted = auto-select when exactly one usable. */
+  /** Explicit fetch provider id. */
   readonly fetchProvider?: string
 }
 
@@ -78,18 +87,28 @@ export class WebRuntime extends Service {
    * `searchProvider` / `fetchProvider` and are NOT a hidden priority chain.
    */
   static Config: z<WebRuntimeConfig> = z.object({
+    searchProviders: z.array(z.string()),
+    searchProvidersByTask: z.object({
+      general: z.array(z.string()),
+      research: z.array(z.string()),
+      news: z.array(z.string()),
+      code: z.array(z.string()),
+      academic: z.array(z.string()),
+    }),
     searchProvider: z.string(),
     fetchProvider: z.string(),
-  })
+  }) as z<WebRuntimeConfig>
 
   private searchProviders = new Map<string, WebSearchProvider>()
   private fetchProviders = new Map<string, WebFetchProvider>()
-  private readonly searchProviderId: string | undefined
+  private readonly searchProviderIds: readonly string[] | undefined
+  private readonly searchProviderIdsByTask: Readonly<Partial<Record<WebSearchTask, readonly string[]>>>
   private readonly fetchProviderId: string | undefined
 
   constructor(ctx: Context, config: WebRuntimeConfig = {}) {
     super(ctx, 'web')
-    this.searchProviderId = config.searchProvider ?? process.env.DSH_WEB_SEARCH_PROVIDER
+    this.searchProviderIds = resolveSearchProviderIds(config)
+    this.searchProviderIdsByTask = resolveTaskRoutes(config.searchProvidersByTask)
     this.fetchProviderId = config.fetchProvider ?? process.env.DSH_WEB_FETCH_PROVIDER
   }
 
@@ -129,21 +148,44 @@ export class WebRuntime extends Service {
   }
 
   /**
-   * Run one search through the selected provider. Resolves the provider at call
-   * time with the selection rules above; throws {@link WebError} when the
-   * capability cannot run. The seam enforces `request.maxResults` on the result:
-   * if the provider over-returns, `sources[]` is truncated and `truncated` set.
-   * @param request - the query and optional result limit.
-   * @param signal - optional cancellation signal forwarded to the provider.
-   * @returns the provider's results, capped to `request.maxResults`.
+   * Run one search through the selected route. An explicit route tries usable
+   * providers in order; without one, strict single-provider selection applies.
+   * Cancellation stops the route and is never converted into fallback.
+   * @param request - query, optional result limit, and optional task route.
+   * @param signal - cancellation forwarded to each attempted provider.
+   * @returns the first successful result, capped to `request.maxResults`.
    */
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
-    const provider = resolveProvider({
-      providers: this.searchProviders,
-      ...this.searchProviderId !== undefined ? { configuredId: this.searchProviderId } : {},
-    })
-    const result = await provider.search(request, signal)
-    return capSources(result, request.maxResults)
+    throwIfAborted(signal)
+    const route = request.task === undefined
+      ? this.searchProviderIds
+      : this.searchProviderIdsByTask[request.task] ?? this.searchProviderIds
+    if (route === undefined) {
+      const provider = resolveProvider({ providers: this.searchProviders })
+      return capSources(await provider.search(request, signal), request.maxResults)
+    }
+
+    const providers = resolveSearchRoute(route, this.searchProviders)
+    if (providers.length === 1) {
+      const [provider] = providers
+      /* v8 ignore next -- resolveSearchRoute guarantees one provider for this branch. */
+      if (provider === undefined) throw new WebError('configured search provider is unavailable', 'WEB_PROVIDER_CONFIGURED_UNAVAILABLE')
+      return capSources(await provider.search(request, signal), request.maxResults)
+    }
+    const failures: Array<{ readonly id: string; readonly error: unknown }> = []
+    for (const provider of providers) {
+      throwIfAborted(signal)
+      try {
+        return capSources(await provider.search(request, signal), request.maxResults)
+      } catch (error: unknown) {
+        if (isCancellation(error, signal)) throw normalizeAbort(error, signal)
+        failures.push({ id: provider.id, error })
+      }
+    }
+    throw new WebError(
+      `all configured search providers failed (${failures.map(item => `${item.id}: ${errorSummary(item.error)}`).join('; ')})`,
+      'WEB_PROVIDER_CHAIN_FAILED',
+    )
   }
 
   /**
@@ -168,7 +210,60 @@ interface ResolvableProvider {
   available(): boolean
 }
 
-/** Resolve the selected provider or throw the matching {@link WebError}. */
+function resolveSearchProviderIds(config: WebRuntimeConfig): readonly string[] | undefined {
+  if (config.searchProviders !== undefined && config.searchProviders.length > 0) {
+    return freezeRoute(config.searchProviders, 'searchProviders')
+  }
+  if (config.searchProvider !== undefined) return freezeRoute([config.searchProvider], 'searchProvider')
+  const environmentRoute = process.env.DSH_WEB_SEARCH_PROVIDERS
+  if (environmentRoute !== undefined && environmentRoute.trim().length > 0) {
+    return freezeRoute(environmentRoute.split(',').map(id => id.trim()), 'DSH_WEB_SEARCH_PROVIDERS')
+  }
+  const environmentProvider = process.env.DSH_WEB_SEARCH_PROVIDER
+  return environmentProvider === undefined ? undefined : freezeRoute([environmentProvider], 'DSH_WEB_SEARCH_PROVIDER')
+}
+
+function resolveTaskRoutes(
+  routes: Partial<Record<WebSearchTask, readonly string[]>> | undefined,
+): Readonly<Partial<Record<WebSearchTask, readonly string[]>>> {
+  if (routes === undefined) return Object.freeze({})
+  const resolved: Partial<Record<WebSearchTask, readonly string[]>> = {}
+  for (const [task, route] of Object.entries(routes) as Array<[WebSearchTask, readonly string[] | undefined]>) {
+    if (route === undefined || route.length === 0) continue
+    resolved[task] = freezeRoute(route, `searchProvidersByTask.${task}`)
+  }
+  return Object.freeze(resolved)
+}
+
+function freezeRoute(route: readonly string[], field: string): readonly string[] {
+  if (route.length === 0) throw new Error(`web: ${field} must contain at least one provider id`)
+  if (route.some(id => id.length === 0)) throw new Error(`web: ${field} provider ids must be non-empty`)
+  if (new Set(route).size !== route.length) throw new Error(`web: ${field} provider ids must be unique`)
+  return Object.freeze([...route])
+}
+
+function resolveSearchRoute(
+  route: readonly string[],
+  providers: ReadonlyMap<string, WebSearchProvider>,
+): WebSearchProvider[] {
+  const missing = route.filter(id => !providers.has(id))
+  if (missing.length > 0) {
+    throw new WebError(
+      `configured search provider${missing.length === 1 ? '' : 's'} not registered: ${missing.join(', ')}`,
+      'WEB_PROVIDER_CONFIGURED_MISSING',
+    )
+  }
+  const usable = route.flatMap((id) => {
+    const provider = providers.get(id)
+    return provider?.available() === true ? [provider] : []
+  })
+  if (usable.length === 0) {
+    throw new WebError(`configured search providers are unavailable: ${route.join(', ')}`, 'WEB_PROVIDER_CONFIGURED_UNAVAILABLE')
+  }
+  return usable
+}
+
+/** Resolve one configured provider or the sole usable provider. */
 function resolveProvider<P extends ResolvableProvider>(selection: Selection<P>): P {
   const { configuredId, providers } = selection
   if (configuredId !== undefined) {
@@ -183,9 +278,7 @@ function resolveProvider<P extends ResolvableProvider>(selection: Selection<P>):
   }
   const usable = [...providers.values()].filter(provider => provider.available())
   const [single] = usable
-  if (single === undefined) {
-    throw new WebError('no usable web provider is registered', 'WEB_PROVIDER_UNAVAILABLE')
-  }
+  if (single === undefined) throw new WebError('no usable web provider is registered', 'WEB_PROVIDER_UNAVAILABLE')
   if (usable.length > 1) {
     const ids = usable.map(provider => provider.id).join(', ')
     throw new WebError(`multiple usable web providers are registered (${ids}); configure one explicitly`, 'WEB_PROVIDER_AMBIGUOUS')
@@ -193,7 +286,26 @@ function resolveProvider<P extends ResolvableProvider>(selection: Selection<P>):
   return single
 }
 
-/** Enforce `maxResults` on a search result: truncate `sources[]` and flag it. */
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted === true) throw normalizeAbort(signal.reason, signal)
+}
+
+function isCancellation(error: unknown, signal?: AbortSignal): boolean {
+  return signal?.aborted === true
+    || (error instanceof WebError && error.code === 'WEB_ABORTED')
+    || (error instanceof DOMException && error.name === 'AbortError')
+}
+
+function normalizeAbort(error: unknown, signal?: AbortSignal): WebError {
+  if (error instanceof WebError && error.code === 'WEB_ABORTED') return error
+  return new WebError('web search aborted', 'WEB_ABORTED', { cause: signal?.reason ?? error })
+}
+
+function errorSummary(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** Enforce `maxResults` on a search result: truncate sources and set `truncated`. */
 function capSources(result: WebSearchResult, maxResults: number | undefined): WebSearchResult {
   if (maxResults === undefined || result.sources.length <= maxResults) return result
   return { ...result, sources: result.sources.slice(0, maxResults), truncated: true }
