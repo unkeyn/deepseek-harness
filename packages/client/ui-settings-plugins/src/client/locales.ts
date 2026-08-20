@@ -11,6 +11,17 @@ export type PluginsSettingsLocaleKey =
   | 'webSearchTitle' | 'webSearchDescription'
   | 'webSearchApiKey' | 'webSearchApiKeyHint' | 'webSearchApiKeySet' | 'webSearchApiKeyUnset'
   | 'webSearchBaseUrl' | 'webSearchBaseUrlHint' | 'webSearchMaxUses' | 'webSearchMaxUsesHint'
+  | 'braveSearchTitle' | 'braveSearchDescription'
+  | 'braveSearchApiKey' | 'braveSearchApiKeyHint' | 'braveSearchApiKeySet' | 'braveSearchApiKeyUnset'
+  | 'braveSearchBaseUrl' | 'braveSearchBaseUrlHint' | 'braveSearchMaxUses' | 'braveSearchMaxUsesHint'
+  | 'exaSearchTitle' | 'exaSearchDescription'
+  | 'exaSearchApiKey' | 'exaSearchApiKeyHint' | 'exaSearchApiKeySet' | 'exaSearchApiKeyUnset'
+  | 'exaSearchBaseUrl' | 'exaSearchBaseUrlHint' | 'exaSearchMaxUses' | 'exaSearchMaxUsesHint'
+  | 'exaSearchSearchType' | 'exaSearchSearchTypeHint' | 'exaSearchNumResults' | 'exaSearchNumResultsHint'
+  | 'exaSearchHighlightsPerResult' | 'exaSearchHighlightsPerResultHint'
+  | 'firecrawlSearchTitle' | 'firecrawlSearchDescription'
+  | 'firecrawlSearchApiKey' | 'firecrawlSearchApiKeyHint' | 'firecrawlSearchApiKeySet' | 'firecrawlSearchApiKeyUnset'
+  | 'firecrawlSearchBaseUrl' | 'firecrawlSearchBaseUrlHint' | 'firecrawlSearchMaxUses' | 'firecrawlSearchMaxUsesHint'
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
@@ -51,6 +62,42 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   webSearchBaseUrlHint: 'Leave blank to use the provider default.',
   webSearchMaxUses: 'Max searches per request',
   webSearchMaxUsesHint: 'How many times one request may search before it must answer.',
+  braveSearchTitle: 'Brave Search',
+  braveSearchDescription: 'The Brave search provider.',
+  braveSearchApiKey: 'API key',
+  braveSearchApiKeyHint: 'Stored outside the settings file. Leave blank to keep the current key.',
+  braveSearchApiKeySet: 'A key is configured.',
+  braveSearchApiKeyUnset: 'No key is configured; search is unavailable until one is.',
+  braveSearchBaseUrl: 'Endpoint',
+  braveSearchBaseUrlHint: 'Leave blank to use the provider default.',
+  braveSearchMaxUses: 'Max searches per request',
+  braveSearchMaxUsesHint: 'How many times one request may search before it must answer.',
+  exaSearchTitle: 'Exa Search',
+  exaSearchDescription: 'The Exa search provider.',
+  exaSearchApiKey: 'API key',
+  exaSearchApiKeyHint: 'Stored outside the settings file. Leave blank to keep the current key.',
+  exaSearchApiKeySet: 'A key is configured.',
+  exaSearchApiKeyUnset: 'No key is configured; search is unavailable until one is.',
+  exaSearchBaseUrl: 'Endpoint',
+  exaSearchBaseUrlHint: 'Leave blank to use the provider default.',
+  exaSearchMaxUses: 'Max searches per request',
+  exaSearchMaxUsesHint: 'How many times one request may search before it must answer.',
+  exaSearchSearchType: 'Search type',
+  exaSearchSearchTypeHint: 'Use auto, keyword, or neural retrieval.',
+  exaSearchNumResults: 'Results per request',
+  exaSearchNumResultsHint: 'Default number of results returned by Exa.',
+  exaSearchHighlightsPerResult: 'Highlights per result',
+  exaSearchHighlightsPerResultHint: 'Number of highlight sentences requested for each result.',
+  firecrawlSearchTitle: 'Firecrawl Search',
+  firecrawlSearchDescription: 'The Firecrawl search provider.',
+  firecrawlSearchApiKey: 'API key',
+  firecrawlSearchApiKeyHint: 'Stored outside the settings file. Leave blank to keep the current key.',
+  firecrawlSearchApiKeySet: 'A key is configured.',
+  firecrawlSearchApiKeyUnset: 'No key is configured; search is unavailable until one is.',
+  firecrawlSearchBaseUrl: 'Endpoint',
+  firecrawlSearchBaseUrlHint: 'Leave blank to use the provider default.',
+  firecrawlSearchMaxUses: 'Max searches per request',
+  firecrawlSearchMaxUsesHint: 'How many times one request may search before it must answer.',
 }
 
 /** Simplified Chinese copy. */
@@ -92,4 +139,40 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   webSearchBaseUrlHint: '留空则使用提供方默认地址。',
   webSearchMaxUses: '单次请求最多搜索次数',
   webSearchMaxUsesHint: '一次请求在必须作答前最多可以搜索多少次。',
+  braveSearchTitle: 'Brave 搜索',
+  braveSearchDescription: 'Brave 搜索提供方。',
+  braveSearchApiKey: 'API Key',
+  braveSearchApiKeyHint: '不写入设置文件。留空表示保持当前密钥。',
+  braveSearchApiKeySet: '已配置密钥。',
+  braveSearchApiKeyUnset: '未配置密钥；配置之前搜索不可用。',
+  braveSearchBaseUrl: '接口地址',
+  braveSearchBaseUrlHint: '留空则使用提供方默认地址。',
+  braveSearchMaxUses: '单次请求最多搜索次数',
+  braveSearchMaxUsesHint: '一次请求在必须作答前最多可以搜索多少次。',
+  exaSearchTitle: 'Exa 搜索',
+  exaSearchDescription: 'Exa 搜索提供方。',
+  exaSearchApiKey: 'API Key',
+  exaSearchApiKeyHint: '不写入设置文件。留空表示保持当前密钥。',
+  exaSearchApiKeySet: '已配置密钥。',
+  exaSearchApiKeyUnset: '未配置密钥；配置之前搜索不可用。',
+  exaSearchBaseUrl: '接口地址',
+  exaSearchBaseUrlHint: '留空则使用提供方默认地址。',
+  exaSearchMaxUses: '单次请求最多搜索次数',
+  exaSearchMaxUsesHint: '一次请求在必须作答前最多可以搜索多少次。',
+  exaSearchSearchType: '搜索类型',
+  exaSearchSearchTypeHint: '可使用 auto、keyword 或 neural 检索。',
+  exaSearchNumResults: '每次请求结果数',
+  exaSearchNumResultsHint: 'Exa 默认返回的结果数量。',
+  exaSearchHighlightsPerResult: '每个结果的高亮句数',
+  exaSearchHighlightsPerResultHint: '每个结果请求的高亮句子数量。',
+  firecrawlSearchTitle: 'Firecrawl 搜索',
+  firecrawlSearchDescription: 'Firecrawl 搜索提供方。',
+  firecrawlSearchApiKey: 'API Key',
+  firecrawlSearchApiKeyHint: '不写入设置文件。留空表示保持当前密钥。',
+  firecrawlSearchApiKeySet: '已配置密钥。',
+  firecrawlSearchApiKeyUnset: '未配置密钥；配置之前搜索不可用。',
+  firecrawlSearchBaseUrl: '接口地址',
+  firecrawlSearchBaseUrlHint: '留空则使用提供方默认地址。',
+  firecrawlSearchMaxUses: '单次请求最多搜索次数',
+  firecrawlSearchMaxUsesHint: '一次请求在必须作答前最多可以搜索多少次。',
 }

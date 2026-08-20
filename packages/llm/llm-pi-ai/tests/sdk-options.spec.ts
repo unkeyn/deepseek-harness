@@ -47,7 +47,11 @@ describe('pi-ai SDK retry boundary', () => {
     const chunks = await drain(gatewayAdapter())
 
     expect(streamSimple).toHaveBeenCalledOnce()
-    expect(streamSimple.mock.calls[0]?.[2]).toMatchObject({ maxRetries: 0, apiKey: 'test-key' })
+    expect(streamSimple.mock.calls[0]?.[2]).toMatchObject({
+      maxRetries: 0,
+      timeoutMs: 60_000,
+      apiKey: 'test-key',
+    })
     // pi-ai reports a setup failure as a terminal in-stream error rather than
     // throwing, which the converter turns into the harness error finish.
     expect(chunks.at(-1)).toMatchObject({

@@ -208,7 +208,7 @@ describe('pi-ai request context conversion', () => {
       }]),
       user([{ type: 'image', attachment: sized }, { type: 'text', text: 'newer' }]),
       user([{ type: 'image', attachment: sized }]),
-    ]), store, undefined, 8)
+    ]), store, undefined, 'native', 8)
 
     expect(context.messages).toEqual([
       {
@@ -237,7 +237,7 @@ describe('pi-ai request context conversion', () => {
     const exact = await toPiContext(request([
       user([{ type: 'image', attachment: sized }]),
       user([{ type: 'image', attachment: sized }]),
-    ]), attachments, undefined, 8)
+    ]), attachments, undefined, 'native', 8)
     expect(exact.messages).toEqual([
       { role: 'user', content: [expect.objectContaining({ type: 'image' })], timestamp: 0 },
       { role: 'user', content: [expect.objectContaining({ type: 'image' })], timestamp: 0 },
@@ -247,7 +247,7 @@ describe('pi-ai request context conversion', () => {
     const store = { readImage } as unknown as AttachmentStore
     const oversized = await toPiContext(request([
       user([{ type: 'image', attachment: { ...ref, bytes: 300 } }]),
-    ]), store, undefined, 8)
+    ]), store, undefined, 'native', 8)
     // All-text content collapses to the string form; the placeholder still reaches the model.
     expect(oversized.messages).toEqual([
       { role: 'user', content: OFFLOADED_IMAGE_TEXT, timestamp: 0 },
@@ -260,11 +260,11 @@ describe('pi-ai request context conversion', () => {
     const shared: ContentBlock = { type: 'image', attachment: sized }
     const readImage = vi.fn(() => Promise.resolve({ ref: sized, data: Uint8Array.of(1, 2, 3) }))
     const store = { readImage } as unknown as AttachmentStore
-    const aliased = await toPiContext(request([user([shared, shared])]), store, undefined, 4)
+    const aliased = await toPiContext(request([user([shared, shared])]), store, undefined, 'native', 4)
     const replayed = await toPiContext(request([user([
       { type: 'image', attachment: { ...sized } },
       { type: 'image', attachment: { ...sized } },
-    ])]), store, undefined, 4)
+    ])]), store, undefined, 'native', 4)
 
     const expected = [{
       role: 'user',
@@ -307,7 +307,7 @@ describe('pi-ai request context conversion', () => {
       const store = { readImage } as unknown as AttachmentStore
       await expect(toPiContext(request([
         history(role, [{ type: 'image', attachment: ref }]),
-      ]), store, undefined, 1)).rejects.toMatchObject({ code: 'UNSUPPORTED_CONTENT' })
+      ]), store, undefined, 'native', 1)).rejects.toMatchObject({ code: 'UNSUPPORTED_CONTENT' })
       expect(readImage).not.toHaveBeenCalled()
     }
 

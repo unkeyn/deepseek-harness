@@ -8,9 +8,10 @@
 |---|---|---|
 | [`compaction/`](compaction/README.md) | 压缩 seam 与事件词汇 | `ctx.compaction` |
 | [`compaction-basic/`](compaction-basic/README.md) | token 压力与摘要后端 | 注册 `ctx.compaction` |
+| [`compaction-policy/`](compaction-policy/README.md) | Host 持有的自动阈值偏好 | `ctx.compactionPolicy` |
 | [`compaction-tool-result-pruner/`](compaction-tool-result-pruner/README.md) | 可选的无模型工具结果修剪 | `ctx.toolResultPruner` |
 | [`command-compact/`](command-compact/README.md) | 用户压缩命令 | 注册到 `ctx.commands` |
 
-后端、可选修剪器和用户命令通过该 seam 组合；token 测量仍是独立的 LLM（大语言模型）家族服务。[压缩能力 seam Agent Note](../../.agents/notes/implemented/feature/2026-06-18-compaction-capability-seam.md) 负责说明依赖关系的设计依据。
+后端、策略提供方、可选修剪器和用户命令通过该 seam 组合；token 测量仍是独立的 LLM（大语言模型）家族服务。[压缩能力 seam Agent Note](../../.agents/notes/implemented/feature/2026-06-18-compaction-capability-seam.md) 负责说明依赖关系的设计依据。
 
 子系统参考——`compaction/*` 事件、`CompactionResult`、服务、修剪结果——见 [docs/subsystems/compaction.md](../../docs/subsystems/compaction.md)；seam 有意依赖 `dsh-session`/`dsh-llm` 的决定记录在[压缩能力 seam Agent Note](../../.agents/notes/implemented/feature/2026-06-18-compaction-capability-seam.md)。

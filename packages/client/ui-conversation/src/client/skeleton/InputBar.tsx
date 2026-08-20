@@ -38,8 +38,8 @@ export type InputBarProps = ComposerBarProps
 
 export function InputBar({
   useSession, useInput, inputActions, keyboard, addImages, removeImage, draftImages,
-  resolveSubmitMode, toggleCommandMenu, stop, command, t,
-  renderSlot, useNotices, useLexicon, useMenuLauncher,
+  resolveSubmitMode, toggleCommandMenu, stop, command, setCompactionThreshold, t,
+  renderSlot, useNotices, useLexicon, useMenuLauncher, useCompactionThreshold,
   useProjection, sessionId, variant, disabled: inert = false, blocked,
   workspacePickerOpen = false, onRequestWorkspace,
   placeholder, accessory, overlay, leftItems, rightItems, footer,
@@ -48,6 +48,7 @@ export function InputBar({
   const notice = useNotices(s => s)
   const lexicon = useLexicon(s => s)
   const commandMenuOpen = useMenuLauncher(source => source === 'command')
+  const compactionThreshold = useCompactionThreshold(value => value)
   const promptError = useSession(s => s.promptError) ?? null
   const running = useSession(s => s.running) ?? false
   const subagent = useSession(s => s.subagent) ?? null
@@ -717,7 +718,14 @@ export function InputBar({
           <div className={css.trailing}>
             {rightItems}
             {renderSlot('conversation.input.model', { locked: modelSeatLocked })}
-            <ContextMeter useProjection={useProjection} t={t} />
+            <ContextMeter
+              useProjection={useProjection}
+              threshold={compactionThreshold}
+              setThreshold={setCompactionThreshold}
+              {...command === undefined ? {} : { compact: () => command('/compact') }}
+              busy={running}
+              t={t}
+            />
             {interruptible && (
               <Tooltip label={t('input.stop')} side="top" delayMs={500}>
                 <button

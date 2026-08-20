@@ -284,6 +284,10 @@
     - id: token-meter
       name: '@deepseek-ai/dsh-token-meter'
 
+    # Host-plane user policy shared by every preset-local compaction backend.
+    - id: compaction-policy
+      name: '@deepseek-ai/dsh-compaction-policy'
+
     - id: compaction-basic
       name: '@deepseek-ai/dsh-compaction-basic'
 
@@ -413,6 +417,16 @@
       name: '@deepseek-ai/dsh-web-search-deepseek'
       config:
         apiKeyEnv: DEEPSEEK_API_KEY
+
+    - id: web-search-brave
+      name: '@deepseek-ai/dsh-web-search-brave'
+      config:
+        apiKeyEnv: BRAVE_API_KEY
+
+    - id: web-search-firecrawl
+      name: '@deepseek-ai/dsh-web-search-firecrawl'
+      config:
+        apiKeyEnv: FIRECRAWL_API_KEY
 
     - id: tool-web
       name: '@deepseek-ai/dsh-tool-web'

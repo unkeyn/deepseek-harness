@@ -19,12 +19,11 @@ providers:
   - provider: deepseek
     retryPolicy:
       mode: normal
-      maxRetries: 2
+      maxRetries: 10
       retryableCodes: [EMPTY_RESPONSE, RATE_LIMIT, SERVER, TIMEOUT, TRANSPORT]
-      backoff:
-        initialDelayMs: 500
-        maxDelayMs: 10000
-        jitterRatio: 0.1
+      phases:
+        - { retries: 5, initialDelayMs: 2000, maxDelayMs: 2000, stepMs: 0, jitterRatio: 0.1 }
+        - { retries: 5, initialDelayMs: 10000, maxDelayMs: 30000, stepMs: 5000, jitterRatio: 0.1 }
   - provider: internal
     retryPolicy:
       mode: always
@@ -38,7 +37,7 @@ providers:
 
 always 模式先请求下游恢复，使上下文溢出压缩（compaction）之类的专用策略有机会取得进展。下游若决定重试，则以该决定为准。下游若决定失败或恢复过程抛出错误，则回退为无界重试同一提供方请求；抛出的错误会写入日志。重试监听器会持有并排空已委托的恢复，轮次取消或插件 dispose 只能在其结束后完成；随后监听器会执行相应的中止操作，而不会采用迟到的下游决定。成功、轮次取消和插件 dispose 是仅有的终止路径。
 
-两种模式的本地延迟都按指数增长，从 `initialDelayMs` 增至 `maxDelayMs`。`jitterRatio` 用 `[1 - jitterRatio, 1 + jitterRatio]` 区间内的均匀随机样本乘以每次目标值，再应用上限。提供方给出的正数 `Retry-After` 若未超过上限，则保持精确且不加抖动。若提供方延迟超过上限，normal 模式会委托后续处理；always 模式则改用配置的本地退避，以维持无限重试保证。
+normal 模式可以定义有序阶段，各阶段重试次数之和必须等于 `maxRetries`。每个阶段从 `initialDelayMs` 开始，按 `stepMs` 线性增加，且不超过 `maxDelayMs`；省略配置时使用双阶段默认值，显式策略未提供阶段时则保留旧式指数 `backoff`。`jitterRatio` 用 `[1 - jitterRatio, 1 + jitterRatio]` 区间内的均匀随机样本乘以每次目标值，再应用当前上限。提供方给出的正数 `Retry-After` 若未超过上限，则保持精确且不加抖动。若提供方延迟超过上限，normal 模式会委托后续处理；always 模式则改用配置的本地退避，以维持无限重试保证。
 
 每次安排重试都会追加一条不进入表层的 `llm/retry` 事件，其中包含失败的提供方、策略模式、已解析策略的规范键、提供方策略内的重试编号、延迟和失败事实。normal 事件包含有限的 `maxRetries`；always 事件省略该字段，UI 将上限渲染为 `∞`。该事件与失败的 `assistant/chunk` 记录都不会生成表层消息，因此除非其他恢复策略有意改变表层，否则下一次请求包含的派生上下文与失败请求相同。
 

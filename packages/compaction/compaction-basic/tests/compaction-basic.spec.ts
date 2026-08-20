@@ -1478,6 +1478,21 @@ describe('automatic listener and loader composition', () => {
     expect(compact.calls).toHaveLength(1)
   })
 
+  it('uses the shared live threshold override at the next safe pre-step boundary', async () => {
+    const ctx = createContext()
+    ctx.provide('compactionPolicy', { thresholdRatio: () => 0.25 })
+    const compact = new TestCompactionEngine(ctx, {
+      thresholdRatio: 0.8,
+      retainTokens: 180,
+    })
+    const session = conversation(2)
+
+    await preStep(ctx, agent(session, MODEL))
+
+    expect(session.events.some(event => event.type === 'compaction/summary')).toBe(true)
+    expect(compact.calls.length).toBeGreaterThan(0)
+  })
+
   it('skips pre-step pressure when the step signal is already aborted', async () => {
     const ctx = createContext()
     const compact = new TestCompactionEngine(ctx, {

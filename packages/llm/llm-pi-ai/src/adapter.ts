@@ -316,8 +316,14 @@ export class PiAiAdapter extends LlmAdapter {
         this.config.onReplayDegrade?.({ provider: options.provider, model: options.model, reason })
       }
       const context = attachments === undefined
-        ? toPiContext(options, undefined, onReplayDegrade)
-        : await toPiContext(options, attachments, onReplayDegrade, profile.maxRequestImageBytes)
+        ? toPiContext(options, undefined, onReplayDegrade, profile.replayMode)
+        : await toPiContext(
+          options,
+          attachments,
+          onReplayDegrade,
+          profile.replayMode,
+          profile.maxRequestImageBytes,
+        )
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },

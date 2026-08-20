@@ -556,9 +556,11 @@ export interface ComposerBarInjected {
    * Resolves admission: false = rejected/unmatched/transport failure.
    */
   command: ((line: string) => Promise<boolean>) | undefined
+  /** Persist one automatic compaction threshold selection. */
+  setCompactionThreshold: (value: number) => void
   /**
    * Registrant hooks compartment: the renderer binds these to
-   * useNotices/useLexicon (static absent sources without a session — hook
+   * useNotices/useLexicon/useCompactionThreshold (static absent sources without a session — hook
    * order stays constant).
    */
   hooks: {
@@ -569,6 +571,8 @@ export interface ComposerBarInjected {
     lexicon: ObservableSnapshot<ReadonlyMap<'/' | '@', readonly string[]>>
     /** Source name opened by the programmatic menu launcher, or null. */
     menuLauncher: ObservableSnapshot<string | null>
+    /** Host-backed automatic compaction threshold percentage. */
+    compactionThreshold: ObservableSnapshot<number>
   }
 }
 

@@ -213,6 +213,7 @@ export const StatsLine = memo(function StatsLine({ useSession, useProjection, t 
           {activityGroups.map(group => <span key={group} className={css.group}>{group}</span>)}
         </span>
       ) : null}
+      {activityGroups.length > 0 && tokenGroups.length > 0 ? <span aria-hidden="true">| </span> : null}
       {tokenGroups.length > 0 ? (
         <span className={css.row}>
           {tokenGroups.map(group => <span key={group} className={css.group}>{group}</span>)}

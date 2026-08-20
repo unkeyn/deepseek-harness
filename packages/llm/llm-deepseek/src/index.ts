@@ -101,11 +101,11 @@ export interface Config {
   defaultContextWindow?: number
   /** Advisory models shown by discovery consumers; defaults to V4 Flash and V4 Pro. */
   models?: DeepSeekCatalogModel[]
-  /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
+  /** Maximum provider idle time while one stream read is outstanding (default one minute). */
   streamIdleTimeoutMs?: number
   /** Maximum accumulated base64 image payload per request (default 20 MiB). */
   maxRequestImageBytes?: number
-  /** Provider-owned model-request retry policy; omission uses normal mode with five retries. */
+  /** Provider-owned model-request retry policy; omission uses normal mode with ten retries in two delay phases. */
   retryPolicy?: RetryPolicyConfig
 }
 

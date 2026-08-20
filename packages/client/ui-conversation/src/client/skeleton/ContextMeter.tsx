@@ -1,8 +1,8 @@
 /** Composer context-occupancy meter: a ring beside the send button fed by the
- * `contextPressure` projection, with a click-open panel of the heuristic
- * `contextBreakdown` composition (system prompt, tools, conversation).
- * Renders nothing until a provider reports both pressure and a route
- * capacity. */
+ * `contextPressure` projection and scaled to the automatic-compaction threshold,
+ * with a click-open panel of the heuristic `contextBreakdown` composition
+ * (system prompt, tools, conversation). Renders nothing until a provider reports
+ * both pressure and a route capacity. */
 
 import { useEffect, useRef, useState } from 'react'
 import type { UseProjection } from '@deepseek-ai/dsh-client-runtime/client'
@@ -33,6 +33,10 @@ const ROWS = [
 
 export interface ContextMeterProps {
   useProjection: UseProjection
+  /** Host-backed automatic compaction threshold percentage. */
+  threshold: number
+  /** Persist one new automatic compaction threshold percentage. */
+  setThreshold: (value: number) => void
   /** Run the session's manual compaction command. */
   compact?: () => Promise<boolean>
   /** Whether a turn or manual compaction already owns the session. */
@@ -41,23 +45,13 @@ export interface ContextMeterProps {
   t: ComposerBarProps['t']
 }
 
-const COMPACTION_THRESHOLD_KEY = 'dsh.compaction.threshold-percent'
-const DEFAULT_COMPACTION_THRESHOLD = 80
-
-function storedThreshold(): number {
-  if (typeof localStorage === 'undefined') return DEFAULT_COMPACTION_THRESHOLD
-  const value = Number(localStorage.getItem(COMPACTION_THRESHOLD_KEY))
-  return Number.isInteger(value) && value >= 25 && value <= 95 ? value : DEFAULT_COMPACTION_THRESHOLD
-}
-
-export function ContextMeter({ useProjection, compact, busy = false, t }: ContextMeterProps) {
+export function ContextMeter({
+  useProjection, threshold, setThreshold, compact, busy = false, t,
+}: ContextMeterProps) {
   const pressure = useProjection('contextPressure')
   const breakdown = useProjection('contextBreakdown')
   const [open, setOpen] = useState(false)
-  const [threshold, setThreshold] = useState(storedThreshold)
   const [compacting, setCompacting] = useState(false)
-  const [pendingAutoCompact, setPendingAutoCompact] = useState(false)
-  const autoArmed = useRef(true)
   const rootRef = useRef<HTMLSpanElement | null>(null)
   const context = contextOccupancy(pressure)
   const available = context !== null
@@ -67,25 +61,6 @@ export function ContextMeter({ useProjection, compact, busy = false, t }: Contex
     setCompacting(true)
     void compact().finally(() => { setCompacting(false) })
   }
-
-  useEffect(() => {
-    if (context === null || compact === undefined) return
-    if (context.percent < threshold) {
-      autoArmed.current = true
-      setPendingAutoCompact(false)
-      return
-    }
-    if (!autoArmed.current) return
-    autoArmed.current = false
-    setPendingAutoCompact(true)
-  }, [compact, context?.percent, threshold])
-
-  useEffect(() => {
-    if (!pendingAutoCompact || compact === undefined || compacting || busy) return
-    setPendingAutoCompact(false)
-    setCompacting(true)
-    void compact().finally(() => { setCompacting(false) })
-  }, [busy, compact, compacting, pendingAutoCompact])
 
   // A model switch can temporarily remove capacity while this component stays
   // mounted. Close the now-unavailable panel instead of preserving stale UI.
@@ -113,12 +88,13 @@ export function ContextMeter({ useProjection, compact, busy = false, t }: Contex
 
   if (context === null) return null
   const percent = context.percent
+  const ringPercent = Math.min(100, percent / threshold * 100)
   const reading = `${percent}%`
   const [headBefore = '', headAfter = ''] = t('context.aria', { percent: READING_SLOT })
     .split(READING_SLOT)
     .map(part => part.trim())
 
-  // The bar's overall length stays the provider-exact percent; the heuristic
+  // The bar's overall length stays the absolute occupancy percent; the heuristic
   // breakdown only proportions its colored parts. A zero-width part is dropped
   // instead of rendered: `.segment`'s min-width keeps a hairline part visible,
   // which at 0% occupancy would draw a filled bar over an empty context.
@@ -148,7 +124,7 @@ export function ContextMeter({ useProjection, compact, busy = false, t }: Contex
               cx="7"
               cy="7"
               r={RADIUS}
-              strokeDasharray={`${CIRCUMFERENCE * percent / 100} ${CIRCUMFERENCE}`}
+              strokeDasharray={`${CIRCUMFERENCE * ringPercent / 100} ${CIRCUMFERENCE}`}
               transform="rotate(-90 7 7)"
             />
           </svg>
@@ -187,9 +163,7 @@ export function ContextMeter({ useProjection, compact, busy = false, t }: Contex
                 value={threshold}
                 aria-label={t('context.compactionThreshold')}
                 onChange={(event) => {
-                  const value = Number(event.currentTarget.value)
-                  setThreshold(value)
-                  if (typeof localStorage !== 'undefined') localStorage.setItem(COMPACTION_THRESHOLD_KEY, String(value))
+                  setThreshold(Number(event.currentTarget.value))
                 }}
               />
             </label>

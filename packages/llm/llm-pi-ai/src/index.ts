@@ -19,7 +19,10 @@
  *         apiKeyEnv: OPENAI_API_KEY
  *         retryPolicy:
  *           mode: normal
- *           maxRetries: 2
+ *           maxRetries: 10
+ *           phases:
+ *             - { retries: 5, initialDelayMs: 2000, maxDelayMs: 2000, stepMs: 0 }
+ *             - { retries: 5, initialDelayMs: 10000, maxDelayMs: 30000, stepMs: 5000 }
  *       # Catalog route with the catalog narrowed and one capacity corrected.
  *       anthropic:
  *         apiKeyEnv: ANTHROPIC_API_KEY

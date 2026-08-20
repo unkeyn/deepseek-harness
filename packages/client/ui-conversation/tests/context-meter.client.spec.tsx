@@ -2,7 +2,8 @@
 // ContextMeter (composer trailing control): occupancy ring gating, the
 // click-open breakdown panel, and its close gestures.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { en as commonEn, zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/index.ts'
@@ -10,7 +11,6 @@ import { ContextMeter, type ContextMeterProps } from '../src/client/skeleton/Con
 import css from '../src/client/skeleton/ContextMeter.module.css'
 import { en, zh } from '../src/client/locales.ts'
 
-beforeEach(() => { localStorage.clear() })
 afterEach(cleanup)
 
 // Mirrors the real lookup chain (conversation namespace, then common).
@@ -27,18 +27,45 @@ function projections(values: Record<string, unknown>): ContextMeterProps['usePro
   return (key: string) => values[key]
 }
 
+function MeterHarness({
+  values, translate, compact, busy, onThreshold,
+}: {
+  values: Record<string, unknown>
+  translate: ContextMeterProps['t']
+  compact?: ContextMeterProps['compact']
+  busy: boolean
+  onThreshold?: (value: number) => void
+}) {
+  const [threshold, setThreshold] = useState(80)
+  return (
+    <ContextMeter
+      useProjection={projections(values)}
+      threshold={threshold}
+      setThreshold={(value) => {
+        setThreshold(value)
+        onThreshold?.(value)
+      }}
+      {...compact === undefined ? {} : { compact }}
+      busy={busy}
+      t={translate}
+    />
+  )
+}
+
 function meter(
   values: Record<string, unknown>,
   translate: ContextMeterProps['t'] = t,
   compact?: ContextMeterProps['compact'],
   busy = false,
+  onThreshold?: (value: number) => void,
 ) {
   return render(
-    <ContextMeter
-      useProjection={projections(values)}
+    <MeterHarness
+      values={values}
+      translate={translate}
       {...compact === undefined ? {} : { compact }}
       busy={busy}
-      t={translate}
+      {...onThreshold === undefined ? {} : { onThreshold }}
     />,
   )
 }
@@ -72,43 +99,60 @@ describe('ContextMeter', () => {
     expect(view.container.querySelector('[role="dialog"]')).toBeNull()
   })
 
-  it('persists the threshold, runs manual compact, and triggers once on an upward crossing', async () => {
+  it('persists the Host threshold, updates the ring, and keeps manual compaction explicit', async () => {
     const compact = vi.fn().mockResolvedValue(true)
-    const view = meter({ contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 } }, tEn, compact)
-    fireEvent.click(view.getByRole('button', { name: '25% of context used' }))
+    const persist = vi.fn()
+    const view = meter(
+      { contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 } },
+      tEn,
+      compact,
+      false,
+      persist,
+    )
+    const trigger = view.getByRole('button', { name: '25% of context used' })
+    const ringFill = trigger.querySelectorAll('circle')[1]
+    if (ringFill === undefined) throw new Error('context ring fill missing')
+    const initialDash = Number(ringFill.getAttribute('stroke-dasharray')?.split(' ')[0])
+    fireEvent.click(trigger)
     const slider = view.getByRole('slider', { name: 'Automatic compaction threshold' })
     expect((slider as HTMLInputElement).value).toBe('80')
     fireEvent.change(slider, { target: { value: '25' } })
-    expect(localStorage.getItem('dsh.compaction.threshold-percent')).toBe('25')
+    const thresholdDash = Number(ringFill.getAttribute('stroke-dasharray')?.split(' ')[0])
+    expect(thresholdDash).toBeCloseTo(initialDash * 80 / 25)
+    expect(persist).toHaveBeenCalledWith(25)
+    expect(compact).not.toHaveBeenCalled()
+    fireEvent.click(await view.findByRole('button', { name: 'Compact now' }))
     await vi.waitFor(() => { expect(compact).toHaveBeenCalledTimes(1) })
-    const manual = await view.findByRole('button', { name: 'Compact now' })
-    fireEvent.click(manual)
-    await vi.waitFor(() => { expect(compact).toHaveBeenCalledTimes(2) })
   })
 
-  it('waits for idle before automatic compaction and never retries a busy command', async () => {
+  it('caps the ring at a full turn when occupancy exceeds the selected threshold', () => {
+    const view = meter({ contextPressure: { pressureTokens: 64_000, contextWindow: 128_000 } }, tEn)
+    const trigger = view.getByRole('button', { name: '50% of context used' })
+    fireEvent.click(trigger)
+    const slider = view.getByRole('slider', { name: 'Automatic compaction threshold' })
+    fireEvent.change(slider, { target: { value: '25' } })
+    const ringFill = trigger.querySelectorAll('circle')[1]
+    if (ringFill === undefined) throw new Error('context ring fill missing')
+    const dash = ringFill.getAttribute('stroke-dasharray')?.split(' ').map(Number)
+    if (dash === undefined || dash.length < 2) throw new Error('context ring dasharray missing')
+    expect(dash[0]).toBeCloseTo(dash[1]!)
+  })
+
+  it('keeps only the explicit manual action disabled while the agent is busy', async () => {
     const compact = vi.fn().mockResolvedValue(true)
+    const persist = vi.fn()
     const view = meter(
       { contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 } },
       tEn,
       compact,
       true,
+      persist,
     )
     fireEvent.click(view.getByRole('button', { name: '25% of context used' }))
     fireEvent.change(view.getByRole('slider', { name: 'Automatic compaction threshold' }), { target: { value: '25' } })
-    await Promise.resolve()
+    expect(persist).toHaveBeenCalledWith(25)
     expect(compact).not.toHaveBeenCalled()
     expect((view.getByRole('button', { name: 'Compact now' }) as HTMLButtonElement).disabled).toBe(true)
-
-    view.rerender(
-      <ContextMeter
-        useProjection={projections({ contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 } })}
-        compact={compact}
-        busy={false}
-        t={tEn}
-      />,
-    )
-    await vi.waitFor(() => { expect(compact).toHaveBeenCalledTimes(1) })
   })
   it('lets each locale own the headline word order around the reading', () => {
     const values = {
@@ -168,19 +212,19 @@ describe('ContextMeter', () => {
       contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 },
       contextBreakdown: BREAKDOWN,
     }
-    const view = render(<ContextMeter useProjection={(key: string) => values[key]} t={t} />)
+    const view = render(<ContextMeter useProjection={(key: string) => values[key]} threshold={80} setThreshold={() => {}} t={t} />)
     fireEvent.click(view.getByRole('button', { name: '上下文已用 25%' }))
     expect(view.container.querySelector('[role="dialog"]')).not.toBeNull()
 
     values = { contextPressure: { pressureTokens: 32_000 }, contextBreakdown: BREAKDOWN }
-    view.rerender(<ContextMeter useProjection={(key: string) => values[key]} t={t} />)
+    view.rerender(<ContextMeter useProjection={(key: string) => values[key]} threshold={80} setThreshold={() => {}} t={t} />)
     expect(view.container.textContent).toBe('')
 
     values = {
       contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 },
       contextBreakdown: BREAKDOWN,
     }
-    view.rerender(<ContextMeter useProjection={(key: string) => values[key]} t={t} />)
+    view.rerender(<ContextMeter useProjection={(key: string) => values[key]} threshold={80} setThreshold={() => {}} t={t} />)
     expect(view.getByRole('button', { name: '上下文已用 25%' }).getAttribute('aria-expanded')).toBe('false')
     expect(view.container.querySelector('[role="dialog"]')).toBeNull()
   })
