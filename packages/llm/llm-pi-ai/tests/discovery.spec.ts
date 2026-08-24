@@ -3,6 +3,7 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { userAgent } from '@deepseek-ai/dsh-llm'
+import ModelCatalog from '@deepseek-ai/dsh-model-catalog'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import { discoverModels } from '../src/discovery.ts'
@@ -65,9 +66,10 @@ async function listingServer(behavior: {
 }
 
 /** A bare dormant mount: discovery is offered whether or not a route exists. */
-async function harness(): Promise<Context> {
+async function harness(withCatalog = false): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(LlmRuntime)
+  if (withCatalog) await ctx.plugin(ModelCatalog)
   await ctx.plugin(LlmPiAi, {})
   return ctx
 }
@@ -90,6 +92,52 @@ describe('catalog-route model discovery', () => {
   it('needs no endpoint for a route the catalog describes', async () => {
     const ctx = await harness()
     await expect(ctx.llm.discoverModels('llm-pi-ai', { provider: 'deepseek' })).resolves.not.toHaveLength(0)
+  })
+
+  it('annotates installed-catalog rows with the capabilities those entries carry', async () => {
+    const ctx = await harness()
+
+    const models = await ctx.llm.discoverModels('llm-pi-ai', { provider: 'deepseek' })
+    const flash = models.find(model => model.id === 'deepseek-v4-flash')
+
+    expect(flash).toMatchObject({ catalogMatched: true, inputModalities: ['text'] })
+    expect(flash?.reasoningLevels?.length ?? 0).toBeGreaterThan(0)
+  })
+
+  it('fills an unlisted listing row from the identity catalog, capacities included', async () => {
+    // An id the endpoint serves but its listing undersells: the shared
+    // identity catalog answers modalities, reasoning levels, and capacities,
+    // so the adopting surface shows real facts instead of blanks.
+    const server = await listingServer({ body: JSON.stringify({ data: [{ id: 'mimo-v2.5' }] }) })
+    const ctx = await harness(true)
+
+    expect(await ctx.llm.discoverModels('llm-pi-ai', { baseURL: server.url })).toEqual([{
+      id: 'mimo-v2.5',
+      contextWindow: 1_048_576,
+      maxTokens: 131_072,
+      inputModalities: ['text', 'image'],
+      reasoningLevels: ['minimal', 'low', 'medium', 'high'],
+      catalogMatched: true,
+    }])
+  })
+
+  it('keeps a disclosed capacity above the identity catalog\'s answer', async () => {
+    // The endpoint knows its own gateway; the reference only fills gaps.
+    const server = await listingServer({
+      body: JSON.stringify({ data: [{ id: 'mimo-v2.5', context_length: 123_456 }] }),
+    })
+    const ctx = await harness(true)
+
+    const [model] = await ctx.llm.discoverModels('llm-pi-ai', { baseURL: server.url })
+    expect(model?.contextWindow).toBe(123_456)
+  })
+
+  it('marks an id neither reference describes as unmatched rather than guessing', async () => {
+    const server = await listingServer({ body: JSON.stringify({ data: [{ id: 'brand-new-release' }] }) })
+    const ctx = await harness(true)
+
+    expect(await ctx.llm.discoverModels('llm-pi-ai', { baseURL: server.url }))
+      .toEqual([{ id: 'brand-new-release', catalogMatched: false }])
   })
 
   it('says where a route the catalog does not describe must get its models', async () => {
@@ -120,8 +168,8 @@ describe('draft-provider model discovery', () => {
     const models = await ctx.llm.discoverModels('llm-pi-ai', { baseURL: `${server.url}/v1`, apiKey: 'probe-key' })
 
     expect(models).toEqual([
-      { id: 'acme-large', name: 'Acme Large', contextWindow: 65_536, maxTokens: 4096 },
-      { id: 'acme-small' },
+      { id: 'acme-large', name: 'Acme Large', contextWindow: 65_536, maxTokens: 4096, catalogMatched: false },
+      { id: 'acme-small', catalogMatched: false },
     ])
     expect(server.paths).toEqual(['/v1/models'])
     expect(server.headers[0]?.authorization).toBe('Bearer probe-key')
@@ -206,7 +254,7 @@ describe('draft-provider model discovery', () => {
     const ctx = await harness()
 
     expect(await ctx.llm.discoverModels('llm-pi-ai', { baseURL: server.url }))
-      .toEqual([{ id: 'good' }, { id: 'zero-capacity' }])
+      .toEqual([{ id: 'good', catalogMatched: false }, { id: 'zero-capacity', catalogMatched: false }])
   })
 
   it('points at the credential for a rejected one, and only then', async () => {

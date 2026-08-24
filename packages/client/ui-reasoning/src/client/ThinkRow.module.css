@@ -1,0 +1,221 @@
+/* ThinkRow: the reasoning disclosure presenter for the conversation.chat.
+  .reasoning seat. Flat flow row (no card): rotating chevron, dimmed summary,
+   live progress dots while streaming, grid-rows height transition on the
+   body. Motion rides the shared flow tokens; every animated piece has a
+   prefers-reduced-motion kill switch. */
+
+.root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  animation: think-in 0.18s ease;
+}
+
+@keyframes think-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--dsw-motion-rise));
+  }
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.row:focus-visible {
+  outline: none;
+  /* Same focus ring language as the markdown sheet's links. */
+  box-shadow: 0 0 0 2px var(--dsw-alias-state-business-primary);
+  border-radius: 4px;
+}
+
+/* Streaming sweep (shared row-glare pattern): a background-toned band glides
+   across the row, washing it toward the flow background as it passes. */
+.root[data-state='running'] .row::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 300px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--dsw-alias-bg-base) 60%, transparent) 55%,
+    transparent 100%
+  );
+  animation: think-sweep 2.6s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes think-sweep {
+  0% { left: -300px; }
+  90%, 100% { left: 100%; }
+}
+
+.leading {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.chevron {
+  transition: transform var(--dsw-duration-flow) var(--dsw-ease-flow);
+}
+
+.root[data-open] .chevron {
+  transform: rotate(180deg);
+}
+
+.title {
+  flex: none;
+  font-size: 14px;
+  line-height: 24px;
+  font-weight: 400;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.separator {
+  flex: none;
+  width: 2px;
+  height: 2px;
+  margin: 0 8px;
+  border-radius: 1px;
+  background: var(--dsw-alias-label-caption);
+}
+
+.summary {
+  min-width: 0;
+  overflow: hidden;
+  flex: 1 1 auto;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 14px;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary[data-follow-end] {
+  text-overflow: clip;
+}
+
+/* Live progress: three dots pulsing in a staggered wave while the block
+   streams, replacing the settled row's quiet summary end. */
+.dots {
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+  margin-left: 8px;
+}
+
+.dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--dsw-alias-label-secondary);
+  animation: think-dot 1s ease-in-out infinite;
+}
+
+.dots i:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.dots i:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+@keyframes think-dot {
+  0%, 100% { opacity: 0.28; }
+  50% { opacity: 1; }
+}
+
+/* Height transition without measuring: the grid row grows 0fr → 1fr while
+   the inner clipping box fades. Visibility flips at the transition ends so
+   the collapsed body leaves the accessibility tree. */
+.collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dsw-duration-flow) var(--dsw-ease-flow);
+}
+
+.root[data-open] .collapse {
+  grid-template-rows: 1fr;
+}
+
+.collapseInner {
+  min-height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  transition: visibility 0s var(--dsw-duration-flow);
+}
+
+.root[data-open] .collapseInner {
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.body {
+  padding: 4px 0 4px 20px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 14px;
+  line-height: 24px;
+  opacity: 0;
+  transition: opacity var(--dsw-duration-flow) var(--dsw-ease-flow);
+}
+
+.root[data-open] .body {
+  opacity: 1;
+}
+
+/* The markdown sheet's block margins assume the 16/28 message body; inside
+   the dimmed think body they read as gaps twice the row rhythm. */
+.body :where(p, li) {
+  margin: 4px 0;
+}
+
+/* Dimmed hierarchy: emphasis and headings step one label rung brighter than
+   the body so structure survives the muted tone. */
+.body strong,
+.body :where(h1, h2, h3, h4, h5, h6) {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.body :where(h1, h2, h3, h4, h5, h6) {
+  margin: 8px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root,
+  .root[data-state='running'] .row::after,
+  .dots i,
+  .chevron,
+  .collapse,
+  .body {
+    animation: none;
+    transition: none;
+  }
+
+  /* Without the transition, visibility must flip instantly with the state. */
+  .collapseInner {
+    transition: none;
+  }
+}

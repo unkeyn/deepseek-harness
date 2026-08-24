@@ -1017,6 +1017,7 @@ describe('small branch tails', () => {
         blocks={[{ kind: 'reasoning', text: 'one-liner' }]}
         streaming={false}
         renderMessageImages={renderMessageImages}
+        renderReasoning={(_key, _owner, opts) => opts?.fallback ?? null}
       />,
     )
     expect(view.getByText('one-liner')).toBeTruthy()

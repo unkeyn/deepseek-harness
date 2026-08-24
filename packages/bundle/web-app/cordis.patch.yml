@@ -288,6 +288,12 @@
     - id: ui-plan
       name: '@deepseek-ai/dsh-client-ui-plan'
 
+    # Reasoning presentation: the animated, markdown-rendering ThinkRow for
+    # the conversation.chat.reasoning seat. Remove this entry to fall back to
+    # ui-conversation's built-in Think row.
+    - id: ui-reasoning
+      name: '@deepseek-ai/dsh-client-ui-reasoning'
+
     - id: ui-user-questions
       name: '@deepseek-ai/dsh-client-ui-user-questions'
 

@@ -11,6 +11,7 @@ export class PoolCredentialBroker extends CredentialBroker {
 
   private readonly live = new Map<string, LiveLease>()
   private readonly waiters: Waiter[] = []
+  private readonly rotations = new Map<string, number>()
   private sequence = 0
   private closed = false
 
@@ -121,7 +122,7 @@ export class PoolCredentialBroker extends CredentialBroker {
     const active = new Map<string, number>()
     const now = Date.now()
     for (const lease of this.live.values()) active.set(lease.record.id, (active.get(lease.record.id) ?? 0) + 1)
-    const candidate = snapshot.credentials
+    const eligible = snapshot.credentials
       .filter(record => record.enabled
         && record.health.quarantineReason === undefined
         && snapshot.pools.find(pool => pool.id === record.pool)?.provider === request.provider
@@ -129,8 +130,14 @@ export class PoolCredentialBroker extends CredentialBroker {
         && (record.health.cooldownUntil === undefined || record.health.cooldownUntil <= now)
         && !record.health.excludedModels.includes(request.model)
         && (active.get(record.id) ?? 0) < record.maxConcurrent)
-      .sort((left, right) => right.priority - left.priority)[0]
-    if (candidate === undefined) return undefined
+    if (eligible.length === 0) return undefined
+    // Priority orders the failover ladder; equal-priority entries rotate so
+    // parallel sessions spread across the pool instead of pinning one key.
+    const topPriority = Math.max(...eligible.map(record => record.priority))
+    const tier = eligible.filter(record => record.priority === topPriority)
+    const rotation = this.rotations.get(request.provider) ?? 0
+    this.rotations.set(request.provider, rotation + 1)
+    const candidate = tier[rotation % tier.length]
     const id = leaseId(`lease-${++this.sequence}`)
     this.live.set(id, { record: candidate, version: { generation: candidate.generation, version: snapshot.generation } })
     return {

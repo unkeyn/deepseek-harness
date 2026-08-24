@@ -176,6 +176,8 @@ function makeHarness(init?: Partial<ConversationSnapshot>) {
   }> = []
   const renderCommandSlot = ((_key: string, _owner: object, opts?: { fallback?: React.ReactNode }) =>
     opts?.fallback ?? null) as unknown as React.ComponentProps<typeof CommandNodeView>['renderSlot']
+  const renderReasoningSlot = ((_key: string, _owner: object, opts?: { fallback?: React.ReactNode }) =>
+    opts?.fallback ?? null) as unknown as React.ComponentProps<typeof AssistantNodeView>['renderSlot']
   const renderTurnTail = ((_key: string, _owner: object) => null) as unknown as
     React.ComponentProps<typeof TurnTailNodeView>['renderSlotChain']
   const renderTurnTailSlot = (() => null) as unknown as
@@ -203,7 +205,13 @@ function makeHarness(init?: Partial<ConversationSnapshot>) {
       case 'context':
         return <ContextMessageNodeView {...nodeProps<'context'>()} />
       case 'assistant-step':
-        return <AssistantNodeView {...nodeProps<'assistant-step'>()} />
+        return (
+          <AssistantNodeView
+            {...nodeProps<'assistant-step'>()}
+            renderSlot={renderReasoningSlot}
+            SessionProvider={props.SessionProvider}
+          />
+        )
       case 'command':
         return (
           <CommandNodeView

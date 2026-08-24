@@ -179,8 +179,10 @@
 
 .tableScroll table {
   border-collapse: collapse;
-  width: max-content;
-  max-width: max-content;
+  /* Stretch to the message column so a narrow table reads as part of the
+     flow instead of a ragged content-sized island; wide tables keep
+     overflowing this scroller (cell caps below) and scroll horizontally. */
+  width: 100%;
 }
 
 .tableScroll th {
@@ -192,6 +194,13 @@
   max-width: 320px;
   max-width: min(30vw, 320px);
   min-width: 100px;
+  /* Sticky against the transcript scrollport: while a tall or wide table
+     scrolls, the header row stays readable instead of leaving with the
+     flow. The opaque flow background hides the cells passing underneath. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--dsw-alias-bg-base);
 }
 
 .tableScroll td {

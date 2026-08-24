@@ -320,13 +320,58 @@ describe('hand-declared providers', () => {
     })).toThrow(/more than once/)
   })
 
-  it('rejects a declaration that names no wire protocol or endpoint', () => {
-    expect(() => resolveProfiles({
-      'acme-gateway': { baseURL: 'https://acme.test', models: [{ id: 'm', contextWindow: 1, maxTokens: 1 }] },
-    })).toThrow(/needs an api/)
+  it('rejects a declaration that names no endpoint', () => {
     expect(() => resolveProfiles({
       'acme-gateway': { api: 'openai-completions', models: [{ id: 'm', contextWindow: 1, maxTokens: 1 }] },
     })).toThrow(/needs a baseURL/)
+  })
+
+  it('serves a gateway id neither catalog describes as Chat Completions', () => {
+    // A hand-declared route exists to serve one OpenAI-compatible gateway, so
+    // an id newer than both catalogs resolves to the same protocol endpoint
+    // interrogation probes with — no restated route `api` required.
+    const profiles = resolveProfiles({
+      'acme-gateway': { baseURL: 'https://acme.test', models: [{ id: 'm', contextWindow: 1, maxTokens: 1 }] },
+    })
+    expect(profiles.get('acme-gateway')?.piProvider.getModels()[0]?.api).toBe('openai-completions')
+  })
+
+  it('keeps an explicit route protocol above the gateway default', () => {
+    const profiles = resolveProfiles({
+      'acme-gateway': {
+        api: 'openai-responses',
+        baseURL: 'https://acme.test',
+        models: [{ id: 'mystery', contextWindow: 1, maxTokens: 1 }],
+      },
+    })
+    expect(profiles.get('acme-gateway')?.piProvider.getModels()[0]?.api).toBe('openai-responses')
+  })
+
+  it('pins developer-role off for a gateway id no installed catalog describes', () => {
+    // pi-ai's detection answers an unrecognizable private URL as though it
+    // were OpenAI itself, sending a reasoning model's system prompt as the
+    // `developer` role — which most gateways refuse outright. An id whose
+    // protocol facts came from fallback gets the conservative answer pinned.
+    const profiles = resolveProfiles({
+      'acme-gateway': { baseURL: 'https://acme.test', models: [{ id: 'm', contextWindow: 1, maxTokens: 1 }] },
+    })
+    expect(profiles.get('acme-gateway')?.piProvider.getModels()[0]?.compat)
+      .toMatchObject({ supportsDeveloperRole: false })
+  })
+
+  it('keeps model compat above the detection default', () => {
+    const profiles = resolveProfiles({
+      'acme-gateway': {
+        baseURL: 'https://acme.test',
+        models: [
+          { id: 'a', contextWindow: 1, maxTokens: 1 },
+          { id: 'b', contextWindow: 1, maxTokens: 1, compat: { supportsDeveloperRole: true } },
+        ],
+      },
+    })
+    // Model config wins over the pinned default.
+    expect(profiles.get('acme-gateway')?.piProvider.getModels().find(model => model.id === 'b')?.compat)
+      .toMatchObject({ supportsDeveloperRole: true })
   })
 
   it.each(['bedrock-converse-stream', 'google-vertex', 'azure-openai-responses', 'openai-codex-responses'])(
@@ -793,8 +838,12 @@ describe('compat switches', () => {
       },
     }, 'acme-gateway')
 
-    expect(models.get('dialect-default')?.compat).toEqual({ thinkingFormat: 'deepseek' })
-    expect(models.get('dialect-odd')?.compat).toEqual({ thinkingFormat: 'openai', supportsReasoningEffort: false })
+    expect(models.get('dialect-default')?.compat).toEqual({ supportsDeveloperRole: false, thinkingFormat: 'deepseek' })
+    expect(models.get('dialect-odd')?.compat).toEqual({
+      supportsDeveloperRole: false,
+      thinkingFormat: 'openai',
+      supportsReasoningEffort: false,
+    })
   })
 
   it('merges the switches over the catalog entry’s own compat instead of replacing it', () => {
@@ -932,6 +981,7 @@ describe('compat switches', () => {
     }, 'acme-qwen')
 
     expect(models.get('qwen-local')?.compat).toEqual({
+      supportsDeveloperRole: false,
       thinkingFormat: 'qwen-chat-template',
       chatTemplateKwargs: { enable_thinking: { $var: 'thinking.enabled' } },
     })

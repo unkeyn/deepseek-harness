@@ -670,7 +670,16 @@ select.input {
 }
 
 .candidate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 6px;
   border-radius: 6px;
+}
+
+.candidate > .candidateLabel {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .candidateLabel {
@@ -686,4 +695,23 @@ select.input {
   font-family: var(--ds-font-family-code);
   font-size: 13px;
   overflow-wrap: anywhere;
+}
+
+/* Reference-catalog capability chips beside a candidate row: caption size,
+   the row-tag vocabulary, so they annotate without competing with the id. */
+.candidateBadges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.candidateBadge {
+  padding: 1px 6px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-secondary);
+  white-space: nowrap;
 }

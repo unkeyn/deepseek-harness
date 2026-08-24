@@ -624,6 +624,16 @@ export interface RouteCatalogRequest {
 }
 
 
+/**
+ * The wire protocol assumed for a model neither configuration nor any catalog
+ * describes. A hand-declared route exists to serve one OpenAI-compatible
+ * gateway, and every such surface this adapter interrogates is probed as Chat
+ * Completions by default (`discovery.ts`), so this is the same assumption the
+ * rest of the seam already makes rather than a new guess. An endpoint that
+ * speaks anything else names its protocol at the route, which wins outright.
+ */
+const GATEWAY_DEFAULT_API = 'openai-completions'
+
 /** Report a route the deployment cannot serve, naming the settings key at fault. */
 function invalid(provider: string, detail: string): never {
   throw new Error(`llm-pi-ai: provider "${provider}" ${detail}`)
@@ -769,6 +779,10 @@ type ModelCompat = OpenAICompletionsCompat | OpenAIResponsesCompat | AnthropicMe
  * @param route - the route-level switches, when any.
  * @param base - the installed catalog entry of the same id, when one exists.
  * @param api - the model's resolved wire protocol.
+ * @param detectionFallback - whether this id has no installed catalog entry,
+ *   so its protocol came from a reference answer, sibling consensus, or the
+ *   gateway default and pi-ai's own baseURL detection will decide the
+ *   undetermined switches.
  * @returns a `compat` field to spread into the model, or nothing.
  */
 function resolveModelCompat(
@@ -777,6 +791,7 @@ function resolveModelCompat(
   route: PiAiCompatProfile | undefined,
   base: Model<Api> | undefined,
   api: string,
+  detectionFallback: boolean,
 ): { compat: ModelCompat } | Record<string, never> {
   const gate = compatGate(api)
   const configured: Record<string, unknown> = {}
@@ -793,7 +808,6 @@ function resolveModelCompat(
     }
     configured[field] = value
   }
-  if (Object.keys(configured).length === 0) return {}
   // The installed entry's compat matches the entry's OWN api — a route-level
   // `api` repoint (an anthropic catalog served through an OpenAI-compatible
   // gateway) leaves `base.compat` in the other protocol's shape, so it is
@@ -801,7 +815,21 @@ function resolveModelCompat(
   // model starts from pi-ai's baseURL-derived detection instead, which is
   // what a protocol change means for every other compat field too.
   const inherited = base?.api === api ? base.compat : undefined
-  return { compat: { ...inherited, ...configured } as ModelCompat }
+  // An id no installed catalog describes reaches pi-ai's detection with an
+  // unrecognizable private URL, which answers as though it were OpenAI
+  // itself: for a reasoning model the system prompt then travels as the
+  // `developer` role, and most gateways refuse that role outright. When the
+  // protocol facts came from fallback rather than an installed entry, pin
+  // the conservative answer first — `system` is accepted everywhere the
+  // `developer` variant is — leaving every other switch to detection. The
+  // installed entry, route config, and model config all win over it.
+  const detectionDefault = detectionFallback && gate?.supportsDeveloperRole === 'offer'
+    ? { supportsDeveloperRole: false }
+    : {}
+  if (Object.keys(detectionDefault).length === 0 && Object.keys(configured).length === 0 && inherited === undefined) {
+    return {}
+  }
+  return { compat: { ...detectionDefault, ...inherited, ...configured } as ModelCompat }
 }
 
 /** One route's materialized catalog, plus the request caps its profile chose. */
@@ -880,16 +908,29 @@ export function resolveRouteModels(request: RouteCatalogRequest): RouteCatalog {
   }
   const seen = new Set<string>()
   const configuredMaxTokens = new Map<string, number>()
-  const models = entries.map((entry) => {
+  // Each configured id's best catalog answer, computed once: an id both
+  // catalogs miss still needs a protocol, and it inherits the nearest
+  // preceding describable sibling's rather than failing the whole route.
+  const bases = new Map(entries.map(entry => [
+    entry.id,
+    defaults.get(entry.id) ?? referenceModel(request.catalog, entry.id),
+  ]))
+  const models = entries.map((entry, index) => {
     if (entry.id.length === 0) invalid(provider, 'has a model with an empty id')
     if (seen.has(entry.id)) invalid(provider, `lists model "${entry.id}" more than once`)
     seen.add(entry.id)
-    const base = defaults.get(entry.id) ?? referenceModel(request.catalog, entry.id)
-    const api = request.api ?? base?.api ?? routeApi
-    if (api === undefined) {
-      invalid(provider, `model "${entry.id}" needs an api; the installed catalog does not describe it, so set the`
-        + ' route\'s api to the wire protocol its endpoint speaks')
-    }
+    const base = bases.get(entry.id)
+    // Resolution order for the wire protocol: the route's explicit choice,
+    // this exact id's installed-catalog or identity answer, what every shipped
+    // model on the route agrees on, the nearest preceding sibling the catalogs
+    // describe, and finally the OpenAI-compatible gateway default. A gateway
+    // serves one endpoint, so an id newer than both catalogs — a provider's
+    // newest release adopted from its own listing — resolves correctly here
+    // without restating anything the siblings already imply.
+    const siblingApi = entries.slice(0, index)
+      .map(previous => bases.get(previous.id)?.api)
+      .find(candidate => candidate !== undefined)
+    const api = request.api ?? base?.api ?? routeApi ?? siblingApi ?? GATEWAY_DEFAULT_API
     const baseUrl = request.baseURL ?? base?.baseUrl ?? providerBaseUrl
     if (baseUrl === undefined) {
       invalid(provider, `model "${entry.id}" needs a baseURL; the installed catalog does not describe this route`)
@@ -926,7 +967,11 @@ export function resolveRouteModels(request: RouteCatalogRequest): RouteCatalog {
       contextWindow,
       maxTokens,
       ...resolveModelReasoning(provider, entry, base),
-      ...resolveModelCompat(provider, entry, request.compat, base, api),
+      // No installed entry means the protocol facts above came from a
+      // reference answer, sibling consensus, or the gateway default, so
+      // detection decides what resolution could not — see the compat
+      // function for the one switch that gets pinned there.
+      ...resolveModelCompat(provider, entry, request.compat, base, api, !defaults.has(entry.id)),
     }
   })
   // Per field, not per block: a route may default a switch its completions

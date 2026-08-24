@@ -551,11 +551,21 @@ export class LlmRuntime extends Service {
     for (const model of discovered) {
       if (typeof model.id !== 'string' || model.id.length === 0 || seen.has(model.id)) continue
       seen.add(model.id)
+      // Rebuilt rather than passed through so duplicate dropping cannot hand
+      // back an aliased row, and so every field a row may carry is named here:
+      // a capability fact the enriching adapter supplied must survive this
+      // seam the same way its capacities do.
+      const capabilities = {
+        ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
+        ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
+        ...model.inputModalities === undefined ? {} : { inputModalities: [...model.inputModalities] },
+        ...model.reasoningLevels === undefined ? {} : { reasoningLevels: [...model.reasoningLevels] },
+        ...model.catalogMatched === undefined ? {} : { catalogMatched: model.catalogMatched },
+      }
       models.push({
         id: model.id,
         ...model.name === undefined ? {} : { name: model.name },
-        ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
-        ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
+        ...capabilities,
       })
     }
     return models

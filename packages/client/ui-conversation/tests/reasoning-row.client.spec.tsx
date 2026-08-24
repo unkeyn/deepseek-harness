@@ -38,6 +38,7 @@ afterEach(() => {
 
 const t = makeTranslate(zh, commonZh)
 const renderMessageImages: AssistantMarkdownProps['renderMessageImages'] = () => null
+const renderReasoning: AssistantMarkdownProps['renderReasoning'] = (_key, _owner, opts) => opts?.fallback ?? null
 
 describe('ReasoningRow', () => {
   it('follows the latest streaming line, scrolls to its end, then restores the settled first line', () => {
@@ -47,6 +48,7 @@ describe('ReasoningRow', () => {
         blocks={[{ kind: 'reasoning', text: 'Inspect the session\nNewest reasoning tokens' }]}
         streaming
         renderMessageImages={renderMessageImages}
+        renderReasoning={renderReasoning}
       />,
     )
     expect(view.getByText('运行中')).toBeTruthy()
@@ -62,6 +64,7 @@ describe('ReasoningRow', () => {
         blocks={[{ kind: 'reasoning', text: 'Inspect the session\nNewest reasoning tokens keep arriving' }]}
         streaming
         renderMessageImages={renderMessageImages}
+        renderReasoning={renderReasoning}
       />,
     )
     expect(summary.scrollLeft).toBe(0)
@@ -77,6 +80,7 @@ describe('ReasoningRow', () => {
         blocks={[{ kind: 'reasoning', text: 'Inspect the session\nNewest reasoning tokens keep arriving\n' }]}
         streaming={false}
         renderMessageImages={renderMessageImages}
+        renderReasoning={renderReasoning}
       />,
     )
     flushAnimationFrames(3)
@@ -93,6 +97,7 @@ describe('ReasoningRow', () => {
         blocks={[{ kind: 'reasoning', text: 'Inspect the session\nCheck persistence' }]}
         streaming={false}
         renderMessageImages={renderMessageImages}
+        renderReasoning={renderReasoning}
       />,
     )
     const row = view.getByRole('button')
@@ -112,6 +117,7 @@ describe('ReasoningRow', () => {
         blocks={[{ kind: 'reasoning', text: 'Inspect the session\nCheck persistence' }]}
         streaming={false}
         renderMessageImages={renderMessageImages}
+        renderReasoning={renderReasoning}
       />,
     )
     fireEvent.click(view.getByText('Think'))

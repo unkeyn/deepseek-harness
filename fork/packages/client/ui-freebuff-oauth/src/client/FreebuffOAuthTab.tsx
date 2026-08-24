@@ -19,12 +19,12 @@ export function FreebuffOAuthTab(props: FreebuffOAuthTabProps) {
   const connected = state.status === 'connected'
   const pending = state.loginUrl !== undefined
   const busy = state.status === 'loading' || state.status === 'waiting'
+  const error = state.error ?? state.desktopError
 
   return (
     <div className={css.panel}>
       <div className={css.header}>
         <div>
-          <p className={css.eyebrow}>Freebuff</p>
           <h3 className={css.title}>{t('title')}</h3>
           <p className={css.description}>{t('description')}</p>
         </div>
@@ -46,51 +46,53 @@ export function FreebuffOAuthTab(props: FreebuffOAuthTabProps) {
         <span className={css.statusDot} aria-hidden="true" />
         <span>{statusLabel(t, state.status)}</span>
         {connected ? <IconCheckOutline14 className={css.statusIcon} /> : null}
+        {state.account !== undefined
+          ? <span className={css.statusAccount}>{state.account.displayName ?? state.account.accountId}</span>
+          : null}
       </div>
 
-      {state.account !== undefined ? (
-        <div className={css.account}>
-          <span className={css.accountLabel}>{t('account')}</span>
-          <strong>{state.account.displayName ?? state.account.accountId}</strong>
-        </div>
-      ) : null}
-
-      {state.status === 'error' ? <p className={css.error}>{state.error ?? t('loginFailed')}</p> : null}
-
-      {state.desktopError !== undefined ? <p className={css.error}>{state.desktopError}</p> : null}
+      {error !== undefined ? <p className={css.error}>{error}</p> : null}
 
       <div className={css.actions}>
-        <button
-          type="button"
-          className={css.secondary}
-          disabled={state.desktopStatus === 'opening'}
-          onClick={props.openDesktop}
-        >
-          <IconPlayOutline16 className={css.actionIcon} />
-          {state.desktopStatus === 'opening' ? t('openingDesktop') : t('openDesktop')}
-        </button>
-        {state.status === 'signed-out' || state.status === 'error' ? (
-          <button type="button" className={css.primary} onClick={props.beginLogin}>
-            {t('signIn')}
-          </button>
-        ) : null}
-        {pending ? (
-          <>
-            <a className={css.secondary} href={state.loginUrl} target="_blank" rel="noreferrer">
-              {t('openFreebuff')}
-            </a>
-            <button type="button" className={css.primary} disabled={busy} onClick={props.completeLogin}>
-              {state.status === 'waiting' ? t('waiting') : t('completeLogin')}
-            </button>
-          </>
-        ) : null}
-        {connected ? (
-          <button type="button" className={css.secondary} onClick={props.logout}>
-            {t('logout')}
-          </button>
-        ) : null}
+        {pending
+          ? (
+            <>
+              <button type="button" className={css.primary} disabled={busy} onClick={props.completeLogin}>
+                {state.status === 'waiting' ? t('waiting') : t('completeLogin')}
+              </button>
+              <a className={css.secondary} href={state.loginUrl} target="_blank" rel="noreferrer">
+                {t('openFreebuff')}
+              </a>
+              <DesktopButton props={props} />
+            </>
+          )
+          : connected
+            ? (
+              <button type="button" className={css.secondary} onClick={props.logout}>
+                {t('logout')}
+              </button>
+            )
+            : (
+              <>
+                <button type="button" className={css.primary} onClick={props.beginLogin}>
+                  {t('signIn')}
+                </button>
+                <DesktopButton props={props} />
+              </>
+            )}
       </div>
     </div>
+  )
+}
+
+function DesktopButton({ props }: { props: FreebuffOAuthTabProps }) {
+  const { t } = props
+  const opening = props.useOauth(snapshot => snapshot.desktopStatus === 'opening')
+  return (
+    <button type="button" className={css.secondary} disabled={opening} onClick={props.openDesktop}>
+      <IconPlayOutline16 className={css.actionIcon} />
+      {opening ? t('openingDesktop') : t('openDesktop')}
+    </button>
   )
 }
 

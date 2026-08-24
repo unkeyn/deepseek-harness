@@ -70,8 +70,12 @@
   color: var(--dsw-alias-label-tertiary);
   font-size: 14px;
   line-height: 24px;
-  white-space: pre-wrap;
-  word-break: break-word;
+}
+
+/* The markdown sheet's block margins assume the 16/28 message body; inside
+   the dimmed think body they read as gaps twice the row rhythm. */
+.thinkBody :where(p, li) {
+  margin: 4px 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

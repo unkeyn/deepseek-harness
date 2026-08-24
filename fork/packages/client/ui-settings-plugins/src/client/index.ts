@@ -5,8 +5,8 @@
  * The section declares `settings.plugins.tab`; its own `configurable` tab then
  * declares `settings.plugin.item` and renders whatever cards were registered
  * into it. Each shipped card binds a host-plane settings namespace through the
- * client settings scope; custom search providers are configured on the Models
- * page's ready-made pool panel instead of one card per provider.
+ * client settings scope; search providers are configured on the Models page's
+ * search-providers panel instead of one card per provider.
  */
 
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
@@ -171,10 +171,10 @@ export function apply(ctx: ClientContext): void {
     }, WebSearchCard)
   })
 
-  // The ready-made search-providers editor is a Models-page panel, not a
-  // Plugins card: keys for model routes and keys for search providers are the
-  // same kind of task, so they live on one page. The card opens expanded —
-  // the segment switch already says what the user came to do.
+  // The search-providers editor is a Models-page panel, not a Plugins card:
+  // keys for model routes and keys for search providers are the same kind of
+  // task, so they live on one page. The card opens expanded — the segment
+  // switch already says what the user came to do.
   ctx.slots.inject('settings.models.panel', () => ctx.slots.register({
     name: 'settings.models.panel',
     id: 'search-providers',

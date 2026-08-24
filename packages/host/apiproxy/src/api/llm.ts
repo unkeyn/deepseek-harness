@@ -86,4 +86,10 @@ export interface DiscoveredModelView {
   contextWindow?: number
   /** Maximum output tokens, when disclosed. */
   maxTokens?: number
+  /** Accepted input modalities per the answering adapter's reference catalogs; absent means unknown. */
+  inputModalities?: readonly string[]
+  /** Reasoning effort levels per a reference catalog, in escalation order; absent means unknown or non-reasoning. */
+  reasoningLevels?: readonly string[]
+  /** Whether a reference catalog described this exact id. */
+  catalogMatched?: boolean
 }

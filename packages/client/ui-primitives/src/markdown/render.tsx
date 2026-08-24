@@ -24,6 +24,7 @@ import { normalizeUri } from 'micromark-util-sanitize-uri'
 import { CodeBlock } from './CodeBlock.tsx'
 import { renderTexToReact } from './katex.tsx'
 import type { PositionedBlock } from './incremental.ts'
+import { parseGfmWithMath } from './parse.ts'
 import css from './MarkdownText.module.css'
 
 /** Copy-button labels forwarded to fence CodeBlocks (this package is cordis-free, so copy arrives via props). */
@@ -580,4 +581,33 @@ export function renderFootnoteSection(context: MarkdownRenderContext): ReactNode
       <ol>{items}</ol>
     </section>
   )
+}
+
+/**
+ * Render authored one-line markdown as phrasing content: every paragraph's
+ * inline children concatenated (multi-line input joins paragraphs with a
+ * space). Non-paragraph lines — headings, fences, tables — are dropped, so a
+ * caller feeding it anything but prose gets nothing rather than block chrome.
+ * The untrusted-output policy is the document renderer's own: raw HTML stays
+ * literal, link destinations pass the protocol allowlist.
+ * @param text - assistant-authored single-line markdown.
+ * @returns The inline elements; empty for blank or non-paragraph input.
+ */
+export function renderInlineLine(text: string): ReactNode[] {
+  const root = parseGfmWithMath(text)
+  const context: MarkdownRenderContext = {
+    streaming: false,
+    codeLabels: undefined,
+    fileMentions: undefined,
+    targets: createReferenceTargets(),
+    footnoteOrder: [],
+    footnoteCounts: new Map(),
+  }
+  const children: ReactNode[] = []
+  for (const node of root.children) {
+    if (node.type !== 'paragraph') continue
+    if (children.length > 0) children.push(' ')
+    children.push(...renderChildren(node.children, context))
+  }
+  return children
 }

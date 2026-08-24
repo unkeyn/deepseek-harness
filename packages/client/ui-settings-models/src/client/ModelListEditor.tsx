@@ -143,14 +143,53 @@ function capacitySpelling(value: number | undefined): string {
   return value === undefined ? '' : formatCapacity(value)
 }
 
-/** Adopt a candidate, keeping whatever capacities the provider disclosed. */
+/**
+ * Adopt a candidate, keeping whatever the provider and reference catalogs
+ * disclosed. Image capability is written onto the row because it is a claim
+ * resolution cannot recover later for an id the catalogs miss; reasoning is
+ * deliberately not — its wire spellings are adapter-owned, and resolution
+ * consults the identity catalog itself at load time.
+ */
 function adopt(candidate: DiscoveredModelView): ModelDraft {
   return {
     id: candidate.id,
     ...candidate.name === undefined ? {} : { name: candidate.name },
     ...candidate.contextWindow === undefined ? {} : { contextWindow: candidate.contextWindow },
     ...candidate.maxTokens === undefined ? {} : { maxTokens: candidate.maxTokens },
+    ...candidate.inputModalities?.includes('image') === true ? { input: ['text', 'image'] } : {},
   }
+}
+
+/**
+ * The capability chips of one candidate, from the reference catalogs the
+ * answering adapter consulted. An id neither catalog describes renders no
+ * chip: nothing is known beyond its existence, and adoption still works —
+ * resolution falls back to the route's own protocol facts.
+ * @param props - the candidate row and section copy.
+ * @returns the chips, or nothing when nothing is known.
+ */
+function CandidateBadges({ candidate, t }: {
+  candidate: DiscoveredModelView
+  t: (key: keyof typeof en) => string
+}): ReactNode {
+  const image = candidate.inputModalities?.includes('image') === true
+  const reasoning = candidate.reasoningLevels ?? []
+  if (!image && reasoning.length === 0) return null
+  return (
+    <span className={styles['candidateBadges']}>
+      {image ? <span className={styles['candidateBadge']}>{t('capabilityImage')}</span> : null}
+      {reasoning.length > 0
+        ? (
+          <span
+            className={styles['candidateBadge']}
+            title={reasoning.join(' · ')}
+          >
+            {`${t('capabilityReasoning')} ${reasoning.length}`}
+          </span>
+        )
+        : null}
+    </span>
+  )
 }
 
 /**
@@ -476,6 +515,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                     editable in the row that appears. */}
                 <span className={styles['candidateId']}>{candidate.id}</span>
               </label>
+              <CandidateBadges candidate={candidate} t={t} />
             </li>
           ))}
         </ul>

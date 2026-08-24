@@ -119,3 +119,28 @@ export function extractMarkdownPlainText(
       return findFirstParagraph(root) ?? all.split('\n').find(line => line !== '') ?? ''
   }
 }
+
+/**
+ * The raw first line of authored text — the settled summary line of a
+ * reasoning block. Unlike the plain-text projection this keeps the markup,
+ * for callers that render the line as markdown themselves.
+ * @param text - Authored block text.
+ * @returns The text up to (excluding) the first newline.
+ */
+export function firstRawLine(text: string): string {
+  const newline = text.indexOf('\n')
+  return newline === -1 ? text : text.slice(0, newline)
+}
+
+/**
+ * The raw trailing line of authored text — the followed summary line while a
+ * reasoning block streams. Trailing whitespace is dropped so a just-emitted
+ * newline does not blank the summary.
+ * @param text - Authored block text.
+ * @returns The text after the last newline of the whitespace-trimmed text.
+ */
+export function latestRawLine(text: string): string {
+  const visible = text.trimEnd()
+  const newline = visible.lastIndexOf('\n')
+  return newline === -1 ? visible : visible.slice(newline + 1)
+}

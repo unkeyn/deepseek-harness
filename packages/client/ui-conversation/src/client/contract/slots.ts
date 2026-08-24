@@ -122,6 +122,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'conversation.chat.commandview': { kind: 'keyed'; scope: 'session'; owner: CommandRowOwnerProps }
     /**
+     * One assistant reasoning block's presentation seat inside the message
+     * flow (the Think disclosure). Declared by the assistant-step entry; the
+     * render site dispatches with the built-in Think row as the `fallback` —
+     * reasoning stays visible with zero registration, and a presenter plugin
+     * upgrades every block by registering one component.
+     */
+    'conversation.chat.reasoning': { kind: 'single'; scope: 'session'; owner: ReasoningOwnerProps }
+    /**
      * The completed Turn Node's extension chain, rendered before that Node's
      * IconActions. Entries derive a match from the engine-owned Turn and
      * closing seq before mounting, so presentation components never mount
@@ -431,6 +439,16 @@ export interface CommandRowOwnerProps {
   node: CommandNode
   /** Explicitly linked compaction checkpoint for the settled `/compact` presentation. */
   compaction?: CompactionSummaryNode
+}
+
+/** Owner currency of one reasoning block's presentation seat. */
+export interface ReasoningOwnerProps {
+  /** Complete or streaming reasoning text. */
+  text: string
+  /** Whether this block is the streaming tail of the running turn. */
+  running: boolean
+  /** The chat view's locale seat, forwarded for state announcements. */
+  t: ChatViewSlotProps['t']
 }
 
 /** Full props of a registered command-row component. */

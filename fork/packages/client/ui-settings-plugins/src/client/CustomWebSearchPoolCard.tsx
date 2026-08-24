@@ -16,7 +16,7 @@ const presetLabel: Record<ProviderPreset, 'webSearchPoolFirecrawl' | 'webSearchP
   exa: 'webSearchPoolExa',
 }
 
-/** Render the ready-made search provider and multi-key pool settings card. */
+/** Render the search provider and multi-key pool settings card. */
 export function CustomWebSearchPoolCard(props: CustomWebSearchPoolCardProps) {
   const state = props.useWebSearchPool(snapshot => snapshot)
   const disabled = !state.writable || state.saving
@@ -29,41 +29,6 @@ export function CustomWebSearchPoolCard(props: CustomWebSearchPoolCardProps) {
     onSave={props.save}
     onDiscard={props.discard}
   >
-    <div className={css.intro}>
-      <p>{props.t('webSearchPoolSimpleHint')}</p>
-    </div>
-    <div className={css.globalGrid}>
-      <ValueField
-        id="web-search-pool-max-attempts"
-        label={props.t('webSearchPoolMaxAttempts')}
-        hint={props.t('webSearchPoolMaxAttemptsHint')}
-        overriddenLabel={props.t('overridden')}
-        resetLabel={props.t('reset')}
-        invalidLabel={props.t('invalidNumber')}
-        numeric
-        disabled={disabled}
-        text={state.maxAttempts}
-        overridden={false}
-        invalid={!isPositiveInteger(state.maxAttempts)}
-        onEdit={value => props.editGlobal('maxAttempts', value)}
-        onReset={() => props.editGlobal('maxAttempts', '3')}
-      />
-      <ValueField
-        id="web-search-pool-cooldown"
-        label={props.t('webSearchPoolCooldown')}
-        hint={props.t('webSearchPoolCooldownHint')}
-        overriddenLabel={props.t('overridden')}
-        resetLabel={props.t('reset')}
-        invalidLabel={props.t('invalidNumber')}
-        numeric
-        disabled={disabled}
-        text={state.cooldownMs}
-        overridden={false}
-        invalid={!isNonNegativeInteger(state.cooldownMs)}
-        onEdit={value => props.editGlobal('cooldownMs', value)}
-        onReset={() => props.editGlobal('cooldownMs', '30000')}
-      />
-    </div>
     <div className={css.providers}>
       {state.providers.map(provider => (
         <ProviderEditor
@@ -71,7 +36,6 @@ export function CustomWebSearchPoolCard(props: CustomWebSearchPoolCardProps) {
           provider={provider}
           t={props.t}
           disabled={disabled}
-          onEdit={props.editProvider}
           onEditKey={props.editKey}
           onAddKey={props.addKey}
           onRemoveKey={props.removeKey}
@@ -104,6 +68,41 @@ export function CustomWebSearchPoolCard(props: CustomWebSearchPoolCardProps) {
         </div>
       )
       : null}
+    <details className={css.advanced}>
+      <summary>{props.t('webSearchPoolAdvanced')}</summary>
+      <div className={css.advancedGrid}>
+        <ValueField
+          id="web-search-pool-max-attempts"
+          label={props.t('webSearchPoolMaxAttempts')}
+          hint={props.t('webSearchPoolMaxAttemptsHint')}
+          overriddenLabel={props.t('overridden')}
+          resetLabel={props.t('reset')}
+          invalidLabel={props.t('invalidNumber')}
+          numeric
+          disabled={disabled}
+          text={state.maxAttempts}
+          overridden={false}
+          invalid={!isPositiveInteger(state.maxAttempts)}
+          onEdit={value => props.editGlobal('maxAttempts', value)}
+          onReset={() => props.editGlobal('maxAttempts', '3')}
+        />
+        <ValueField
+          id="web-search-pool-cooldown"
+          label={props.t('webSearchPoolCooldown')}
+          hint={props.t('webSearchPoolCooldownHint')}
+          overriddenLabel={props.t('overridden')}
+          resetLabel={props.t('reset')}
+          invalidLabel={props.t('invalidNumber')}
+          numeric
+          disabled={disabled}
+          text={state.cooldownMs}
+          overridden={false}
+          invalid={!isNonNegativeInteger(state.cooldownMs)}
+          onEdit={value => props.editGlobal('cooldownMs', value)}
+          onReset={() => props.editGlobal('cooldownMs', '30000')}
+        />
+      </div>
+    </details>
     {state.error !== null ? <p role="status" className={css.error}>{state.error}</p> : null}
   </PluginCard>
 }
@@ -112,7 +111,6 @@ function ProviderEditor(props: {
   provider: PoolDraftProvider
   t: CustomWebSearchPoolCardProps['t']
   disabled: boolean
-  onEdit: PoolCardFace['editProvider']
   onEditKey: PoolCardFace['editKey']
   onAddKey: PoolCardFace['addKey']
   onRemoveKey: PoolCardFace['removeKey']
@@ -123,7 +121,6 @@ function ProviderEditor(props: {
     <fieldset className={css.provider}>
       <div className={css.providerHeader}>
         <legend className={css.providerTitle}>{provider.name}</legend>
-        <div className={css.providerMeta}><span>{t('webSearchPoolProviderReady')}</span></div>
         <button
           className={css.iconButton}
           type="button"
@@ -165,71 +162,8 @@ function ProviderEditor(props: {
                       ? t('webSearchPoolKeyQuarantined')
                       : key.cooldownUntil !== undefined ? t('webSearchPoolKeyCooling')
                         : key.configured ? t('webSearchPoolKeyReady') : t('webSearchPoolKeyUnset'))}
-                    onEdit={value => props.onEditKey(provider.id, key.id, 'value', value)}
+                    onEdit={value => props.onEditKey(provider.id, key.id, value)}
                   />
-                  <details className={css.keyAdvanced}>
-                    <summary>{t('webSearchPoolKeyAdvanced')}</summary>
-                    <div className={css.keyAdvancedGrid}>
-                      <ValueField
-                        id={`${provider.id}-${key.id}-ref`}
-                        label={t('webSearchPoolKeyReference')}
-                        hint={t('webSearchPoolKeyReferenceHint')}
-                        overriddenLabel={t('overridden')}
-                        resetLabel={t('reset')}
-                        invalidLabel={t('invalidNumber')}
-                        disabled={disabled}
-                        text={key.ref}
-                        overridden={false}
-                        invalid={key.ref.length === 0}
-                        onEdit={value => props.onEditKey(provider.id, key.id, 'ref', value)}
-                        onReset={() => props.onEditKey(provider.id, key.id, 'ref', key.originalRef)}
-                      />
-                      <ValueField
-                        id={`${provider.id}-${key.id}-enabled`}
-                        label={t('webSearchPoolKeyEnabled')}
-                        hint={t('webSearchPoolKeyEnabledHint')}
-                        overriddenLabel={t('overridden')}
-                        resetLabel={t('reset')}
-                        invalidLabel={t('invalidNumber')}
-                        disabled={disabled}
-                        text={String(key.enabled)}
-                        overridden={false}
-                        invalid={key.enabled !== true && key.enabled !== false}
-                        onEdit={value => props.onEditKey(provider.id, key.id, 'enabled', value)}
-                        onReset={() => props.onEditKey(provider.id, key.id, 'enabled', 'true')}
-                      />
-                      <ValueField
-                        id={`${provider.id}-${key.id}-priority`}
-                        label={t('webSearchPoolKeyPriority')}
-                        hint={t('webSearchPoolKeyPriorityHint')}
-                        overriddenLabel={t('overridden')}
-                        resetLabel={t('reset')}
-                        invalidLabel={t('invalidNumber')}
-                        numeric
-                        disabled={disabled}
-                        text={String(key.priority)}
-                        overridden={false}
-                        invalid={!Number.isSafeInteger(key.priority) || key.priority < 0}
-                        onEdit={value => props.onEditKey(provider.id, key.id, 'priority', value)}
-                        onReset={() => props.onEditKey(provider.id, key.id, 'priority', '0')}
-                      />
-                      <ValueField
-                        id={`${provider.id}-${key.id}-concurrency`}
-                        label={t('webSearchPoolKeyConcurrency')}
-                        hint={t('webSearchPoolKeyConcurrencyHint')}
-                        overriddenLabel={t('overridden')}
-                        resetLabel={t('reset')}
-                        invalidLabel={t('invalidNumber')}
-                        numeric
-                        disabled={disabled}
-                        text={String(key.maxConcurrent)}
-                        overridden={false}
-                        invalid={!Number.isSafeInteger(key.maxConcurrent) || key.maxConcurrent < 1}
-                        onEdit={value => props.onEditKey(provider.id, key.id, 'maxConcurrent', value)}
-                        onReset={() => props.onEditKey(provider.id, key.id, 'maxConcurrent', '1')}
-                      />
-                    </div>
-                  </details>
                 </div>
                 <button
                   className={css.iconButton}
@@ -245,40 +179,6 @@ function ProviderEditor(props: {
             ))}
           </div>
         )}
-      <details className={css.advanced}>
-        <summary>{t('webSearchPoolAdvanced')}</summary>
-        <div className={css.advancedGrid}>
-          <ValueField
-            id={`${provider.id}-priority`}
-            label={t('webSearchPoolProviderPriority')}
-            hint={t('webSearchPoolProviderPriorityHint')}
-            overriddenLabel={t('overridden')}
-            resetLabel={t('reset')}
-            invalidLabel={t('invalidNumber')}
-            numeric
-            disabled={disabled}
-            text={String(provider.priority)}
-            overridden={false}
-            invalid={!Number.isSafeInteger(provider.priority) || provider.priority < 0}
-            onEdit={value => props.onEdit(provider.id, 'priority', value)}
-            onReset={() => props.onEdit(provider.id, 'priority', '0')}
-          />
-          <ValueField
-            id={`${provider.id}-enabled`}
-            label={t('webSearchPoolEnabled')}
-            hint={t('webSearchPoolEnabledHint')}
-            overriddenLabel={t('overridden')}
-            resetLabel={t('reset')}
-            invalidLabel={t('invalidNumber')}
-            disabled={disabled}
-            text={String(provider.enabled)}
-            overridden={false}
-            invalid={provider.enabled !== true && provider.enabled !== false}
-            onEdit={value => props.onEdit(provider.id, 'enabled', value)}
-            onReset={() => props.onEdit(provider.id, 'enabled', 'true')}
-          />
-        </div>
-      </details>
     </fieldset>
   )
 }

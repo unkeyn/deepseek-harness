@@ -524,6 +524,34 @@ describe('endpoint interrogation', () => {
     ])
   })
 
+  it('shows reference-catalog capability chips and adopts image capability with the row', async () => {
+    const discover = vi.fn(() => Promise.resolve(ok({
+      models: [
+        { id: 'visionary', inputModalities: ['text', 'image'], reasoningLevels: ['low', 'high'], catalogMatched: true },
+        { id: 'opaque', catalogMatched: false },
+      ],
+    })))
+    const { mutate } = await mountSection({ discover })
+    openEditor('openai')
+
+    fireEvent.click(screen.getByText(en.fetchModels))
+    const dialog = await screen.findByRole('dialog')
+    // The described candidate annotates its chips; the unknown one shows none.
+    expect(dialog.textContent).toContain(en.capabilityImage)
+    expect(dialog.textContent).toContain(`${en.capabilityReasoning} 2`)
+    expect(dialog.textContent?.split(en.capabilityImage)).toHaveLength(2)
+
+    fireEvent.click(screen.getByText(en.fetchAdopt))
+    fireEvent.click(screen.getByText(en.apply))
+    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
+    // Image capability rides onto the adopted row; reasoning does not — its
+    // wire spellings are adapter-owned and resolution consults the catalog.
+    expect(firstMutate(mutate).ops[0]?.value).toEqual([
+      { id: 'visionary', input: ['text', 'image'] },
+      { id: 'opaque' },
+    ])
+  })
+
   it('keeps the rows editable when the provider cannot be interrogated', async () => {
     const discover = vi.fn(() => Promise.resolve(
       fail('https://proxy.example/v1/models answered 401; check the API key', 'model-discovery-failed'),

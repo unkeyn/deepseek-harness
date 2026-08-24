@@ -100,8 +100,7 @@ export interface PoolCardFace {
   removeProvider: (id: string) => void
   addKey: (providerId: string) => void
   removeKey: (providerId: string, keyId: string) => void
-  editProvider: (providerId: string, field: string, value: string) => void
-  editKey: (providerId: string, keyId: string, field: string, value: string) => void
+  editKey: (providerId: string, keyId: string, value: string) => void
   editGlobal: (field: 'maxAttempts' | 'cooldownMs', value: string) => void
   save: () => void
   discard: () => void
@@ -140,8 +139,7 @@ export class WebSearchPoolCardController {
       removeProvider: id => this.removeProvider(id),
       addKey: id => this.addKey(id),
       removeKey: (providerId, keyId) => this.removeKey(providerId, keyId),
-      editProvider: (providerId, field, value) => this.editProvider(providerId, field, value),
-      editKey: (providerId, keyId, field, value) => this.editKey(providerId, keyId, field, value),
+      editKey: (providerId, keyId, value) => this.editKey(providerId, keyId, value),
       editGlobal: (field, value) => this.editGlobal(field, value),
       save: () => { void this.save() },
       discard: () => this.discard(),
@@ -211,24 +209,10 @@ export class WebSearchPoolCardController {
     this.markDirty()
   }
 
-  private editProvider(providerId: string, field: string, value: string): void {
-    const provider = this.draft.providers.find(candidate => candidate.id === providerId)
-    if (provider === undefined || !(field in provider)) return
-    const current = provider as unknown as Record<string, unknown>
-    if (field === 'priority') current[field] = Number(value) || 0
-    else if (field === 'enabled') current[field] = value === 'true'
-    else current[field] = value
-    this.markDirty()
-  }
-
-  private editKey(providerId: string, keyId: string, field: string, value: string): void {
+  private editKey(providerId: string, keyId: string, value: string): void {
     const key = this.draft.providers.find(provider => provider.id === providerId)?.keys.find(candidate => candidate.id === keyId)
     if (key === undefined) return
-    if (field === 'value') key.secret = value
-    else if (field === 'priority') key.priority = Number(value) || 0
-    else if (field === 'maxConcurrent') key.maxConcurrent = Number(value) || 1
-    else if (field === 'enabled') key.enabled = value === 'true'
-    else if (field === 'ref') key.ref = value
+    key.secret = value
     this.markDirty()
   }
 

@@ -10,6 +10,7 @@ import { BrokeredLlmAdapter } from '../src/index.ts'
 
 class FakeBroker extends CredentialBroker {
   readonly completed: LeaseCompletion[] = []
+  readonly healthCompletions: Array<{ completion: LeaseCompletion; disposition: unknown }> = []
   readonly events: string[] = []
   requests: CredentialBrokerRequest[] = []
   constructor(ctx: Context, private readonly credentials = ['key-a']) { super(ctx) }
@@ -22,6 +23,11 @@ class FakeBroker extends CredentialBroker {
     return Promise.resolve({ id: leaseId(`lease-${this.requests.length}`), pool: poolId('main'), credential: credentialId(credential), credentialRef: credentialRef(reference), authKind: 'api-key', provider: request.provider, model: request.model })
   }
   override complete(_id: LeaseId, completion: LeaseCompletion): void { this.events.push('complete'); this.completed.push(completion) }
+  override async completeWithHealth(_id: LeaseId, completion: LeaseCompletion, disposition: never): Promise<void> {
+    this.events.push('complete')
+    this.completed.push(completion)
+    this.healthCompletions.push({ completion, disposition })
+  }
   override listPools() { return [poolId('main')] }
 }
 
@@ -124,5 +130,65 @@ describe('brokered LLM adapter', () => {
     const adapter = new BrokeredLlmAdapter(ctx, 'routed', new Delegate(), async function* () { yield { type: 'finish', reason: { kind: 'stop' } } })
     await expect(collect(adapter.stream(options))).rejects.toThrow(/not configured/)
     expect(broker.completed).toEqual([{ kind: 'failure', disposition: 'retain', code: 'MISSING_CREDENTIAL' }])
+  })
+
+  it('classifies failure evidence into a durable health disposition', async () => {
+    const { ctx, broker } = await boot('secret', ['key-a', 'key-b'])
+    let calls = 0
+    const adapter = new BrokeredLlmAdapter(ctx, 'routed', new Delegate(), async function* () {
+      if (calls++ === 0) {
+        yield { type: 'finish', reason: { kind: 'error', failure: { message: 'busy', code: 'RATE_LIMIT', status: 429, providerRetryAfterMs: 2000 } } }
+      } else yield { type: 'finish', reason: { kind: 'stop' } }
+    }, {
+      failover: { maxAttempts: 2, retryableCodes: ['RATE_LIMIT'] },
+      health: { classify: evidence => ({ kind: 'cooldown', ...evidence.retryAfterMs === undefined ? {} : { retryAfterMs: evidence.retryAfterMs } }) } as never,
+    })
+    await expect(collect(adapter.stream(options))).resolves.toEqual([{ type: 'finish', reason: { kind: 'stop' } }])
+    expect(broker.healthCompletions).toEqual([{
+      completion: { kind: 'failure', disposition: 'cooldown', code: 'RATE_LIMIT' },
+      disposition: { kind: 'cooldown', retryAfterMs: 2000 },
+    }])
+  })
+
+  it('bypasses the broker while the dynamic policy resolves to undefined', async () => {
+    const { ctx, broker } = await boot()
+    let pooled = false
+    const adapter = new BrokeredLlmAdapter(ctx, 'routed', new Delegate(), async function* () {
+      throw new Error('streamWithCredential must not run while bypassed')
+    }, { failover: () => pooled ? { maxAttempts: 1, retryableCodes: [] } : undefined })
+    await expect(collect(adapter.stream(options))).resolves.toHaveLength(1)
+    expect(broker.events).toEqual([])
+    pooled = true
+    await expect(collect(adapter.stream(options))).resolves.toHaveLength(1)
+    expect(broker.events).toEqual(['acquire', 'complete'])
+  })
+
+  it('yields a terminal failure chunk when every failover attempt is exhausted', async () => {
+    const { ctx, broker } = await boot('secret', ['key-a', 'key-b'])
+    const adapter = new BrokeredLlmAdapter(ctx, 'routed', new Delegate(), async function* () {
+      yield { type: 'finish', reason: { kind: 'error', failure: { message: 'busy', code: 'RATE_LIMIT' } } }
+    }, { failover: { maxAttempts: 2, retryableCodes: ['RATE_LIMIT'] } })
+    await expect(collect(adapter.stream(options))).resolves.toEqual([
+      { type: 'finish', reason: { kind: 'error', failure: { message: 'busy', code: 'RATE_LIMIT' } } },
+    ])
+    expect(broker.completed).toEqual([
+      { kind: 'failure', disposition: 'retain', code: 'RATE_LIMIT' },
+      { kind: 'failure', disposition: 'retain', code: 'RATE_LIMIT' },
+    ])
+  })
+
+  it('fails over to another credential when the leased reference is unconfigured', async () => {
+    const { ctx, broker } = await boot('secret', ['key-a', 'key-b'])
+    const seen: string[] = []
+    const adapter = new BrokeredLlmAdapter(ctx, 'routed', new Delegate(), async function* (_options, credential) {
+      seen.push(credential)
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }, { failover: { maxAttempts: 2, retryableCodes: ['MISSING_CREDENTIAL'] } })
+    await expect(collect(adapter.stream(options))).resolves.toHaveLength(1)
+    expect(seen).toEqual(['secret'])
+    expect(broker.completed).toEqual([
+      { kind: 'failure', disposition: 'retain', code: 'MISSING_CREDENTIAL' },
+      { kind: 'success' },
+    ])
   })
 })

@@ -32,6 +32,16 @@
      for the rebinding contract). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  /* Takeover presence: the card rises out of the composer seat with the
+     shared flow curve, matching the dock cards' entrance language. */
+  animation: question-card-in var(--dsw-duration-flow) var(--dsw-ease-flow);
+}
+
+@keyframes question-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
 }
 
 .card,
@@ -183,6 +193,24 @@
   text-align: left;
   cursor: pointer;
   transition: background-color 120ms ease, border-color 120ms ease;
+  /* Options arrive as a short staggered wave after the card rises; past the
+     eighth row every delay caps so a long batch never feels sequential. */
+  animation: question-option-in 0.18s ease both;
+}
+
+.option:nth-child(2) { animation-delay: 30ms; }
+.option:nth-child(3) { animation-delay: 60ms; }
+.option:nth-child(4) { animation-delay: 90ms; }
+.option:nth-child(5) { animation-delay: 120ms; }
+.option:nth-child(6) { animation-delay: 150ms; }
+.option:nth-child(7) { animation-delay: 180ms; }
+.option:nth-child(n + 8) { animation-delay: 210ms; }
+
+@keyframes question-option-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 
 .option:hover:not(:disabled),
@@ -308,6 +336,8 @@
   border: 1px solid transparent;
   border-radius: 12px;
   transition: background-color 120ms ease, border-color 120ms ease;
+  /* The custom row closes the option wave (after the capped option delays). */
+  animation: question-option-in 0.18s ease 210ms both;
 }
 
 .customRow:hover,
@@ -422,8 +452,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .card,
   .option,
   .customRow {
+    animation: none;
     transition: none;
   }
 }

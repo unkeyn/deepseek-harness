@@ -35,6 +35,34 @@ describe('pool credential broker', () => {
     await fiber.dispose()
   })
 
+  it('rotates equal-priority credentials across acquires instead of pinning one', async () => {
+    const ctx = new Context()
+    ctx.provide('credentialPoolStore', {
+      getSnapshot: () => ({
+        version: 3 as const,
+        pools: [{ id: 'main' as never, provider: 'deepseek' }],
+        credentials: (['a', 'b', 'c'] as const).map(id => ({
+          id: `key-${id}` as never, pool: 'main' as never, reference: `${id.toUpperCase()}_KEY` as never, authKind: 'api-key' as const,
+          priority: 1, maxConcurrent: 1, enabled: true, health: { excludedModels: [] },
+        })),
+      }),
+    } as never)
+    const fiber = await ctx.plugin(PoolCredentialBroker)
+    try {
+      const leases = []
+      for (let index = 0; index < 3; index += 1) {
+        leases.push(await ctx.credentialBroker.acquire({ provider: 'deepseek', model: 'chat', purpose: 'conversation' }))
+      }
+      expect(leases.map(lease => lease.credential)).toEqual(['key-a', 'key-b', 'key-c'])
+      for (const lease of leases) ctx.credentialBroker.complete(lease.id, { kind: 'success' })
+      const secondPass = await ctx.credentialBroker.acquire({ provider: 'deepseek', model: 'chat', purpose: 'conversation' })
+      expect(secondPass.credential).toBe('key-a')
+      ctx.credentialBroker.complete(secondPass.id, { kind: 'success' })
+    } finally {
+      await fiber.dispose()
+    }
+  })
+
   it('skips a credential during cooldown and only for its excluded models', async () => {
     const ctx = new Context()
     ctx.provide('credentialPoolStore', {

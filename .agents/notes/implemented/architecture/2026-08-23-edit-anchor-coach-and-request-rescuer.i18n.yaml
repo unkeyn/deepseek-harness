@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-23-edit-anchor-coach-and-request-rescuer.md
+2026-08-23-edit-anchor-coach-and-request-rescuer.md: b1bf7b6cdfe917a8004bacb02e3c8dfead36275e
+2026-08-23-edit-anchor-coach-and-request-rescuer.zh.md: f31884e9ba353a8e5bdd66c673c1e55b765e0d6b

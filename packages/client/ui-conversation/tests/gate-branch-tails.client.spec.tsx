@@ -22,6 +22,7 @@ import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
 // Mirrors the real lookup chain (conversation namespace, then common).
 const t: AssistantMarkdownProps['t'] = makeTranslate(zh, commonZh)
 const renderMessageImages: AssistantMarkdownProps['renderMessageImages'] = () => null
+const renderReasoning: AssistantMarkdownProps['renderReasoning'] = (_key, _owner, opts) => opts?.fallback ?? null
 
 afterEach(() => {
   cleanup()
@@ -58,6 +59,7 @@ describe('render branch tails', () => {
         blocks={[{ kind: 'reasoning', text: 'done thinking' }, { kind: 'text', text: 'answer' }]}
         streaming
         renderMessageImages={renderMessageImages}
+        renderReasoning={renderReasoning}
       />,
     )
     // reasoning at index 0 with a later block: running is false → ok state.
@@ -99,6 +101,7 @@ describe('render branch tails', () => {
         blocks={[{ kind: 'reasoning', text: 'still thinking' }]}
         streaming
         renderMessageImages={renderMessageImages}
+        renderReasoning={renderReasoning}
       />,
     )
     expect(view.container.querySelector('[data-state="running"]')).not.toBeNull()

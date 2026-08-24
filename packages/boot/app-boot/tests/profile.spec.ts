@@ -239,6 +239,26 @@ describe('healProfilesModuleFallback', () => {
     expect(before).toContain('dep-of-a')
   })
 
+  it('also links dependency closures from out-of-tree bundle manifests', () => {
+    const anchor = stageInstallation({})
+    const bundleDir = tmp()
+    const dependencyDir = join(bundleDir, 'node_modules', 'external-dep')
+    mkdirSync(dependencyDir, { recursive: true })
+    writeFileSync(join(bundleDir, 'package.json'), JSON.stringify({
+      name: 'external-bundle',
+      dependencies: { 'external-dep': '0.0.0' },
+    }))
+    writeFileSync(join(dependencyDir, 'package.json'), JSON.stringify({
+      name: 'external-dep',
+      version: '0.0.0',
+    }))
+    const home = tmp()
+    healProfilesModuleFallback(anchor, home, [join(bundleDir, 'package.json')])
+    const fallback = join(home, 'profiles', 'node_modules')
+    expect(readlinkSync(join(fallback, 'external-bundle'))).toBe(bundleDir)
+    expect(readlinkSync(join(fallback, 'external-dep'))).toBe(dependencyDir)
+  })
+
   it('throws when a fallback entry is a real directory', () => {
     const anchor = stageInstallation({})
     const home = tmp()

@@ -12,4 +12,13 @@
   --ds-transition-duration: 0.2s;
   --ds-transition-duration-fast: 0.1s;
   --ds-transition-duration-slow: 0.3s;
+
+  /* Flow-motion vocabulary shared by the conversation surfaces (dock cards,
+     reasoning disclosures, composer takeovers): one ease-out curve owns
+     size/slide movement, while color and hover keep the plain ease tokens
+     above. Surfaces animate presence with a small rise; every consumer pairs
+     its animation with a prefers-reduced-motion guard. */
+  --dsw-ease-flow: cubic-bezier(0.32, 0.72, 0, 1);
+  --dsw-duration-flow: 0.22s;
+  --dsw-motion-rise: 6px;
 }

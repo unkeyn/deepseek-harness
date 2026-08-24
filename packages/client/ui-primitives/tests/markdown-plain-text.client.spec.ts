@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractMarkdownPlainText } from '@deepseek-ai/dsh-client-ui-primitives'
+import { extractMarkdownPlainText, firstRawLine, latestRawLine } from '@deepseek-ai/dsh-client-ui-primitives'
 
 const MARKDOWN = [
   '# Release notes',
@@ -67,5 +67,17 @@ describe('extractMarkdownPlainText', () => {
       'Name\tValue',
       'alpha\t1',
     ].join('\n'))
+  })
+})
+describe('raw summary lines', () => {
+  it('firstRawLine keeps markup and stops at the first newline', () => {
+    expect(firstRawLine('**bold** plan\nsecond')).toBe('**bold** plan')
+    expect(firstRawLine('single')).toBe('single')
+  })
+
+  it('latestRawLine follows the trailing line and ignores a just-emitted newline', () => {
+    expect(latestRawLine('first\nsecond tokens')).toBe('second tokens')
+    expect(latestRawLine('first\nsecond tokens\n')).toBe('second tokens')
+    expect(latestRawLine('only')).toBe('only')
   })
 })
