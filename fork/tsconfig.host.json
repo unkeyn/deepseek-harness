@@ -1,0 +1,36 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false
+  },
+  "files": [],
+  "references": [
+    { "path": "./packages/interaction/command-freebuff" },
+    { "path": "./packages/compaction/compaction-basic" },
+    { "path": "./packages/compaction/compaction-policy" },
+    { "path": "./packages/context/budget-context" },
+    { "path": "./packages/credentials/credential-broker" },
+    { "path": "./packages/credentials/credential-broker-memory" },
+    { "path": "./packages/credentials/credential-broker-pool" },
+    { "path": "./packages/credentials/credential-health" },
+    { "path": "./packages/credentials/credential-oauth" },
+    { "path": "./packages/credentials/credential-freebuff-oauth" },
+    { "path": "./packages/credentials/credential-pool-store" },
+    { "path": "./packages/host/apiproxy" },
+    { "path": "./packages/host/freebuff-rpc" },
+    { "path": "./packages/llm/llm" },
+    { "path": "./packages/llm/llm-credential-broker" },
+    { "path": "./packages/llm/llm-deepseek" },
+    { "path": "./packages/llm/llm-freebuff" },
+    { "path": "./packages/llm/llm-openai-compatible" },
+    { "path": "./packages/llm/llm-pi-ai" },
+    { "path": "./packages/llm/llm-retry" },
+    { "path": "./packages/llm/model-catalog" },
+    { "path": "./packages/web/web" },
+    { "path": "./packages/web/web-fetch-http" },
+    { "path": "./packages/web/web-search-brave" },
+    { "path": "./packages/web/web-search-firecrawl" },
+    { "path": "./packages/web/web-search-pool" }
+  ]
+}

@@ -1,0 +1,24 @@
+packages:
+  - bundle
+  - packages/*/*
+  - ../vendor/*
+  - ../native/landlock-run
+  - ../native/landlock-run/packages/*
+  - ../packages/*/*
+  - ../apps/*
+  - ../website
+  - ../examples
+  - ../python/sdk-runtime
+
+allowBuilds:
+  '@google/genai': set this to true or false
+  esbuild: set this to true or false
+  koffi: set this to true or false
+  node-pty: set this to true or false
+  protobufjs: set this to true or false
+
+linkWorkspacePackages: true
+
+overrides:
+  '@deepseek-ai/cosmokit': 'link:../vendor/cosmokit'
+  '@deepseek-ai/schemastery': 'link:../vendor/schemastery'

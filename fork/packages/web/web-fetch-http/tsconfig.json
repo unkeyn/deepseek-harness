@@ -1,0 +1,1 @@
+{ "extends": "../../../tsconfig.base.json", "compilerOptions": { "rootDir": "src", "outDir": "lib/types" }, "include": ["src"], "references": [{ "path": "../../../../packages/util/timeout" }, { "path": "../web" }, { "path": "../../../../vendor/cordis" }, { "path": "../../../../vendor/schemastery" }, { "path": "../../../../packages/runtime-diagnostics/invariants" }] }

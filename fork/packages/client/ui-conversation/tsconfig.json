@@ -1,0 +1,84 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../../../packages/attachment/attachment"
+    },
+    {
+      "path": "../../../../packages/util/brand"
+    },
+    {
+      "path": "../../../../vendor/cordis"
+    },
+    {
+      "path": "../../../../packages/client/ui-slots"
+    },
+    {
+      "path": "../../../../packages/client/ui-primitives"
+    },
+    {
+      "path": "../../../../packages/client/runtime"
+    },
+    {
+      "path": "../../../../packages/core/agent"
+    },
+    {
+      "path": "../../../../packages/core/tools"
+    },
+    {
+      "path": "../../../../packages/interaction/commands"
+    },
+    {
+      "path": "../../../../packages/session/session-projection"
+    },
+    {
+      "path": "../../../../packages/session/session-stats"
+    },
+    {
+      "path": "../../../../packages/llm/token-meter"
+    },
+    {
+      "path": "../../llm/llm-retry"
+    },
+    {
+      "path": "../../../../packages/plan/plan-mode"
+    },
+    {
+      "path": "../../../../packages/goal/goal"
+    },
+    {
+      "path": "../../../../packages/todo/tool-todo"
+    },
+    {
+      "path": "../../../../packages/client/ui-input-trigger"
+    },
+    {
+      "path": "../ui-layout"
+    },
+    {
+      "path": "../../../../packages/client/locale"
+    },
+    {
+      "path": "../../../../packages/settings/settings"
+    },
+    {
+      "path": "../../../../packages/runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../../../packages/interaction/permission-presets"
+    },
+    {
+      "path": "../../../../packages/client/ui-settings"
+    }
+  ],
+  "exclude": [
+    "**/*.legacy.*"
+  ]
+}

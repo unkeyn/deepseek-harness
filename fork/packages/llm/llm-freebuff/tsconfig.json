@@ -1,0 +1,14 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": { "outDir": "lib/types", "rootDir": "src" },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../../vendor/cordis" },
+    { "path": "../../../../vendor/schemastery" },
+    { "path": "../../llm/llm" },
+    { "path": "../../llm/llm-deepseek" },
+    { "path": "../../credentials/credential-freebuff-oauth" },
+    { "path": "../../../../packages/attachment/attachment" },
+    { "path": "../../../../packages/settings/settings" }
+  ]
+}

@@ -1,0 +1,187 @@
+# Fork overlay over the official dsh-base and dsh-web-app layers.
+# Loader patch `name` is an expected-name guard; it does not rename a row.
+# Replacements therefore disable the official row and insert a fork row with a
+# unique id. The official tree remains unchanged and can be used alone.
+
+- id: llm
+  name: '@deepseek-ai/dsh-llm'
+  disabled: true
+
+- id: llm-retry
+  name: '@deepseek-ai/dsh-llm-retry'
+  disabled: true
+
+- id: llm-pi-ai
+  name: '@deepseek-ai/dsh-llm-pi-ai'
+  disabled: true
+
+- id: llm-deepseek
+  name: '@deepseek-ai/dsh-llm-deepseek'
+  disabled: true
+
+- id: model-catalog
+  name: '@deepseek-ai/dsh-model-catalog'
+  disabled: true
+
+- id: compaction-policy
+  name: '@deepseek-ai/dsh-compaction-policy'
+  disabled: true
+
+- id: web-search-brave
+  name: '@deepseek-ai/dsh-web-search-brave'
+  disabled: true
+
+- id: web-search-firecrawl
+  name: '@deepseek-ai/dsh-web-search-firecrawl'
+  disabled: true
+
+- id: web
+  name: '@deepseek-ai/dsh-web'
+  disabled: true
+
+# The fork ships its own fetch provider and always exposes `web_fetch`, so the
+# official row (configured `fetch: false` by the base layer) is replaced.
+- id: tool-web
+  name: '@deepseek-ai/dsh-tool-web'
+  disabled: true
+
+- id: compaction-basic
+  name: '@deepseek-ai/dsh-compaction-basic'
+  disabled: true
+
+- id: api-gateway
+  name: '@deepseek-ai/dsh-host-apiproxy'
+  disabled: true
+
+- id: cordis-client-runner
+  name: '@deepseek-ai/dsh-cordis-client-runner'
+  disabled: true
+
+- id: ui-layout
+  name: '@deepseek-ai/dsh-client-ui-layout'
+  disabled: true
+
+- id: ui-conversation
+  name: '@deepseek-ai/dsh-client-ui-conversation'
+  disabled: true
+
+- id: ui-model-selection
+  name: '@deepseek-ai/dsh-client-ui-model-selection'
+  disabled: true
+
+- id: ui-settings-models
+  name: '@deepseek-ai/dsh-client-ui-settings-models'
+  disabled: true
+
+- id: ui-settings-plugins
+  name: '@deepseek-ai/dsh-client-ui-settings-plugins'
+  disabled: true
+
+- insert:
+    - id: llm-fork
+      name: '@deepseek-ai/dsh-fork-llm'
+
+    - id: llm-retry-fork
+      name: '@deepseek-ai/dsh-fork-llm-retry'
+
+    - id: llm-pi-ai-fork
+      name: '@deepseek-ai/dsh-fork-llm-pi-ai'
+
+    - id: llm-deepseek-fork
+      name: '@deepseek-ai/dsh-fork-llm-deepseek'
+
+    - id: credential-freebuff-oauth
+      name: '@deepseek-ai/dsh-fork-credential-freebuff-oauth'
+      config: {}
+
+    - id: command-freebuff-login
+      name: '@deepseek-ai/dsh-fork-command-freebuff'
+
+    - id: llm-freebuff
+      name: '@deepseek-ai/dsh-fork-llm-freebuff'
+
+    - id: web-fork
+      name: '@deepseek-ai/dsh-fork-web'
+      # The pool leads the route so user-configured keys are preferred; an
+      # empty, exhausted, or cooling pool is skipped and the official DeepSeek
+      # provider answers instead.
+      config:
+        searchProviders: [custom-pool, deepseek-official]
+
+    - id: web-fetch-fork
+      name: '@deepseek-ai/dsh-fork-web-fetch-http'
+
+    - id: tool-web-fork
+      name: '@deepseek-ai/dsh-tool-web'
+      # `fetch` keeps its schema default (true); only the base layer's search
+      # timeout choice is carried over.
+      config:
+        searchTimeoutMs: 60000
+
+    - id: compaction-basic-fork
+      name: '@deepseek-ai/dsh-fork-compaction-basic'
+
+    - id: api-gateway-fork
+      name: '@deepseek-ai/dsh-fork-host-apiproxy'
+
+    - id: freebuff-rpc
+      name: '@deepseek-ai/dsh-fork-host-freebuff-rpc'
+      inject: [apiProxy, webServer]
+
+    - id: cordis-client-runner-fork
+      name: '@deepseek-ai/dsh-fork-cordis-client-runner'
+
+    - id: ui-layout-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-layout'
+
+    - id: ui-conversation-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-conversation'
+
+    - id: ui-model-selection-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-model-selection'
+
+    - id: ui-settings-models-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-settings-models'
+
+    - id: ui-settings-plugins-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-settings-plugins'
+
+    - id: ui-freebuff-oauth
+      name: '@deepseek-ai/dsh-fork-client-ui-freebuff-oauth'
+
+    - id: model-catalog-fork
+      name: '@deepseek-ai/dsh-fork-model-catalog'
+
+    - id: compaction-policy-fork
+      name: '@deepseek-ai/dsh-fork-compaction-policy'
+
+    # Model-facing budget awareness for sessions with a per-session context
+    # cap; without the fork compaction policy or a cap it renders nothing.
+    - id: budget-context
+      name: '@deepseek-ai/dsh-fork-budget-context'
+
+    # The official credentials service remains the value-free reference
+    # provider. These rows add the fork's durable pool capability beside it:
+    # pool metadata is stored through the existing web storage backend, while
+    # secrets continue to resolve through ctx.credentials.
+    - id: credential-health
+      name: '@deepseek-ai/dsh-fork-credential-health'
+
+    - id: credential-pool-store
+      name: '@deepseek-ai/dsh-fork-credential-pool-store'
+      config:
+        backend: json
+
+    - id: credential-broker
+      name: '@deepseek-ai/dsh-fork-credential-broker-pool'
+
+    - id: web-search-brave-fork
+      name: '@deepseek-ai/dsh-fork-web-search-brave'
+      config: {}
+
+    - id: web-search-firecrawl-fork
+      name: '@deepseek-ai/dsh-fork-web-search-firecrawl'
+      config: {}
+
+    - id: web-search-pool
+      name: '@deepseek-ai/dsh-fork-web-search-pool'

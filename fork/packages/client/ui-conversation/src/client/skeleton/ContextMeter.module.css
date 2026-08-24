@@ -1,0 +1,261 @@
+/* Context-occupancy ring beside the send button plus its click-open controls
+   panel (menu surface: r12, inverted hairline, shadow-lv3). */
+
+.root {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Same 28px circular hit target family as the composer's attach button. */
+.trigger {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.trigger:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.track {
+  fill: none;
+  stroke: var(--dsw-alias-border-l3);
+  stroke-width: 2;
+}
+
+.fill {
+  fill: none;
+  stroke: var(--dsw-alias-label-tertiary);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.panel {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 100;
+  box-sizing: border-box;
+  width: 264px;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-inverted);
+  border-radius: 12px;
+  background: var(--dsw-specific-menu);
+  box-shadow: var(--dsw-shadow-lv3);
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: default;
+  animation: panelIn 140ms ease-out;
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.figures {
+  margin-left: auto;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-primary);
+}
+
+.percent {
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.headline {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* The headline brackets the reading, so the side a locale leaves empty must
+   drop out of the flex row rather than spend a gap. */
+.headline:empty {
+  display: none;
+}
+
+.bar {
+  display: flex;
+  gap: 1px;
+  margin: 10px 0 0;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  overflow: hidden;
+}
+
+.segment {
+  flex: none;
+  min-width: 2px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--meter-tint, var(--dsw-alias-label-tertiary));
+}
+
+/* Composition rows under the bar: swatch + label + heuristic value, wrapping
+   as one line when the panel is wide enough. */
+.composition {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-top: 8px;
+}
+
+.compositionItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.compositionLabel {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.compositionValue {
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.swatch {
+  display: inline-block;
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--meter-tint);
+}
+
+.colorSystem {
+  --meter-tint: var(--dsw-static-neutral-bluish-400);
+}
+
+.colorTools {
+  /* The design platform ships no purple static token; violet-400 literal. */
+  --meter-tint: rgb(167, 139, 250);
+}
+
+.colorMessages {
+  --meter-tint: var(--dsw-static-blue-450);
+}
+
+.compactionControls {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
+
+.controlRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 8px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.controlRow strong {
+  color: var(--dsw-alias-label-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.controlRow .slider {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+/* Custom range chrome: a hairline track with a business-blue thumb ringed in
+   the surface color, so the control reads against the dark panel instead of
+   dissolving into the native accent tint. */
+.slider {
+  appearance: none;
+  height: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--dsw-alias-border-l3);
+}
+
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  margin-top: -5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 2px var(--dsw-specific-menu), 0 0 0 3px var(--dsw-alias-border-inverted);
+}
+
+.slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--dsw-alias-border-l3);
+}
+
+.slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: none;
+  border-radius: 999px;
+  background: var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 2px var(--dsw-specific-menu), 0 0 0 3px var(--dsw-alias-border-inverted);
+}
+
+/* The ✕ beside a selected cap value; caption tint until hovered. */
+.limitClear {
+  margin-left: 6px;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-caption);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.limitClear:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.compactButton {
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.compactButton:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-active);
+}
+
+.compactButton:disabled {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: default;
+}

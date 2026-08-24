@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-19-web-shell-native-context-menu-suppression.md
+2026-08-19-web-shell-native-context-menu-suppression.md: bb7c84638f81d13a95287dfdf6790123f889f216
+2026-08-19-web-shell-native-context-menu-suppression.zh.md: d956acd156f59b5c891f639a50861f8dbfa6fc11

@@ -1,0 +1,49 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../../../../vendor/cosmokit"
+    },
+    {
+      "path": "../../../../vendor/cordis"
+    },
+    {
+      "path": "../../../../vendor/schemastery"
+    },
+    {
+      "path": "../../llm/llm"
+    },
+    {
+      "path": "../../../../packages/llm/token-meter"
+    },
+    {
+      "path": "../../../../packages/core/session"
+    },
+    {
+      "path": "../../../../packages/core/agent"
+    },
+    {
+      "path": "../../../../packages/interaction/commands"
+    },
+    {
+      "path": "../../../../packages/compaction/compaction"
+    },
+    {
+      "path": "../compaction-policy"
+    },
+    {
+      "path": "../../../../packages/settings/settings"
+    },
+    {
+      "path": "../../../../packages/runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../../../packages/compaction/compaction-tool-result-pruner"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write fork/notes/implemented/feature/2026-08-23-session-context-limits.md
+2026-08-23-session-context-limits.md: c78c09861f743fe329ef03056d8e00699e833516
+2026-08-23-session-context-limits.zh.md: d52ddf8de6d0feb1176ba7d29c56f7dd3c9b9444
