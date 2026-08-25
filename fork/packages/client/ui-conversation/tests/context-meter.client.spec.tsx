@@ -361,13 +361,37 @@ describe('ContextMeter', () => {
     expect(view.container.querySelector('[role="dialog"]')).toBeNull()
   })
 
-  it('flips the shared hover store while the ring is hovered so the stats line can swap', () => {
+  it('flips the shared hover store on enter and on a real leave', () => {
     const view = meter({ contextPressure: PRESSURE })
     const trigger = view.getByRole('button', { name: '上下文已用 25%' })
+    vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue(
+      { left: 10, top: 10, right: 30, bottom: 30 } as DOMRect,
+    )
     expect(contextMeterHover.getSnapshot()).toBe(false)
     fireEvent.pointerEnter(trigger)
     expect(contextMeterHover.getSnapshot()).toBe(true)
-    fireEvent.pointerLeave(trigger)
+    // A pointer that has also left the entry rect hands the strip back.
+    fireEvent.pointerLeave(trigger, { clientX: 200, clientY: 200 })
+    expect(contextMeterHover.getSnapshot()).toBe(false)
+  })
+
+  it('keeps the swap when the ring moved out from under a stationary pointer', () => {
+    // The oscillation acceptance: the swap can flip the stats line's line
+    // count, which lifts the ring away from a stationary pointer and fires a
+    // pointerleave with the pointer still where it entered. Honoring it would
+    // revert, re-enter, and rock the composer.
+    const view = meter({ contextPressure: PRESSURE })
+    const trigger = view.getByRole('button', { name: '上下文已用 25%' })
+    vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue(
+      { left: 10, top: 10, right: 30, bottom: 30 } as DOMRect,
+    )
+    fireEvent.pointerEnter(trigger, { clientX: 20, clientY: 20 })
+    expect(contextMeterHover.getSnapshot()).toBe(true)
+    // Layout-induced leave: the pointer has not moved; the ring has.
+    fireEvent.pointerLeave(trigger, { clientX: 20, clientY: 20 })
+    expect(contextMeterHover.getSnapshot()).toBe(true)
+    // The real exit still hands back.
+    fireEvent.pointerLeave(trigger, { clientX: 20, clientY: 300 })
     expect(contextMeterHover.getSnapshot()).toBe(false)
   })
 })

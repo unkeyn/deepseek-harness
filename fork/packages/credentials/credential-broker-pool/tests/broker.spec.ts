@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { credentialId } from '@deepseek-ai/dsh-fork-credential-broker'
 import { PoolCredentialBroker } from '../src/index.ts'
 
 const snapshot = {
@@ -49,12 +50,13 @@ describe('pool credential broker', () => {
     } as never)
     const fiber = await ctx.plugin(PoolCredentialBroker)
     try {
-      const leases = []
+      const seen: string[] = []
       for (let index = 0; index < 3; index += 1) {
-        leases.push(await ctx.credentialBroker.acquire({ provider: 'deepseek', model: 'chat', purpose: 'conversation' }))
+        const lease = await ctx.credentialBroker.acquire({ provider: 'deepseek', model: 'chat', purpose: 'conversation' })
+        seen.push(lease.credential)
+        ctx.credentialBroker.complete(lease.id, { kind: 'success' })
       }
-      expect(leases.map(lease => lease.credential)).toEqual(['key-a', 'key-b', 'key-c'])
-      for (const lease of leases) ctx.credentialBroker.complete(lease.id, { kind: 'success' })
+      expect(seen).toEqual(['key-a', 'key-b', 'key-c'])
       const secondPass = await ctx.credentialBroker.acquire({ provider: 'deepseek', model: 'chat', purpose: 'conversation' })
       expect(secondPass.credential).toBe('key-a')
       ctx.credentialBroker.complete(secondPass.id, { kind: 'success' })
@@ -150,6 +152,74 @@ describe('pool credential broker', () => {
       const lease = await ctx.credentialBroker.acquire({ provider: 'deepseek', model: 'chat', purpose: 'conversation' })
       await expect((ctx.credentialBroker as PoolCredentialBroker).completeWithHealth(lease.id, { kind: 'failure', disposition: 'retain', code: 'STALE' }, { kind: 'retain' })).rejects.toBe(stale)
       await expect(ctx.credentialBroker.acquire({ provider: 'deepseek', model: 'chat', purpose: 'conversation' })).resolves.toMatchObject({ credential: 'key-a' })
+    } finally {
+      await fiber.dispose()
+    }
+  })
+
+  it('rejects an acquire that every pool credential is permanently barred from serving', async () => {
+    const ctx = new Context()
+    ctx.provide('credentialPoolStore', { getSnapshot: () => snapshot } as never)
+    const fiber = await ctx.plugin(PoolCredentialBroker)
+    try {
+      await expect(ctx.credentialBroker.acquire({
+        provider: 'deepseek', model: 'chat', purpose: 'conversation',
+        excludedCredentials: [credentialId('fast'), credentialId('slow')],
+      })).rejects.toThrow(/no eligible credential/)
+    } finally {
+      await fiber.dispose()
+    }
+  })
+
+  it('rejects an acquire while every candidate is cooling down, naming the earliest expiry', async () => {
+    const ctx = new Context()
+    ctx.provide('credentialPoolStore', {
+      getSnapshot: () => ({
+        version: 3 as const,
+        pools: [{ id: 'main' as never, provider: 'deepseek' }],
+        credentials: [{
+          id: 'cooling' as never, pool: 'main' as never, reference: 'COOLING_KEY' as never, authKind: 'api-key' as const,
+          priority: 1, maxConcurrent: 1, enabled: true,
+          health: { excludedModels: [], cooldownUntil: Date.now() + 5_000 },
+        }],
+      }),
+    } as never)
+    const fiber = await ctx.plugin(PoolCredentialBroker)
+    try {
+      await expect(ctx.credentialBroker.acquire({ provider: 'deepseek', model: 'chat', purpose: 'conversation' }))
+        .rejects.toMatchObject({ code: 'CREDENTIAL_COOLDOWN', message: expect.stringContaining('cooling down until') })
+    } finally {
+      await fiber.dispose()
+    }
+  })
+
+  it('wakes a capacity waiter when a republished snapshot offers a fresh credential', async () => {
+    const credentials = [{
+      id: 'busy' as never, pool: 'main' as never, reference: 'BUSY_KEY' as never, authKind: 'api-key' as const,
+      priority: 1, maxConcurrent: 1, enabled: true, health: { excludedModels: [] },
+    }]
+    const ctx = new Context()
+    ctx.provide('credentialPoolStore', {
+      getSnapshot: () => ({ version: 3 as const, generation: 1, pools: [{ id: 'main' as never, provider: 'deepseek' }], credentials }),
+    } as never)
+    const fiber = await ctx.plugin(PoolCredentialBroker)
+    try {
+      const busy = await ctx.credentialBroker.acquire({ provider: 'deepseek', model: 'chat', purpose: 'conversation' })
+      let settled = false
+      const parked = ctx.credentialBroker.acquire({ provider: 'deepseek', model: 'chat', purpose: 'conversation' })
+        .then((lease) => { settled = true; return lease })
+      await Promise.resolve()
+      expect(settled).toBe(false)
+      credentials.push({
+        id: 'fresh' as never, pool: 'main' as never, reference: 'FRESH_KEY' as never, authKind: 'api-key' as const,
+        priority: 1, maxConcurrent: 1, enabled: true, health: { excludedModels: [] },
+      })
+      ;(ctx.credentialBroker as unknown as { publishStoreSnapshot(): void }).publishStoreSnapshot()
+      // The drain resolves the waiter; its continuation is one microtask away.
+      await Promise.resolve()
+      expect(settled).toBe(true)
+      expect((await parked).credential).toBe('fresh')
+      ctx.credentialBroker.complete(busy.id, { kind: 'success' })
     } finally {
       await fiber.dispose()
     }

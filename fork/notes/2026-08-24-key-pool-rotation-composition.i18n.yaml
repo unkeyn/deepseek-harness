@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write fork/notes/2026-08-24-key-pool-rotation-composition.md
+2026-08-24-key-pool-rotation-composition.md: a63e807e2dab6e996721c5084eb3c342872a58aa
+2026-08-24-key-pool-rotation-composition.zh.md: 08356a82942102dca8e75c5a63cf79aa18cd4c8b

@@ -307,6 +307,21 @@
   gap: 6px;
 }
 
+.keyRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.keyRow .input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.keyRow .iconButton:hover:not(:disabled) {
+  color: var(--dsw-alias-state-error-primary);
+}
+
 .fieldLabel {
   display: inline-flex;
   align-items: center;

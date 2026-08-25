@@ -21,6 +21,9 @@
       "path": "../../llm/llm"
     },
     {
+      "path": "../../llm/llm-credential-broker"
+    },
+    {
       "path": "../../llm/model-catalog"
     },
     {

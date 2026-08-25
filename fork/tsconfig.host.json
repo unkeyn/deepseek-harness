@@ -7,6 +7,8 @@
   "files": [],
   "references": [
     { "path": "./packages/interaction/command-freebuff" },
+    { "path": "./packages/agent/model-selection" },
+    { "path": "./packages/agent/modes" },
     { "path": "./packages/compaction/compaction-basic" },
     { "path": "./packages/compaction/compaction-policy" },
     { "path": "./packages/context/budget-context" },
@@ -17,6 +19,8 @@
     { "path": "./packages/credentials/credential-oauth" },
     { "path": "./packages/credentials/credential-freebuff-oauth" },
     { "path": "./packages/credentials/credential-pool-store" },
+    { "path": "./packages/credentials/key-pool" },
+    { "path": "./packages/harvest/engine" },
     { "path": "./packages/host/apiproxy" },
     { "path": "./packages/host/freebuff-rpc" },
     { "path": "./packages/llm/llm" },

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { CredentialBroker, credentialId, leaseId, poolId } from '@deepseek-ai/dsh-fork-credential-broker'
 import type { CredentialBrokerRequest, CredentialLease, LeaseCompletion, LeaseId } from '@deepseek-ai/dsh-fork-credential-broker'
+import { CredentialHealth } from '@deepseek-ai/dsh-fork-credential-health'
+import type { HealthDisposition, ProviderFailureEvidence } from '@deepseek-ai/dsh-fork-credential-health'
 import { CredentialProvider, credentialRef } from '@deepseek-ai/dsh-credentials'
 import type { CredentialInfo, CredentialRef, ResolvedCredential } from '@deepseek-ai/dsh-credentials'
 import { LlmAdapter } from '@deepseek-ai/dsh-fork-llm'
@@ -23,12 +25,17 @@ class FakeBroker extends CredentialBroker {
     return Promise.resolve({ id: leaseId(`lease-${this.requests.length}`), pool: poolId('main'), credential: credentialId(credential), credentialRef: credentialRef(reference), authKind: 'api-key', provider: request.provider, model: request.model })
   }
   override complete(_id: LeaseId, completion: LeaseCompletion): void { this.events.push('complete'); this.completed.push(completion) }
-  override async completeWithHealth(_id: LeaseId, completion: LeaseCompletion, disposition: never): Promise<void> {
+  async completeWithHealth(_id: LeaseId, completion: LeaseCompletion, disposition: HealthDisposition): Promise<void> {
     this.events.push('complete')
     this.completed.push(completion)
     this.healthCompletions.push({ completion, disposition })
   }
   override listPools() { return [poolId('main')] }
+}
+
+class FakeHealth extends CredentialHealth {
+  constructor(ctx: Context, private readonly decide: (evidence: ProviderFailureEvidence) => HealthDisposition) { super(ctx) }
+  override classify(evidence: ProviderFailureEvidence): HealthDisposition { return this.decide(evidence) }
 }
 
 class FakeCredentials extends CredentialProvider {
@@ -141,7 +148,7 @@ describe('brokered LLM adapter', () => {
       } else yield { type: 'finish', reason: { kind: 'stop' } }
     }, {
       failover: { maxAttempts: 2, retryableCodes: ['RATE_LIMIT'] },
-      health: { classify: evidence => ({ kind: 'cooldown', ...evidence.retryAfterMs === undefined ? {} : { retryAfterMs: evidence.retryAfterMs } }) } as never,
+      health: new FakeHealth(ctx, evidence => ({ kind: 'cooldown', ...evidence.retryAfterMs === undefined ? {} : { retryAfterMs: evidence.retryAfterMs } })),
     })
     await expect(collect(adapter.stream(options))).resolves.toEqual([{ type: 'finish', reason: { kind: 'stop' } }])
     expect(broker.healthCompletions).toEqual([{
@@ -154,7 +161,7 @@ describe('brokered LLM adapter', () => {
     const { ctx, broker } = await boot()
     let pooled = false
     const adapter = new BrokeredLlmAdapter(ctx, 'routed', new Delegate(), async function* () {
-      throw new Error('streamWithCredential must not run while bypassed')
+      yield { type: 'finish', reason: { kind: 'stop' } }
     }, { failover: () => pooled ? { maxAttempts: 1, retryableCodes: [] } : undefined })
     await expect(collect(adapter.stream(options))).resolves.toHaveLength(1)
     expect(broker.events).toEqual([])
@@ -177,8 +184,44 @@ describe('brokered LLM adapter', () => {
     ])
   })
 
+  it('surfaces the last provider failure when the pool cannot offer another credential', async () => {
+    const { ctx, broker } = await boot('secret', ['key-a'])
+    const adapter = new BrokeredLlmAdapter(ctx, 'routed', new Delegate(), async function* () {
+      yield { type: 'finish', reason: { kind: 'error', failure: { message: 'busy', code: 'RATE_LIMIT' } } }
+    }, { failover: { maxAttempts: 3, retryableCodes: ['RATE_LIMIT'] } })
+    await expect(collect(adapter.stream(options))).resolves.toEqual([
+      { type: 'finish', reason: { kind: 'error', failure: { message: 'busy', code: 'RATE_LIMIT' } } },
+    ])
+    expect(broker.events).toEqual(['acquire', 'complete', 'acquire'])
+    expect(broker.completed).toEqual([{ kind: 'failure', disposition: 'retain', code: 'RATE_LIMIT' }])
+  })
+
+  it('yields a broker cooldown rejection as the finish failure when no attempt streamed', async () => {
+    const { ctx, broker } = await boot('secret', ['key-a'])
+    const adapter = new BrokeredLlmAdapter(ctx, 'routed', new Delegate(), async function* () {
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    }, { failover: { maxAttempts: 2, retryableCodes: ['RATE_LIMIT'] } })
+    const cooldown = new Error('every pooled credential for provider "routed" is cooling down until 2026-08-25T09:00:00.000Z') as Error & { code: string }
+    cooldown.code = 'CREDENTIAL_COOLDOWN'
+    broker.acquire = () => Promise.reject(cooldown)
+    await expect(collect(adapter.stream(options))).resolves.toEqual([
+      { type: 'finish', reason: { kind: 'error', failure: { message: expect.stringContaining('cooling down'), code: 'CREDENTIAL_COOLDOWN' } } },
+    ])
+  })
+
   it('fails over to another credential when the leased reference is unconfigured', async () => {
-    const { ctx, broker } = await boot('secret', ['key-a', 'key-b'])
+    const ctx = new Context()
+    await ctx.plugin(FakeBroker, ['key-a', 'key-b'])
+    class RefAware extends CredentialProvider {
+      constructor(ctx: Context) { super(ctx) }
+      override resolve(ref: CredentialRef): Promise<ResolvedCredential | undefined> {
+        return Promise.resolve(String(ref) === 'DEEPSEEK_API_KEY' ? undefined : { value: 'secret', source: 'test' })
+      }
+      override describe(ref: CredentialRef): Promise<CredentialInfo> { return Promise.resolve({ configured: String(ref) === 'DEEPSEEK_API_KEY', writable: false }) }
+      override set(): Promise<void> { return Promise.reject(new Error('read-only')) }
+      override unset(): Promise<void> { return Promise.reject(new Error('read-only')) }
+    }
+    await ctx.plugin(RefAware)
     const seen: string[] = []
     const adapter = new BrokeredLlmAdapter(ctx, 'routed', new Delegate(), async function* (_options, credential) {
       seen.push(credential)
@@ -186,7 +229,7 @@ describe('brokered LLM adapter', () => {
     }, { failover: { maxAttempts: 2, retryableCodes: ['MISSING_CREDENTIAL'] } })
     await expect(collect(adapter.stream(options))).resolves.toHaveLength(1)
     expect(seen).toEqual(['secret'])
-    expect(broker.completed).toEqual([
+    expect((ctx.credentialBroker as FakeBroker).completed).toEqual([
       { kind: 'failure', disposition: 'retain', code: 'MISSING_CREDENTIAL' },
       { kind: 'success' },
     ])

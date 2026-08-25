@@ -14,7 +14,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { assertUsableApiKey, LlmError, resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-fork-llm'
-import type { ModelModality, RetryPolicyConfig } from '@deepseek-ai/dsh-fork-llm'
+import type { LlmAdapter, ModelModality, RetryPolicyConfig } from '@deepseek-ai/dsh-fork-llm'
+import { BrokeredLlmAdapter } from '@deepseek-ai/dsh-fork-llm-credential-broker'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { OAuthLifecycle } from '@deepseek-ai/dsh-fork-credential-oauth'
 import type { ProviderOAuthAdapter } from '@deepseek-ai/dsh-fork-credential-oauth'
@@ -340,24 +341,53 @@ export function apply(ctx: Context, config: Config): void {
     resolveUserId,
     resolveAttachments: () => ctx.get('attachments'),
   })
+  // Every stream call routes through the brokered decorator. Its resolvers
+  // read the key-pool composition per call: until those plugins load (they
+  // compose in parallel) the decorator streams straight through the raw
+  // adapter, so plugin order never changes behavior. With a pool present,
+  // each network attempt takes a broker lease — equal-priority keys rotate
+  // across concurrent sessions, and classified failures cool a key down
+  // before the bounded failover budget tries the next one.
+  const routed: LlmAdapter = new BrokeredLlmAdapter(ctx, PROVIDER, adapter, (request, credential) => adapter.streamWithKey(request, credential), {
+    failover: () => ctx.get('keyPool')?.failover(PROVIDER),
+    health: () => ctx.get('credentialHealth'),
+  })
   ctx.llm.registerConfigurableProviders([
     { provider: PROVIDER, displayName: 'DeepSeek', settingsNs: NS, settingsPath: [] },
   ])
   // Route effects bind to this apply fiber via the stable `ctx` reference,
   // even when a swap runs inside the scoped settings callback below.
-  const registration = ctx.llm.registerAdapter([PROVIDER], adapter)
-  let registeredPolicy = options().retryPolicy
+  const registration = ctx.llm.registerAdapter([PROVIDER], routed)
+  let registeredPolicy = routed.providerRetryPolicy(PROVIDER)
   const ensureRegistrationFacts = (): void => {
-    const policy = options().retryPolicy
-    if (deepEqualJson(policy, registeredPolicy)) return
     // The registry captures the retry policy at registration, so it is the one
-    // fact per-request resolution cannot refresh. `replace` re-reads it in one
+    // fact per-request resolution cannot refresh. The brokered wrapper raises
+    // the floor from the live pool policy, so both provider settings and
+    // key-pool changes re-read it here. `replace` re-reads it in one
     // synchronous registry section: disposing and re-registering instead would
     // publish an empty route set between the two, and an observer that reacted
     // to it would see this provider disappear and come back.
+    const policy = routed.providerRetryPolicy(PROVIDER)
+    if (deepEqualJson(policy, registeredPolicy)) return
     registration.replace([PROVIDER])
     registeredPolicy = policy
   }
+  ctx.effect(() => {
+    // The pool plugin composes in parallel, so its arrival and its later
+    // configuration changes both reach the captured retry floor.
+    let offPool: (() => void) | undefined
+    const offService = ctx.on('internal/service', (name: string) => {
+      if (name !== 'keyPool') return
+      offPool?.()
+      offPool = ctx.get('keyPool')?.onChange(ensureRegistrationFacts)
+      ensureRegistrationFacts()
+    })
+    offPool = ctx.get('keyPool')?.onChange(ensureRegistrationFacts)
+    return () => {
+      offService()
+      offPool?.()
+    }
+  }, 'llm-deepseek: key-pool registration facts')
 
   installSettingsSection(ctx, NS, Config, config, {
     setSource: (source) => {

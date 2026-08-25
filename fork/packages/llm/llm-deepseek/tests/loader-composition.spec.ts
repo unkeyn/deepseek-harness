@@ -21,6 +21,9 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
+import * as KeyPool from '@deepseek-ai/dsh-fork-key-pool'
 import { getOrCreateAnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
 import * as LlmDeepSeek from '@deepseek-ai/dsh-fork-llm-deepseek'
 import { assemble } from './assemble.ts'
@@ -42,7 +45,7 @@ afterEach(async () => {
 })
 
 async function loadComposition(
-  options: { withDynamic: boolean; baseURL: string; reuseRoot?: string },
+  options: { withDynamic: boolean; baseURL: string; reuseRoot?: string; withKeyPool?: boolean },
 ): Promise<{ ctx: Context; settingsPath: string; credentialsPath: string }> {
   // A reused root is the restart case: the same harness home, its documents
   // exactly as the previous process left them.
@@ -53,7 +56,9 @@ async function loadComposition(
   const credentialsPath = join(root, '.credentials.yaml')
   if (options.withDynamic && fresh) {
     await writeFile(settingsPath, '# personal settings\n')
-    await writeFile(credentialsPath, 'DEEPSEEK_API_KEY: boot-key\n', { mode: 0o600 })
+    await writeFile(credentialsPath, options.withKeyPool
+      ? 'DEEPSEEK_API_KEY: key-one\nDEEPSEEK_API_KEY_2: key-two\n'
+      : 'DEEPSEEK_API_KEY: boot-key\n', { mode: 0o600 })
   }
 
   const configPath = join(root, 'cordis.yml')
@@ -74,6 +79,23 @@ async function loadComposition(
         '    debounceMs: 10',
       ]
       : [],
+    ...options.withKeyPool
+      ? [
+        '- id: system-prompt',
+        "  name: '@deepseek-ai/dsh-system-prompt'",
+        '- id: tools',
+        "  name: '@deepseek-ai/dsh-tools'",
+        '- id: key-pool',
+        "  name: '@deepseek-ai/dsh-fork-key-pool'",
+        '  config:',
+        '    cooldownMs: 60000',
+        '    pools:',
+        '      - provider: deepseek-official',
+        '        keys:',
+        '          - ref: DEEPSEEK_API_KEY',
+        '          - ref: DEEPSEEK_API_KEY_2',
+      ]
+      : [],
     '- id: llm-deepseek',
     "  name: '@deepseek-ai/dsh-fork-llm-deepseek'",
     '  config:',
@@ -90,6 +112,9 @@ async function loadComposition(
     ['test-llm-service', LlmRuntime],
     ['@deepseek-ai/dsh-settings-file', FileSettingsProvider],
     ['@deepseek-ai/dsh-credentials-local', LocalCredentialProvider],
+    ['@deepseek-ai/dsh-system-prompt', SystemPrompt],
+    ['@deepseek-ai/dsh-tools', ToolRuntime],
+    ['@deepseek-ai/dsh-fork-key-pool', KeyPool],
     ['@deepseek-ai/dsh-fork-llm-deepseek', LlmDeepSeek],
   ])
   ctx.loader.internal = {
@@ -174,5 +199,31 @@ describe('llm-deepseek real dynamic composition', () => {
     expect(ctx.get('credentials')).toBeUndefined()
     await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
     expect(server.headers[0]?.authorization).toBe('Bearer entry-key')
+  })
+
+  it('rotates pooled keys across requests and fails over after a rate limit', async () => {
+    vi.stubEnv('DEEPSEEK_API_KEY', '')
+    const server = await mockServer([
+      { kind: 'http-error', status: 429, body: '{"error":{"message":"rate limited"}}' },
+      { kind: 'sse', events: textEvents },
+      { kind: 'sse', events: textEvents },
+    ])
+    const { ctx } = await loadComposition({ withDynamic: true, baseURL: server.url, withKeyPool: true })
+    expect(ctx.keyPool.failover('deepseek-official')).toMatchObject({ maxAttempts: 3 })
+
+    // The rate-limited first key cools down inside the same stream call, and
+    // the bounded failover budget completes the request with the next key.
+    await expect(assemble(ctx, { model: 'deepseek-v4-flash', messages: [] }))
+      .resolves.toMatchObject({ finish: { kind: 'stop' } })
+    expect(server.requests).toHaveLength(2)
+    expect(server.headers[0]?.authorization).toBe('Bearer key-one')
+    expect(server.headers[1]?.authorization).toBe('Bearer key-two')
+
+    // The cooled key stays out of rotation: the next request goes straight
+    // to the surviving key instead of pinning or retrying the failed one.
+    await expect(assemble(ctx, { model: 'deepseek-v4-flash', messages: [] }))
+      .resolves.toMatchObject({ finish: { kind: 'stop' } })
+    expect(server.requests).toHaveLength(3)
+    expect(server.headers[2]?.authorization).toBe('Bearer key-two')
   })
 })

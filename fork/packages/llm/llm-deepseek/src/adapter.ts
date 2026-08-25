@@ -232,25 +232,57 @@ export class DeepSeekAdapter extends LlmAdapter {
     // The key resolves *from this snapshot*, so an endpoint and the secret
     // sent to it can never come from different configuration generations.
     const connection = this.config.options()
-    const hasImages = options.messages.some(message => contentHasImage(message.content))
-    let attachments: AttachmentStore | undefined
-    if (hasImages) {
-      const model = connection.models.find(entry => entry.id === options.model)
-      if (model?.inputModalities?.includes('image') !== true) {
-        throw new LlmError(
-          `DeepSeek model "${options.model}" does not accept image input.`,
-          'UNSUPPORTED_CONTENT',
-        )
-      }
-      attachments = this.config.resolveAttachments?.()
-      if (attachments === undefined) {
-        throw new LlmError(
-          'DeepSeek image conversion requires the durable attachment service.',
-          'UNSUPPORTED_CONTENT',
-        )
-      }
-    }
+    // Request-shape validation precedes credential resolution: an unsupported
+    // request fails before any stored key is read.
+    this.attachmentsFor(options, connection)
     const apiKey = await this.config.resolveApiKey(connection)
+    yield* this.streamWithConnection(options, connection, apiKey)
+  }
+
+  /**
+   * Resolve the attachment store for image-bearing requests, or `undefined`
+   * for text-only ones. Throws `UNSUPPORTED_CONTENT` before any caller work
+   * when the request carries images the model or deployment cannot take.
+   */
+  private attachmentsFor(options: GenerateOptions, connection: DeepSeekConnectionOptions): AttachmentStore | undefined {
+    const hasImages = options.messages.some(message => contentHasImage(message.content))
+    if (!hasImages) return undefined
+    const model = connection.models.find(entry => entry.id === options.model)
+    if (model?.inputModalities?.includes('image') !== true) {
+      throw new LlmError(
+        `DeepSeek model "${options.model}" does not accept image input.`,
+        'UNSUPPORTED_CONTENT',
+      )
+    }
+    const attachments = this.config.resolveAttachments?.()
+    if (attachments === undefined) {
+      throw new LlmError(
+        'DeepSeek image conversion requires the durable attachment service.',
+        'UNSUPPORTED_CONTENT',
+      )
+    }
+    return attachments
+  }
+
+  /**
+   * Stream one attempt with an explicit lease key instead of resolving the
+   * configured reference. The brokered composition supplies the credential the
+   * broker selected; connection facts still freeze from the current snapshot.
+   * @param options - the model request.
+   * @param apiKey - the lease's resolved bearer value.
+   * @returns the chunk stream.
+   */
+  async * streamWithKey(options: GenerateOptions, apiKey: string): AsyncIterable<StreamChunk> {
+    yield* this.streamWithConnection(options, this.config.options(), apiKey)
+  }
+
+  /** Shared attempt body; `connection` is frozen by the caller's single resolution. */
+  private async * streamWithConnection(
+    options: GenerateOptions,
+    connection: DeepSeekConnectionOptions,
+    apiKey: string,
+  ): AsyncIterable<StreamChunk> {
+    const attachments = this.attachmentsFor(options, connection)
     const userId = this.config.resolveUserId()
     const consumer = new AbortController()
     const upstream = options.signal === undefined

@@ -1,166 +1,340 @@
-.keysHeader p,
-.emptyKeys,
-.error {
-  margin: 0;
-}
+/* Search-providers panel, in the settings-panel design language shared with
+ * the Models page's provider editors: 14/22 body, 12/18 caption, capsule
+ * controls (h36 r18; h28 r14 where a row is dense), 32px fields, and
+ * `border-l2` hairlines. Every color resolves through a `--dsw-alias-*`
+ * token; bare literals would stay light under the dark theme. */
 
-.providers {
+.panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.provider {
   min-width: 0;
-  margin: 0;
-  padding: 14px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
-  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-primary);
 }
 
-.providerHeader,
-.keysHeader,
-.addProviderRow {
+.readOnly {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* A configured provider: outlined on the panel fill, so the filled editor it
+ * expands into reads as the nested object. */
+.rowCard {
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rowHead {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.providerHeader,
-.keysHeader {
-  justify-content: space-between;
+.rowIdentity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
-.providerTitle {
-  padding: 0;
-  color: var(--dsw-alias-label-primary);
+.rowName {
   font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
+  line-height: 22px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.rowTag {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.credentialDot {
+  box-sizing: border-box;
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.credentialDotConfigured {
+  background: var(--dsw-alias-state-success-primary);
+}
+
+.credentialDotMissing {
+  background: var(--dsw-alias-state-error-primary);
+}
+
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* `box-sizing` on every control: the app has no global border-box reset, so
+ * without it the outlined variants stand 2px taller than the filled ones. */
+.primaryButton,
+.secondaryButton,
+.dangerButton,
+.addButton {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 18px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+.primaryButton {
+  background: var(--dsw-alias-button-primary-fill);
+  color: var(--dsw-alias-label-primary-foreground);
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--dsw-alias-button-primary-hover);
+}
+
+.secondaryButton,
+.addButton {
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+}
+
+.secondaryButton:hover:not(:disabled),
+.addButton:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-solid);
+}
+
+.dangerButton {
+  background: transparent;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.dangerButton:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+/* Provider-row controls take the dense capsule. */
+.rowActions .secondaryButton,
+.rowActions .dangerButton {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.dangerButton:disabled,
+.addButton:disabled,
+.linkButton:disabled,
+.iconButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible,
+.dangerButton:focus-visible,
+.addButton:focus-visible,
+.linkButton:focus-visible,
+.iconButton:focus-visible,
+.customizedSummary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dsw-alias-border-l3);
+}
+
+/* Editing surface: a filled module inside the row card. */
+.editor {
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-module-platform);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.editorHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.editorTitle {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.editorRoute {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fieldHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fieldLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.keyState {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.keyStateOk {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.keyStateBad {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.keyRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.keyRow .input {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .keysHeader {
-  margin-top: 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--dsw-alias-border-l2);
 }
 
-.keysHeader h4 {
+.keysHeaderText h4 {
   margin: 0;
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 18px;
   font-weight: 500;
-  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
 }
 
-.keysHeader p {
+.keysHeaderText p,
+.hint,
+.emptyKeys {
+  margin: 0;
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
   line-height: 18px;
+}
+
+.keysActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
 }
 
 .keyList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.keyRow {
-  min-width: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
-  background: var(--dsw-alias-bg-layer-3);
-}
-
-.keyMain {
-  min-width: 0;
-}
-
-.keyMain :global(input) {
-  min-width: 0;
+  gap: 10px;
 }
 
 .emptyKeys {
-  margin-top: 10px;
   padding: 12px;
-  border-radius: 6px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  border: 1px dashed var(--dsw-alias-border-l3);
+  border-radius: 8px;
   text-align: center;
 }
 
-.addProviderRow {
-  align-items: center;
-  margin-top: 12px;
-}
-
-.addProviderLabel {
-  flex: 0 0 auto;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 20px;
-}
-
-.providerSelect {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
-  background: var(--dsw-alias-bg-layer-3);
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
-  font-size: 13px;
-}
-
-.providerSelect:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
-  outline-offset: 1px;
-}
-
-.secondaryButton {
+.linkButton {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-height: 30px;
-  padding: 0 11px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 14px;
   background: transparent;
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-label-tertiary);
   font: inherit;
   font-size: 12px;
   line-height: 18px;
   cursor: pointer;
 }
 
-.secondaryButton:hover:not(:disabled) {
+.linkButton:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.secondaryButton:disabled,
-.iconButton:disabled,
-.providerSelect:disabled {
-  opacity: .45;
-  cursor: default;
+  color: var(--dsw-alias-label-secondary);
 }
 
 .iconButton {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   padding: 0;
-  border: 0;
+  border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
@@ -168,61 +342,170 @@
 }
 
 .iconButton:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* The delete glyph keeps the danger tint the rest of the section uses. */
+.iconButtonDanger:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover-danger);
   color: var(--dsw-alias-state-error-primary);
 }
 
-.iconButton:focus-visible,
-.secondaryButton:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
-  outline-offset: 1px;
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
 }
 
-.advanced {
-  margin-top: 12px;
+select.input {
+  max-width: 240px;
+  cursor: pointer;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.input::placeholder {
+  color: var(--dsw-alias-label-dimmed);
+}
+
+.input:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Select variant of .input: replaces the OS arrow with the shared chevron. */
+.selectInput {
+  appearance: none;
+  padding-right: 32px;
+  /* Data-URI SVGs cannot resolve CSS variables; #81858C is the caption gray
+     shared by both themes. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%2381858C' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 12px;
+}
+
+.addBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.addActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* The add affordance is dashed like every other "nothing here yet" place on
+ * the page, and splits the row evenly like the Api tab's add buttons. */
+.addButton {
+  flex: 1 1 0;
+  min-width: 180px;
+  gap: 6px;
+  height: 44px;
+  border: 1px dashed var(--dsw-alias-border-l3);
+  border-radius: 12px;
+}
+
+.addCard {
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-module-platform);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.customized {
   border-top: 1px solid var(--dsw-alias-border-l2);
   padding-top: 10px;
 }
 
-.advanced summary {
+/* Native disclosure marker replaced by a rotating chevron. */
+.customizedSummary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: fit-content;
   padding: 2px 4px;
-  border-radius: 5px;
-  color: var(--dsw-alias-label-tertiary);
+  margin-left: -4px;
+  border-radius: 6px;
+  cursor: pointer;
   font-size: 12px;
   line-height: 18px;
-  cursor: pointer;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+  list-style: none;
 }
 
-.advanced summary:hover {
+.customizedSummary::-webkit-details-marker {
+  display: none;
+}
+
+.customizedSummary::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentcolor;
+  border-bottom: 1.5px solid currentcolor;
+  transform: rotate(-45deg) translate(-1px, -1px);
+  transition: transform 120ms ease;
+}
+
+.customized[open] > .customizedSummary::before {
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.customizedSummary:hover {
   color: var(--dsw-alias-label-primary);
 }
 
-.advancedGrid {
+.customizedBody {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 16px;
-  padding-top: 6px;
+  padding-top: 12px;
+}
+
+.editorActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .error {
-  margin-top: 10px;
-  color: var(--dsw-alias-label-error);
+  margin: 0;
   font-size: 12px;
   line-height: 18px;
+  color: var(--dsw-alias-state-error-primary);
 }
 
 @media (max-width: 620px) {
-  .advancedGrid {
+  .customizedBody {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .addProviderRow {
-    align-items: stretch;
+  .keysHeader {
     flex-direction: column;
+    align-items: stretch;
   }
+}
 
-  .addProviderLabel {
-    width: 100%;
+@media (prefers-reduced-motion: reduce) {
+  .customizedSummary::before {
+    transition: none;
   }
 }

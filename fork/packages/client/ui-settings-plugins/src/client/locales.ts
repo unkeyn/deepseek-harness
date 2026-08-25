@@ -18,6 +18,9 @@ export type PluginsSettingsLocaleKey =
   | 'webSearchPoolKey' | 'webSearchPoolKeyHint'
   | 'webSearchPoolKeyReady' | 'webSearchPoolKeyUnset' | 'webSearchPoolKeyCooling' | 'webSearchPoolKeyQuarantined'
   | 'webSearchPoolAddProvider' | 'webSearchPoolRemoveProvider' | 'webSearchPoolAddKey' | 'webSearchPoolRemoveKey'
+  | 'webSearchPoolEdit' | 'webSearchPoolOneKey' | 'webSearchPoolKeyCount'
+  | 'webSearchPoolCheck' | 'webSearchPoolChecking' | 'webSearchPoolCheckValid' | 'webSearchPoolCheckInvalid'
+  | 'webSearchPoolCredits' | 'webSearchPoolCheckDirty'
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
@@ -79,9 +82,18 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   webSearchPoolKeyCooling: 'Cooling down',
   webSearchPoolKeyQuarantined: 'Quarantined',
   webSearchPoolAddProvider: 'Add provider',
-  webSearchPoolRemoveProvider: 'Remove provider',
+  webSearchPoolRemoveProvider: 'Remove',
   webSearchPoolAddKey: 'Add key',
   webSearchPoolRemoveKey: 'Remove key',
+  webSearchPoolEdit: 'Edit',
+  webSearchPoolOneKey: '1 key',
+  webSearchPoolKeyCount: '{count} keys',
+  webSearchPoolCheck: 'Check keys',
+  webSearchPoolChecking: 'Checking…',
+  webSearchPoolCheckValid: 'Valid',
+  webSearchPoolCheckInvalid: 'Invalid',
+  webSearchPoolCredits: '{remaining}/{limit} credits',
+  webSearchPoolCheckDirty: 'Save your changes before checking keys.',
 }
 
 /** Simplified Chinese copy. */
@@ -144,7 +156,16 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   webSearchPoolKeyCooling: '冷却中',
   webSearchPoolKeyQuarantined: '已隔离',
   webSearchPoolAddProvider: '添加提供方',
-  webSearchPoolRemoveProvider: '删除提供方',
+  webSearchPoolRemoveProvider: '删除',
   webSearchPoolAddKey: '添加密钥',
   webSearchPoolRemoveKey: '删除密钥',
+  webSearchPoolEdit: '编辑',
+  webSearchPoolOneKey: '1 把 Key',
+  webSearchPoolKeyCount: '{count} 把 Key',
+  webSearchPoolCheck: '检查密钥',
+  webSearchPoolChecking: '检查中…',
+  webSearchPoolCheckValid: '有效',
+  webSearchPoolCheckInvalid: '无效',
+  webSearchPoolCredits: '剩余 {remaining}/{limit} 额度',
+  webSearchPoolCheckDirty: '请先保存更改，再检查密钥。',
 }

@@ -37,17 +37,50 @@ async function mount(initial: poolPlugin.Config = config()) {
     describe: vi.fn((ref: ReturnType<typeof credentialRef>) => Promise.resolve({ configured: values.has(ref), writable: true })),
     set: vi.fn(), unset: vi.fn(),
   }
+  // The real wiring registers the namespace and rebuilds the runtime config
+  // from committed documents; the double resolves and validates through the
+  // real schema exactly as the settings service would, so a stored section
+  // the owner's validate refuses fails here the same way.
+  const watchers = new Set<() => void>()
+  const registerErrors: unknown[] = []
   const settings = {
     get: vi.fn(() => initial),
-    update: vi.fn(async (_ns: unknown, patch: { providers: poolPlugin.PoolProvider[] }) => { initial.providers = patch.providers }),
+    update: vi.fn(async (_ns: unknown, patch: { providers: poolPlugin.PoolProvider[] }) => {
+      initial.providers = patch.providers
+      for (const watcher of watchers) watcher()
+    }),
   }
+  ;(settings as Record<string, unknown>).register = vi.fn((_ns: unknown, schema: (value: unknown) => unknown, options?: { base?: unknown; validate?: (value: unknown) => void }) => {
+    try {
+      const resolved = schema({ ...(options?.base ?? {}), ...initial }) as poolPlugin.Config
+      options?.validate?.(resolved)
+      return {
+        get: (): poolPlugin.Config => ({ ...(options?.base ?? {}), ...initial }),
+        watch: (callback: () => void) => {
+          watchers.add(callback)
+          return () => watchers.delete(callback)
+        },
+        update: async (patch: { providers: poolPlugin.PoolProvider[] }): Promise<void> => {
+          initial.providers = patch.providers
+          for (const watcher of watchers) watcher()
+        },
+        replace: async (section: poolPlugin.Config): Promise<void> => {
+          Object.assign(initial, section)
+          for (const watcher of watchers) watcher()
+        },
+      }
+    } catch (error) {
+      registerErrors.push(error)
+      throw error
+    }
+  })
   ctx.provide('credentials', credentials as never)
   ctx.provide('settings', settings as never)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(WebRuntime, { searchProviders: ['custom-pool'] })
   const fiber = await ctx.plugin(poolPlugin, initial)
-  return { ctx, fiber, credentials, settings, initial }
+  return { ctx, fiber, credentials, settings, initial, registerErrors }
 }
 
 afterEach(() => vi.unstubAllGlobals())
@@ -122,5 +155,62 @@ describe('web-search-pool', () => {
     expect(ctx.tools.get('web_search_pool_rotate')).toBeDefined()
     await fiber.dispose()
     expect(ctx.tools.get('web_search_pool_status')).toBeUndefined()
+  })
+
+  it('registers its namespace for a stored section whose providers carry no check spec', async () => {
+    // Schemastery materializes an absent nested object as `{}`; the owner's
+    // validate must treat that as absence or the registration dies and the
+    // whole namespace disappears from the deployment.
+    const { fiber, registerErrors } = await mount(config())
+    expect(registerErrors).toEqual([])
+    await fiber.dispose()
+  })
+
+  it('reports per-key credits through the status tool for providers with an account endpoint', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => {
+      if (String(input).includes('credit-usage')) return jsonResponse({ data: { remainingCredits: 490, planCredits: 500 } })
+      return jsonResponse({ results: [] })
+    }))
+    const { ctx, fiber } = await mount(config({ providers: [{
+      ...config().providers![0]!,
+      check: { endpoint: 'https://account.example.test/credit-usage', remainingPath: 'data.remainingCredits', limitPath: 'data.planCredits' },
+    }] }))
+    const result = await ctx.tools.execute({ name: 'web_search_pool_status', arguments: {}, signal: new AbortController().signal })
+    const payload = result.value as { providers: Array<{ credits?: Array<Record<string, unknown>> }> }
+    expect(payload.providers[0].credits).toEqual([
+      { keyId: 'key-1', ref: 'CUSTOM_KEY_A', valid: true, status: 200, remaining: 490, limit: 500 },
+      { keyId: 'key-2', ref: 'CUSTOM_KEY_B', valid: true, status: 200, remaining: 490, limit: 500 },
+    ])
+    await fiber.dispose()
+  })
+
+  it('quarantines a key the provider rejects as out of credits', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (_input: string | URL, init?: RequestInit) => {
+      const key = ((init?.headers ?? {}) as Record<string, string>)['x-api-key'] ?? ''
+      return key === secretA ? jsonResponse({ error: 'payment required' }, 402) : jsonResponse({ results: [{ url: 'https://result.test' }] })
+    }))
+    const { ctx, fiber, initial } = await mount()
+    await expect(ctx.web.search({ query: 'first' })).resolves.toMatchObject({ sources: [{ url: 'https://result.test' }] })
+    const persisted = initial.providers?.[0]?.keys[0]
+    expect(persisted?.lastError).toContain('HTTP 402')
+    expect(persisted?.quarantineUntil).toBeGreaterThan(Date.now())
+    await fiber.dispose()
+  })
+
+  it('applies a committed settings change to the live pool without a reload', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_input: string | URL, init?: RequestInit) => {
+      calls.push(((init?.headers ?? {}) as Record<string, string>)['x-api-key'] ?? '')
+      return jsonResponse({ results: [{ url: 'https://result.test' }] })
+    }))
+    const { ctx, fiber, settings } = await mount(config({ maxAttempts: 1 }))
+    await expect(ctx.web.search({ query: 'first' })).resolves.toMatchObject({ sources: [{ url: 'https://result.test' }] })
+    // The document write a UI save makes: the pool keeps only the second key.
+    await settings.update('web-search-pool', {
+      providers: [{ ...config().providers![0]!, keys: [config().providers![0]!.keys[1]!] }],
+    })
+    await expect(ctx.web.search({ query: 'second' })).resolves.toMatchObject({ sources: [{ url: 'https://result.test' }] })
+    expect(calls).toEqual([secretA, secretB])
+    await fiber.dispose()
   })
 })

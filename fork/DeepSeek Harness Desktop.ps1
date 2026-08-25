@@ -9,7 +9,7 @@ $harnessHome = Join-Path $env:USERPROFILE ".dsh"
 
 function Show-DesktopError([string]$message) {
   Add-Type -AssemblyName PresentationFramework
-  [System.Windows.MessageBox]::Show($message, "DeepSeek Harness Freebuff", "OK", "Error") | Out-Null
+  [System.Windows.MessageBox]::Show($message, "DeepSeek Harness Desktop", "OK", "Error") | Out-Null
 }
 
 function Get-ForkProcesses {
@@ -59,6 +59,52 @@ function Get-BrowserPath {
   return $candidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
 }
 
+function Get-ForkSourceNewest {
+  # Newest mtime across the fork's own sources (package src trees never contain
+  # node_modules, so the plain recursive scan stays cheap and junction-safe).
+  $newest = [DateTime]::MinValue
+  $packages = Join-Path $forkRoot "packages"
+  foreach ($group in Get-ChildItem -LiteralPath $packages -Directory -ErrorAction SilentlyContinue) {
+    foreach ($pkg in Get-ChildItem -LiteralPath $group.FullName -Directory -ErrorAction SilentlyContinue) {
+      $src = Join-Path $pkg.FullName "src"
+      if (-not (Test-Path -LiteralPath $src)) { continue }
+      $latest = Get-ChildItem -LiteralPath $src -Recurse -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+      if ($latest -and $latest.LastWriteTimeUtc -gt $newest) { $newest = $latest.LastWriteTimeUtc }
+    }
+  }
+  $bundle = Join-Path $forkRoot "bundle"
+  if (Test-Path -LiteralPath $bundle) {
+    $latest = Get-ChildItem -LiteralPath $bundle -Recurse -File -ErrorAction SilentlyContinue |
+      Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+    if ($latest -and $latest.LastWriteTimeUtc -gt $newest) { $newest = $latest.LastWriteTimeUtc }
+  }
+  return $newest
+}
+
+function Update-ForkBuild {
+  # Rebuild the fork overlay whenever its sources are newer than the last
+  # successful build, so the desktop host never serves stale plugin code.
+  $stamp = Join-Path $forkRoot ".build-stamp"
+  $stampTime = [DateTime]::MinValue
+  if (Test-Path -LiteralPath $stamp) { $stampTime = (Get-Item -LiteralPath $stamp).LastWriteTimeUtc }
+  if ((Get-ForkSourceNewest) -le $stampTime) { return }
+  $pnpm = Get-Command pnpm -ErrorAction SilentlyContinue
+  if ($null -eq $pnpm) { throw "pnpm is required to rebuild the fork overlay before launch." }
+  $buildLog = Join-Path $harnessHome "profiles\web\desktop-build.log"
+  New-Item -ItemType Directory -Path (Split-Path -Parent $buildLog) -Force | Out-Null
+  Push-Location $forkRoot
+  try {
+    & $pnpm.Source run build:lib *> $buildLog
+  } finally {
+    Pop-Location
+  }
+  if ($LASTEXITCODE -ne 0) {
+    throw "The fork overlay build failed; the stale build was NOT started. Inspect $buildLog"
+  }
+  New-Item -ItemType File -LiteralPath $stamp -Force | Out-Null
+}
+
 try {
   # Full restart on every launch: stop any running host so stale state never survives.
   Stop-ForkProcesses
@@ -67,9 +113,11 @@ try {
     Start-Sleep -Milliseconds 200
   }
 
+  Update-ForkBuild
+
   $node = (Get-Command node.exe -ErrorAction Stop).Source
-  $stdout = Join-Path $harnessHome "profiles\web\freebuff-web.stdout.log"
-  $stderr = Join-Path $harnessHome "profiles\web\freebuff-web.stderr.log"
+  $stdout = Join-Path $harnessHome "profiles\web\desktop-web.stdout.log"
+  $stderr = Join-Path $harnessHome "profiles\web\desktop-web.stderr.log"
   New-Item -ItemType Directory -Path (Split-Path -Parent $stdout) -Force | Out-Null
   $previousDshHome = $env:DSH_HOME
   $env:DSH_HOME = $harnessHome
@@ -92,7 +140,7 @@ try {
     Start-Sleep -Milliseconds 250
   }
   if (-not (Test-WebReady)) {
-    throw "The Freebuff Web Host did not become ready within 90 seconds. Inspect $harnessHome\profiles\web\freebuff-web.stderr.log."
+    throw "The Harness Web Host did not become ready within 90 seconds. Inspect $harnessHome\profiles\web\desktop-web.stderr.log."
   }
 
   $browser = Get-BrowserPath

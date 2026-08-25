@@ -10,6 +10,7 @@ import { makeTranslate, SlotTestRuntime } from '@deepseek-ai/dsh-client-test-run
 import type { QueuedMessage, SessionFace } from '@deepseek-ai/dsh-client-runtime/client'
 import { ComposerBlockRegistry } from '../src/client/input/blocks.ts'
 import { InputHub } from '../src/client/input/hub.ts'
+import { createChatStore } from '../src/client/stores.ts'
 import { ConversationController, UnsupportedImageMediaTypeError } from '../src/client/service.ts'
 import { zh } from '../src/client/locales.ts'
 
@@ -24,17 +25,21 @@ async function bench(readAttachment?: SessionFace['readAttachment']) {
     session: { prompt, updateQueue, cancel, loadOlder, ...(readAttachment === undefined ? {} : { readAttachment }) },
   })
   // config.input is required (the apply shares its hub with the inject
-  // factories); the bench passes its own instance explicitly.
+  // factories); the bench passes its own instance explicitly. The chat store
+  // is likewise apply-owned; the bench shares its handle with the tests so
+  // they can materialize the instances a session body would bind.
+  const chatStore = createChatStore()
   const hub = new InputHub(runtime.ctx, makeTranslate(zh, {}))
   const fiber = runtime.ctx.plugin(ConversationController, {
     input: hub,
     blocks: new ComposerBlockRegistry(),
+    chatStore,
   })
   await fiber.await()
   const root = runtime.ctx.get('conversation') as ConversationController
   const scoped = runtime.sessions.scope('s1')!.get('conversation') as ConversationController
   const shell = hub.shellFor(runtime.sessions.binding('s1')!)
-  return { runtime, fiber, root, scoped, hub, shell, prompt, updateQueue, cancel, loadOlder }
+  return { runtime, fiber, root, scoped, hub, shell, chatStore, prompt, updateQueue, cancel, loadOlder }
 }
 
 describe('ConversationController', () => {
@@ -140,9 +145,59 @@ describe('ConversationController', () => {
     await bare.plugin(ConversationController, {
       input: new InputHub(bare, makeTranslate(zh, {})),
       blocks: new ComposerBlockRegistry(),
+      chatStore: createChatStore(),
     }).await()
     const orphan = bare.get('conversation') as ConversationController
     await expect(orphan.send('x')).rejects.toThrow(/sessions service unavailable/)
+  })
+})
+
+describe('ConversationController view election', () => {
+  it('reports an unchosen session as null and applies elections once the chrome attaches', async () => {
+    localStorage.clear()
+    const b = await bench()
+    const live = b.chatStore.create('s1')
+    expect(b.root.viewOf('s1')).toBeNull()
+    // The gate reacts to a session-list change, so the election can arrive
+    // before the session body mounts: it must hold as a pending intent.
+    b.root.openView('s1', 'harvest-console')
+    expect(live.getSnapshot().view).toBeNull()
+    b.root.attachChatActions('s1', live.actions)
+    expect(live.getSnapshot().view).toBe('harvest-console')
+    expect(b.root.viewOf('s1')).toBe('harvest-console')
+    await b.runtime.dispose()
+  })
+
+  it('applies elections immediately to live chrome and keeps sessions isolated', async () => {
+    localStorage.clear()
+    const b = await bench()
+    const live = b.chatStore.create('s1')
+    b.root.attachChatActions('s1', live.actions)
+    b.root.openView('s1', 'trajectory')
+    expect(live.getSnapshot().view).toBe('trajectory')
+    // Another session's chrome is unmounted: its election stays pending and
+    // its committed view reads as unchosen.
+    const other = b.chatStore.create('s2')
+    b.root.openView('s2', 'harvest-console')
+    expect(other.getSnapshot().view).toBeNull()
+    b.root.attachChatActions('s2', other.actions)
+    expect(other.getSnapshot().view).toBe('harvest-console')
+    expect(live.getSnapshot().view).toBe('trajectory')
+    await b.runtime.dispose()
+  })
+
+  it('re-attaching refreshed chrome flushes only the latest pending election', async () => {
+    localStorage.clear()
+    const b = await bench()
+    const live = b.chatStore.create('s1')
+    b.root.openView('s1', 'harvest-console')
+    b.root.openView('s1', 'trajectory')
+    b.root.attachChatActions('s1', live.actions)
+    expect(live.getSnapshot().view).toBe('trajectory')
+    // A later election for attached chrome applies at once, not on re-attach.
+    b.root.openView('s1', 'chat')
+    expect(live.getSnapshot().view).toBe('chat')
+    await b.runtime.dispose()
   })
 })
 

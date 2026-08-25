@@ -106,7 +106,7 @@ pi-ai 依据提供方 id 与 baseURL 决定每个请求的形状：系统提示�
 路由完全无法服务时解析仍会失败得响亮，并点名出问题的路由与模型：catalog 未提供的路由需要 `baseURL`，以及一个由唯一标识的模型组成的非空 `models` 列表。该解析在分节 schema 内部运行，因此无法服务的 profile 会在**写入之处**被拒绝——`settings.mutate` 以 `settings-rejected` 点名路由与模型——而不是先存下来、再悄悄让该 namespace 下每条路由失效。对于已经存下的、在此失败的分节，settings seam 会保留该 namespace 上一份可用值，因此这不会把部署卡死。`api` 接受 `supportedProtocols()` 中的协议；一旦点名，就会固定该路由上每个模型的协议。两个 catalog 都不认识的模型依然能解析出线协议，无需重述任何内容：路由选择 → 该 id 的已安装 catalog 或身份 catalog 答案 → 该路由所有已发布模型一致同意的协议 → 前一个 catalog 可描述的同级模型 → OpenAI 兼容网关默认值（`openai-completions`），与端点询问所用的假设一致。因此从列表端点采纳的最新发布模型可以立即服务；而解析出不一致协议的手工声明路由必须点名 `api`，因为 provider 构造每条路由只绑定一个实现。
 
 
-`baseURL` 设定该路由下每个模型的端点，因此仍支持 `https://proxy.example.com:8443` 等私有 proxy；省略它的 catalog 路由会保留每个 catalog 模型自己的端点。在 catalog 路由上点名 `api` 会把整条路由改指到该协议，这正是部署把某个提供方在 Responses 与 Chat Completions 之间迁移的方式。
+`baseURL` 设定该路由下每个模型的端点，因此仍支持 `https://proxy.example.com:8443` 等私有 proxy。省略它的 catalog 路由会保留每个 catalog 模型自己的端点；该模型条目与提供方条目都未描述的 id——从端点实时列表采纳的最新发布——会在已安装同级模型所声明的 API 挂载点上服务：取其中最短且携带版本号的写法，若所有写法都不带版本号，则为两种 OpenAI 形状的协议挂载到 `/v1`，因为这些客户端按字面使用 base。提供方声明的或路由配置的 `baseURL` 按字面采用。在 catalog 路由上点名 `api` 会把整条路由改指到该协议，这正是部署把某个提供方在 Responses 与 Chat Completions 之间迁移的方式。
 
 `supportedProtocols()` 刻意窄于 pi-ai 的完整流式 API 集合：它只保留 profile 能用密钥、端点与标头**完整描述**的那些协议。Bedrock 要用 AWS 凭据与 region 做 SigV4 签名，Vertex 需要 project、location 与应用默认凭据，Azure 需要提供方环境外加 api-version，Codex 走 OAuth——提供它们只会交回一个无法完成认证的路由。catalog 路由仍可经自己的 provider 抵达这些协议；被拒绝的只有显式覆盖。
 

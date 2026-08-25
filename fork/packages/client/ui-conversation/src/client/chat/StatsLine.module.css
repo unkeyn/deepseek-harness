@@ -1,10 +1,15 @@
-/* Session stats row: centered on the composer card's width axis. */
+/* Session stats row: centered on the composer card's width axis. Groups stay
+   whole and wrap onto a second centered line when the card narrows — clipping
+   figures mid-number reads as broken. The wrap is safe to keep because the
+   ring's hover swap never rocks the layout: ContextMeter ignores the
+   pointerleave that a swap-induced ring move produces (see its entry-rect
+   rule), so the enter/leave pair cannot oscillate the card height. */
 .root {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: baseline;
-  gap: 2px 16px;
+  gap: 2px 12px;
   width: 100%;
   max-width: var(--dsh-composer-card-max-width);
   margin: 0 auto;
@@ -20,7 +25,7 @@
   display: inline-flex;
   flex: 0 1 auto;
   justify-content: center;
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
 }
 

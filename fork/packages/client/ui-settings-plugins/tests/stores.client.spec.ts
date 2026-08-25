@@ -276,7 +276,6 @@ describe('CardForm', () => {
     expect(subject.shell()).toMatchObject({ available: false, writable: false })
   })
 })
-
 describe('BashCardController', () => {
   it('projects both fields and saves them in one write pass', async () => {
     const host = stubSettingsScope<BashSettings>()

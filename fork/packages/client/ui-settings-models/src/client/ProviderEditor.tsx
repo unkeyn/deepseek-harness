@@ -24,6 +24,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { CredentialView, IApiClient, SettingsNamespaceView, SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
+import { IconPlusOutline16, IconTrashOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   DeepSeekModelsEditor, modelDrafts, validateDeepSeekModels,
 } from './DeepSeekModelsEditor.tsx'
@@ -34,6 +35,22 @@ import { deriveKeyRef, messageOf, protocolChoices } from './store.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
+
+/** The settings namespace the key-pool plugin owns; absence hides extra keys. */
+const KEY_POOL_NS = 'key-pool'
+
+/** One staged additional API key row. */
+interface ExtraKeyDraft {
+  id: string
+  ref: string
+  secret: string
+  configured: boolean
+}
+
+/** The key-pool document shape this editor reads and writes. */
+interface KeyPoolPools {
+  pools?: Array<{ provider: string; keys: Array<{ ref: string; enabled?: boolean }> }>
+}
 
 /** Per-adapter-family curated field sets (unknown namespaces get the hint alone). */
 type EditorLayout = 'deepseek' | 'pi-ai' | 'unknown'
@@ -156,6 +173,9 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   const [draft, setDraft] = useState<Record<string, unknown>>(() => draftAt(schema, namespace, settingsPath))
   const [keyDraft, setKeyDraft] = useState('')
   const [keyState, setKeyState] = useState<CredentialView | undefined>(undefined)
+  const [extraKeys, setExtraKeys] = useState<ExtraKeyDraft[]>([])
+  const [removedExtraRefs, setRemovedExtraRefs] = useState<string[]>([])
+  const [keyPoolView, setKeyPoolView] = useState<{ revision: number; writable: boolean } | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | undefined>(undefined)
   // A settings success advances both retry baselines immediately. Keeping the
@@ -196,6 +216,39 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     )
     return () => { stale = true }
   }, [api.credentials, keyRef])
+
+  // The additional keys live in the key-pool namespace, not in this profile.
+  // A deployment without the key-pool plugin has no such namespace and the
+  // section stays hidden; the primary reference is the pool's first entry and
+  // is edited by the field above, so only the rest of the pool shows here.
+  useEffect(() => {
+    let stale = false
+    setKeyPoolView(undefined)
+    setExtraKeys([])
+    setRemovedExtraRefs([])
+    void api.settings.describe({}).then(async (response) => {
+      if (stale || !response.result.ok) return
+      const poolNs = response.result.value.namespaces.find(candidate => candidate.ns === KEY_POOL_NS)
+      if (poolNs === undefined) return
+      // The document-level write flag governs the pool membership write; the
+      // namespace view itself carries no per-section flag.
+      setKeyPoolView({ revision: poolNs.revision, writable: response.result.value.writable })
+      const pools = (poolNs.value as KeyPoolPools | undefined)?.pools
+      const refs = (pools?.find(pool => pool.provider === props.provider)?.keys ?? [])
+        .map(key => key.ref)
+        .filter(ref => ref !== keyRef)
+      setExtraKeys(refs.map((ref, index) => ({ id: `extra-${index + 1}`, ref, secret: '', configured: false })))
+      if (refs.length === 0) return
+      const badges = await api.credentials.describe({ refs })
+      if (stale || !badges.result.ok) return
+      const badgeView = badges.result.value
+      setExtraKeys(current => current.map(key => ({
+        ...key,
+        configured: badgeView.credentials[key.ref]?.configured ?? false,
+      })))
+    }, () => undefined)
+    return () => { stale = true }
+  }, [api, keyRef, props.provider])
 
   const stringAt = (source: unknown, key: string): string | undefined => {
     const value = schema.getPath(source, [key])
@@ -293,7 +346,49 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       const stored = await api.credentials.set({ ref: keyRef, value: keyValue })
       if (!stored.result.ok) return stored.result.error.message
     }
+    // Additional keys: removed references leave the credential store first
+    // (idempotent), new values store under their derived references, and the
+    // pool membership is one set op over the freshly described document —
+    // the revision it carries is the one this write is fenced against.
+    if (keyPoolView !== undefined) {
+      for (const ref of removedExtraRefs) {
+        const unset = await api.credentials.unset({ ref })
+        if (!unset.result.ok) return unset.result.error.message
+      }
+      for (const key of extraKeys) {
+        const value = key.secret.trim()
+        if (value.length === 0) continue
+        const stored = await api.credentials.set({ ref: key.ref, value })
+        if (!stored.result.ok) return stored.result.error.message
+      }
+      const described = await api.settings.describe({})
+      if (!described.result.ok) return described.result.error.message
+      const poolNs = described.result.value.namespaces.find(candidate => candidate.ns === KEY_POOL_NS)
+      if (poolNs !== undefined) {
+        const others = ((poolNs.value as KeyPoolPools | undefined)?.pools ?? [])
+          .filter(pool => pool.provider !== props.provider)
+        // The primary key is the pool's first entry; a provider with no extra
+        // key needs no pool at all.
+        const kept = extraKeys.filter(key => key.ref !== keyRef)
+        const nextPools = kept.length === 0
+          ? others
+          : [...others, {
+            provider: props.provider,
+            keys: [{ ref: keyRef }, ...kept.map(key => ({ ref: key.ref, enabled: true }))],
+          }]
+        const mutated = await api.settings.mutate({
+          ns: KEY_POOL_NS,
+          ops: [{ op: 'set', path: ['pools'], value: nextPools }],
+          expectedRevision: poolNs.revision,
+        })
+        if (!mutated.result.ok) {
+          return mutated.result.error.code === 'settings-conflict' ? t('conflict') : mutated.result.error.message
+        }
+      }
+    }
     setKeyDraft('')
+    setExtraKeys(current => current.map(key => ({ ...key, secret: '', configured: key.secret.trim().length > 0 || key.configured })))
+    setRemovedExtraRefs([])
     return undefined
   }
 
@@ -387,6 +482,63 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
           />
           {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
         </div>
+        {keyPoolView === undefined || props.credentialOnly === true ? null : (
+          <>
+            {extraKeys.map((key, index) => (
+              <div className={styles['field']} key={key.id}>
+                <span className={styles['fieldLabel']}>{`${t('keyInput')} ${index + 2}`}</span>
+                <div className={styles['keyRow']}>
+                  <input
+                    className={styles['input']}
+                    type="password"
+                    autoComplete="off"
+                    value={key.secret}
+                    placeholder={key.configured ? t('keyStored') : t('keyPlaceholder')}
+                    aria-label={`${t('keyInput')} ${index + 2}`}
+                    disabled={disabled || keyLocked}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      setExtraKeys(current => current.map(candidate => candidate.id === key.id ? { ...candidate, secret: value } : candidate))
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className={styles['iconButton']}
+                    aria-label={`${t('removeKey')} ${index + 2}`}
+                    title={t('removeKey')}
+                    disabled={disabled}
+                    onClick={() => {
+                      setRemovedExtraRefs(current => [...current, key.ref])
+                      setExtraKeys(current => current.filter(candidate => candidate.id !== key.id))
+                    }}
+                  >
+                    <IconTrashOutline16 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              className={styles['linkButton']}
+              disabled={disabled || keyLocked || !keyPoolView.writable}
+              onClick={() => {
+                setExtraKeys((current) => {
+                  // The next free numbered reference after the primary one,
+                  // so removals cannot make a later add collide with a row
+                  // that is still on the card.
+                  const used = new Set(current.map(candidate => candidate.ref))
+                  let index = current.length + 2
+                  while (used.has(`${keyRef}_${index}`)) index += 1
+                  const ref = `${keyRef}_${index}`
+                  return [...current, { id: ref, ref, secret: '', configured: false }]
+                })
+              }}
+            >
+              <IconPlusOutline16 size={14} />
+              {t('addKey')}
+            </button>
+          </>
+        )}
         {props.credentialOnly === true ? null : <details className={styles['customized']}>
           <summary className={styles['customizedSummary']}>{t('customized')}</summary>
           <div className={styles['customizedBody']}>

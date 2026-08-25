@@ -1,0 +1,8 @@
+# Bilingual-pair consistency record (fork convention, mirrors docs/i18n/README.md): the git blob
+# hash of each side as of the last confirmed-consistent state. Both languages carry equal
+# authority; after editing either side, bring the other along and re-record with:
+#   git hash-object fork/notes/2026-08-24-search-provider-checks.md
+#   git hash-object fork/notes/2026-08-24-search-provider-checks.zh.md
+# (fork/notes sits outside the official pairing corpus; the hashes are recorded by hand.)
+2026-08-24-search-provider-checks.md: 59ff6306df226e13cd4929a03922d8928c96c1f2
+2026-08-24-search-provider-checks.zh.md: 502bdc41c3466304bfa63210d298013ff024ae7f

@@ -1485,3 +1485,98 @@ describe('API key field', () => {
     expect(screen.queryByText(en.customTitle)).toBeNull()
   })
 })
+
+describe('additional API keys', () => {
+  /** The key-pool namespace as the host serves it beside the provider one. */
+  function keyPoolNamespace(pools: unknown): SettingsNamespaceView {
+    return {
+      ns: 'key-pool',
+      schema: {},
+      value: pools,
+      base: {},
+      user: pools,
+      applies: 'live',
+      secrets: [],
+      revision: 7,
+    }
+  }
+
+  async function mountWithPool(pools: unknown) {
+    const scripted = scriptedFace()
+    const describe = vi.fn(() => Promise.resolve(ok({
+      writable: true,
+      namespaces: [scripted.namespace, keyPoolNamespace(pools)],
+    })))
+    scripted.face.settings.describe = describe as never
+    // The default face stub leaves `unset` returning undefined; the editor
+    // reads the response envelope, so it needs the real shape.
+    scripted.face.credentials.unset = vi.fn(() => Promise.resolve(ok({})))
+    const controller = new ModelsSettingsStore(
+      scripted.face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(scripted.face as never))
+    await controller.load()
+    render(<ModelsSection {...{
+      controller,
+      useSnapshot: bindSnapshotSelector(controller.store),
+      usePanels: bindSnapshotSelector(NO_PANELS_STORE),
+      api: scripted.face as never,
+      schema: settingsSchema,
+      t,
+      renderSlot: () => null,
+    } satisfies ModelsSectionProps} />)
+    return scripted
+  }
+
+  it('shows the stored extra key and adds another one, writing both on apply', async () => {
+    const scripted = await mountWithPool({
+      pools: [{ provider: 'openai', keys: [{ ref: 'OPENAI_API_KEY' }, { ref: 'OPENAI_API_KEY_2' }] }],
+    })
+    openEditor('openai')
+
+    // The pool's first entry is the primary key this card already edits, so
+    // only the rest of the pool renders as additional rows.
+    const second = await waitFor(() => screen.getByLabelText(`${en.keyInput} 2`) as HTMLInputElement)
+    expect(second.type).toBe('password')
+    fireEvent.click(buttonNamed(en.addKey))
+
+    const third = screen.getByLabelText(`${en.keyInput} 3`) as HTMLInputElement
+    fireEvent.change(third, { target: { value: 'sk-extra' } })
+    fireEvent.click(screen.getByText(en.apply))
+
+    await waitFor(() => { expect(scripted.set).toHaveBeenCalledWith({ ref: 'OPENAI_API_KEY_3', value: 'sk-extra' }) })
+    const poolWrite = (scripted.mutate.mock.calls as unknown as [MutateCall][]).find(([call]) => call.ns === 'key-pool')
+    expect(poolWrite?.[0].ops).toEqual([{
+      op: 'set',
+      path: ['pools'],
+      value: [{
+        provider: 'openai',
+        keys: [{ ref: 'OPENAI_API_KEY' }, { ref: 'OPENAI_API_KEY_2', enabled: true }, { ref: 'OPENAI_API_KEY_3', enabled: true }],
+      }],
+    }])
+  })
+
+  it('unsets a removed extra key and drops the pool when no extra remains', async () => {
+    const scripted = await mountWithPool({
+      pools: [{ provider: 'openai', keys: [{ ref: 'OPENAI_API_KEY' }, { ref: 'OPENAI_API_KEY_2' }] }],
+    })
+    openEditor('openai')
+
+    // The remove button of the "API key 2" row.
+    await waitFor(() => { expect(screen.getByLabelText(`${en.removeKey} 2`)).toBeTruthy() })
+    fireEvent.click(screen.getByLabelText(`${en.removeKey} 2`))
+    fireEvent.click(screen.getByText(en.apply))
+
+    await waitFor(() => { expect(scripted.face.credentials.unset).toHaveBeenCalledWith({ ref: 'OPENAI_API_KEY_2' }) })
+    await waitFor(() => {
+      expect((scripted.mutate.mock.calls as unknown as [MutateCall][]).some(([call]) => call.ns === 'key-pool')).toBe(true)
+    })
+    const poolWrite = (scripted.mutate.mock.calls as unknown as [MutateCall][]).find(([call]) => call.ns === 'key-pool')
+    expect(poolWrite?.[0].ops).toEqual([{ op: 'set', path: ['pools'], value: [] }])
+  })
+
+  it('hides the extra keys when the deployment has no key-pool namespace', async () => {
+    await mountSection()
+    openEditor('openai')
+
+    expect(screen.queryByText(en.addKey)).toBeNull()
+  })
+})

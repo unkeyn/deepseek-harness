@@ -90,15 +90,30 @@
     - id: llm-deepseek-fork
       name: '@deepseek-ai/dsh-fork-llm-deepseek'
 
+    # Freebuff stays panel-only: the OAuth tab, its credential service, and
+    # the RPC bridge are mounted, while the llm-freebuff provider route and
+    # the /freebuff-login command remain unmounted packages. Remount them by
+    # inserting `llm-freebuff` (@deepseek-ai/dsh-fork-llm-freebuff) and
+    # `command-freebuff-login` (@deepseek-ai/dsh-fork-command-freebuff) rows.
     - id: credential-freebuff-oauth
       name: '@deepseek-ai/dsh-fork-credential-freebuff-oauth'
       config: {}
 
-    - id: command-freebuff-login
-      name: '@deepseek-ai/dsh-fork-command-freebuff'
+    # The agent-mode roster: the model routes itself between the modes
+    # (select_mode) and delegates to mode subtypes (subagent_<mode>); the
+    # composer menu assigns each mode its model and custom instruction
+    # through the agent-mode-assignments settings namespace. Only the angel
+    # companion needs config (its provider/model); without it the toggle
+    # refuses with a clear message.
+    - id: agent-model-selections
+      name: '@deepseek-ai/dsh-fork-agent-model-selection'
 
-    - id: llm-freebuff
-      name: '@deepseek-ai/dsh-fork-llm-freebuff'
+    - id: agent-modes
+      name: '@deepseek-ai/dsh-fork-agent-modes'
+      config: {}
+      # Optional angel companion (provider/model are required when present):
+      # config:
+      #   angel: { provider: deepseek-official, model: deepseek-chat }
 
     - id: web-fork
       name: '@deepseek-ai/dsh-fork-web'
@@ -134,6 +149,9 @@
     - id: ui-layout-fork
       name: '@deepseek-ai/dsh-fork-client-ui-layout'
 
+    - id: ui-agent-modes
+      name: '@deepseek-ai/dsh-fork-client-ui-agent-modes'
+
     - id: ui-conversation-fork
       name: '@deepseek-ai/dsh-fork-client-ui-conversation'
 
@@ -149,6 +167,13 @@
     - id: ui-freebuff-oauth
       name: '@deepseek-ai/dsh-fork-client-ui-freebuff-oauth'
 
+    # Harvest-mode interface: self-gating on the session summary's
+    # agentPreset field, so its Harvest view tab (auto-opened onto the
+    # console) exists only in sessions composed from the user's `harvest`
+    # preset.
+    - id: ui-harvest
+      name: '@deepseek-ai/dsh-fork-client-ui-harvest'
+
     - id: model-catalog-fork
       name: '@deepseek-ai/dsh-fork-model-catalog'
 
@@ -161,19 +186,12 @@
       name: '@deepseek-ai/dsh-fork-budget-context'
 
     # The official credentials service remains the value-free reference
-    # provider. These rows add the fork's durable pool capability beside it:
-    # pool metadata is stored through the existing web storage backend, while
-    # secrets continue to resolve through ctx.credentials.
-    - id: credential-health
-      name: '@deepseek-ai/dsh-fork-credential-health'
-
-    - id: credential-pool-store
-      name: '@deepseek-ai/dsh-fork-credential-pool-store'
-      config:
-        backend: json
-
-    - id: credential-broker
-      name: '@deepseek-ai/dsh-fork-credential-broker-pool'
+    # provider. This row adds the fork's durable pool capability beside it:
+    # pool metadata and health persist through the settings document, secrets
+    # keep resolving through ctx.credentials, and the user's pools are edited
+    # on the Models page's provider editors.
+    - id: key-pool
+      name: '@deepseek-ai/dsh-fork-key-pool'
 
     - id: web-search-brave-fork
       name: '@deepseek-ai/dsh-fork-web-search-brave'

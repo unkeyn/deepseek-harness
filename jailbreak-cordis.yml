@@ -1,0 +1,6 @@
+# Jailbreak preset — auto-detect model family and apply best-fitting strategy.
+- id: jailbreak-mode
+  name: '@deepseek-ai/dsh-jailbreak-mode'
+  config:
+    defaultActive: true
+    defaultStrategy: auto

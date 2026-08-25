@@ -30,7 +30,7 @@ import { attributionHeaders } from '@deepseek-ai/dsh-fork-llm'
 import { getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type { Api, Model } from '@earendil-works/pi-ai'
 import type { ModelCatalog } from '@deepseek-ai/dsh-fork-model-catalog'
-import { catalogModels, catalogProvider } from './catalog.ts'
+import { catalogModels, routeCatalogBaseUrl } from './catalog.ts'
 
 /**
  * Protocols whose model listing this module can read: the two that speak
@@ -390,28 +390,6 @@ async function probeListing(
     throw new LlmError(`${url} did not answer with JSON`, 'DISCOVERY_FAILED', { cause: error })
   }
   return readListing(body).map(entry => withCapabilities(entry, capabilitiesFor(provider, entry.id, identityCatalog)))
-}
-
-/**
- * The endpoint one installed catalog route serves, for a live merge the draft
- * names no baseURL for. The catalog provider's own baseUrl wins; a provider
- * that states none answers with the shortest endpoint its models carry — one
- * route serves one origin, catalog data records the prefix per model with
- * varying depth, and the shorter prefix is the common one whose candidate
- * listing paths cover the deeper spelling too.
- * @param provider - the catalog route key.
- * @param installed - the route's installed catalog models.
- * @returns the route's endpoint, or `undefined` when the catalog states none.
- */
-function routeCatalogBaseUrl(
-  provider: string,
-  installed: ReadonlyMap<string, Model<Api>>,
-): string | undefined {
-  const declared = catalogProvider(provider)?.baseUrl
-  if (declared !== undefined && declared.length > 0) return declared
-  const endpoints = [...installed.values()].map(model => model.baseUrl).filter(url => url.length > 0)
-  if (endpoints.length === 0) return undefined
-  return endpoints.reduce((shortest, url) => (url.length < shortest.length ? url : shortest))
 }
 
 /**

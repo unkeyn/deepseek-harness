@@ -6,6 +6,10 @@ A user-managed generic HTTP search provider for `ctx.web`. The provider stores e
 
 Each provider supplies an HTTPS endpoint, a provider priority, GET or POST query placement, authentication mode, and dot paths for the result array and source fields. Each key has its own priority and maximum concurrent request count. The default route mounts the provider as `custom-pool` before the official DeepSeek search provider, so an empty or exhausted pool falls through to the next configured web provider.
 
+Committed settings changes rebuild the runtime pool in place: a provider or key saved from the browser card joins the live pool without a plugin reload.
+
+A provider may also declare an optional `check` spec — an absolute HTTPS account endpoint plus dot paths for usage, limit, and remaining-credit numbers. The browser card's key check calls that endpoint with the provider's auth (Firecrawl ships `https://api.firecrawl.dev/v2/team/credit-usage` in its preset); a provider without a spec is checked with one minimal real query. Both paths answer per-key validity and credit numbers, never the key literal, over the loopback-only `/web-search-pool` Connection channel.
+
 `maxAttempts` bounds key rotation for one search. A failed key receives a cooldown and a redacted error summary containing no credential value. HTTP 401/403 responses additionally quarantine that key for the cooldown period; 429, server, parse, and transport failures remain retryable cooldowns. A successful key clears its health metadata. Cancellation never rotates to another key.
 
 The settings document contains references and redacted health metadata only. Key values are written through `credentials.set` and resolved immediately before a request. The browser receives configured state and error metadata, never the key literal.

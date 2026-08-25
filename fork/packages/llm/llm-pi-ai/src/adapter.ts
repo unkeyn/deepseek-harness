@@ -278,15 +278,22 @@ export class PiAiAdapter extends LlmAdapter {
     })
   }
 
-  async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+  /**
+   * One capture per stream call, taken before any await: the profile, the
+   * model descriptor, and the collection all come from the same immutable
+   * snapshot, and the credential freezes with them. A configuration change
+   * mid-request builds a separate snapshot, so this request finishes under
+   * the one it started with and the next call picks up the new one.
+   */
+  private prepare(options: GenerateOptions): {
+    snapshot: PiAiSnapshot
+    profile: ResolvedPiAiProviderProfile
+    model: Model<Api>
+    reasoning: ModelThinkingLevel | undefined
+  } {
     if (options.stop !== undefined) {
       throw new LlmError('llm-pi-ai does not support GenerateOptions.stop', 'UNSUPPORTED_OPTION')
     }
-    // One capture per stream call, taken before any await: the profile, the
-    // model descriptor, and the collection all come from the same immutable
-    // snapshot, and the credential freezes with them. A configuration change
-    // mid-request builds a separate snapshot, so this request finishes under
-    // the one it started with and the next call picks up the new one.
     const snapshot = this.current()
     const profile = this.profileOf(snapshot, options.provider)
     const model = this.modelOf(snapshot, options.provider, options.model)
@@ -298,7 +305,40 @@ export class PiAiAdapter extends LlmAdapter {
       // completion, so its declared default becomes the request default.
       options.reasoningEffort ?? profile.reasoning ?? profile.referenceDefaultLevels.get(options.model),
     )
-    const apiKey = await this.config.resolveApiKey(options.provider, profile)
+    return { snapshot, profile, model, reasoning }
+  }
+
+  async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    // One capture per stream call, taken before any await: the profile, the
+    // model descriptor, and the collection all come from the same immutable
+    // snapshot, and the credential freezes with them. A configuration change
+    // mid-request builds a separate snapshot, so this request finishes under
+    // the one it started with and the next call picks up the new one.
+    const prepared = this.prepare(options)
+    const apiKey = await this.config.resolveApiKey(options.provider, prepared.profile)
+    yield* this.streamWithKey(options, apiKey, prepared)
+  }
+
+  /**
+   * Stream one attempt with an explicit credential instead of resolving the
+   * configured reference. The brokered composition always supplies the
+   * resolved lease value; `undefined` keeps the provider's native
+   * authentication and is what a direct stream passes through. The direct
+   * path hands over its already-captured snapshot so one stream call prepares
+   * exactly once; a brokered attempt (a new lease, a new attempt context)
+   * captures fresh.
+   * @param options - the model request.
+   * @param apiKey - the lease's resolved credential value, or undefined for provider-native auth.
+   * @param prepared - the calling stream's captured snapshot context.
+   * @returns the chunk stream.
+   */
+  async * streamWithKey(options: GenerateOptions, apiKey: string | undefined, prepared?: {
+    snapshot: PiAiSnapshot
+    profile: ResolvedPiAiProviderProfile
+    model: Model<Api>
+    reasoning: ModelThinkingLevel | undefined
+  }): AsyncIterable<StreamChunk> {
+    const { snapshot, profile, model, reasoning } = prepared ?? this.prepare(options)
 
     const consumer = new AbortController()
     const upstream = options.signal === undefined

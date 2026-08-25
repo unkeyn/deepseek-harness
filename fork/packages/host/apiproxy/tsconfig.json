@@ -36,6 +36,9 @@
       "path": "../../llm/llm"
     },
     {
+      "path": "../../agent/model-selection"
+    },
+    {
       "path": "../../credentials/credential-freebuff-oauth"
     },
     {

@@ -12,10 +12,11 @@ import type { Context } from '@deepseek-ai/cordis'
 // Type-only imports: a plugin-to-plugin value import is a bundle purity
 // error, so scope resolution goes through the sessions service (scopeOf
 // method) instead of the standalone helper.
+import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ISessions, SessionFace, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SubmitImageAttachment, SubmitOutcome } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type { ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
-import type { ComposerAttachment } from './contract/slots.ts'
+import type { ChatStore, ComposerAttachment } from './contract/slots.ts'
 import type { QueueAction, QueueItemId } from './contract/queue.ts'
 import type { ComposerBlocks } from './input/blocks.ts'
 import type { DraftAttachmentId, SessionInputResolver } from './input/contract.ts'
@@ -57,6 +58,23 @@ export interface IConversation {
    * @returns completion of the page pull.
    */
   loadOlder(): Promise<void>
+  /**
+   * The session's elected conversation view (the active center-tab id), null
+   * while the session never chose one. Reads the session's committed chat
+   * state, so the value survives reloads and session switches.
+   * @param sessionId - the session to read.
+   * @returns the elected view id, or null for an unchosen session.
+   */
+  viewOf(sessionId: SessionId): string | null
+  /**
+   * Elect one conversation view for a session — the programmatic form of a
+   * tab-strip click. Applies immediately when the session's chrome is live;
+   * otherwise it applies at the chrome's next mount, so a caller reacting to
+   * a session-list change never races the render.
+   * @param sessionId - the session whose view to elect.
+   * @param viewId - a `conversation.view` entry id.
+   */
+  openView(sessionId: SessionId, viewId: string): void
 }
 
 /** Create one browser-only draft descriptor; only its id enters input state. */
@@ -94,6 +112,11 @@ export class ConversationController extends Service implements IConversation {
   readonly input: SessionInputResolver
   /** The per-session composer-block registry. */
   readonly blocks: ComposerBlocks
+  private readonly chatStore: ChatStore
+  /** Live chat actions per rendered session, captured by the session-body inject. */
+  private readonly liveChatActions = new Map<SessionId, BoundActions<ChatStore>>()
+  /** View elections for sessions whose chrome has not mounted yet. */
+  private readonly pendingViews = new Map<SessionId, string>()
   private readonly draftAttachments = new Map<DraftAttachmentId, ComposerAttachment>()
   private readonly imageUrls = new Map<string, ImageUrlEntry>()
   private readonly imageGenerations = new Map<SessionId, number>()
@@ -103,22 +126,58 @@ export class ConversationController extends Service implements IConversation {
   /**
    * @param ctx - owning root context (the plugin apply context; the service
    * registers itself and follows that fiber's lifetime).
-   * @param config - carries the SessionInputResolver and composer-block registry
-   * constructed by the plugin apply (the same instances the slot inject
-   * factories close over).
+   * @param config - carries the SessionInputResolver, composer-block registry,
+   * and the shared chat-store handle constructed by the plugin apply (the
+   * same instances the slot inject factories close over).
    */
-  constructor(ctx: Context, config: { input: SessionInputResolver; blocks: ComposerBlocks }) {
+  constructor(ctx: Context, config: { input: SessionInputResolver; blocks: ComposerBlocks; chatStore: ChatStore }) {
     super(ctx, 'conversation')
     this.input = config.input
     this.blocks = config.blocks
+    this.chatStore = config.chatStore
     ctx.effect(() => () => {
       this.disposed = true
+      this.liveChatActions.clear()
+      this.pendingViews.clear()
       for (const url of this.createdImageUrls) revokePreview(url)
       this.createdImageUrls.clear()
       this.draftAttachments.clear()
       this.imageUrls.clear()
       this.imageGenerations.clear()
     }, 'conversation attachment URL cache')
+  }
+
+  /**
+   * Package-internal wiring (the session-body inject): capture a rendered
+   * session's live chat actions and flush any view election that arrived
+   * before the chrome mounted.
+   * @param sessionId - the session whose body mounted.
+   * @param actions - the framework-bound chat actions of its live instance.
+   */
+  attachChatActions(sessionId: SessionId, actions: BoundActions<ChatStore>): void {
+    this.liveChatActions.set(sessionId, actions)
+    const pending = this.pendingViews.get(sessionId)
+    if (pending !== undefined) {
+      this.pendingViews.delete(sessionId)
+      actions.setView(pending)
+    }
+  }
+
+  /** {@link IConversation.viewOf} */
+  viewOf(sessionId: SessionId): string | null {
+    // A throwaway instance rehydrates the session's committed chat state; the
+    // framework caches its own live instances, so this read aliases nothing.
+    return this.chatStore.create(sessionId).getSnapshot().view
+  }
+
+  /** {@link IConversation.openView} */
+  openView(sessionId: SessionId, viewId: string): void {
+    const actions = this.liveChatActions.get(sessionId)
+    if (actions !== undefined) {
+      actions.setView(viewId)
+      return
+    }
+    this.pendingViews.set(sessionId, viewId)
   }
 
   /**

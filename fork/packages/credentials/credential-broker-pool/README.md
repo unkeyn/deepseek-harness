@@ -2,6 +2,8 @@
 
 Credential broker provider backed by `ctx.credentialPoolStore`. Each acquire reads the current durable metadata snapshot, chooses the highest-priority enabled entry with spare local lease capacity that is not in an active cooldown, excluded for the requested model, or listed in `excludedCredentials`, and returns only its credential reference.
 
+An acquire parks only while exhausted lease capacity blocks every candidate, waking on a lease release or a snapshot republish. Every other empty selection rejects: `CREDENTIAL_COOLDOWN` names the earliest expiry when every candidate is cooling down, so the caller retries on its own schedule, and `NO_ELIGIBLE_CREDENTIAL` fires when candidates are disabled, quarantined, model-excluded, or request-excluded. `completeWithHealth` retries a stale CAS token once when only unrelated credentials mutated while the lease was live.
+
 ## Model Experience
 
 ### Pool-backed lease selection

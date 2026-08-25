@@ -701,6 +701,35 @@ describe('catalog routes with per-model configuration', () => {
     expect(resolved.get('opencode')?.piProvider.baseUrl).toBeUndefined()
   })
 
+  it('serves an id newer than the installed catalog at the endpoint its siblings declare', () => {
+    // `opencode` states no provider-level endpoint, so an id adopted from the
+    // endpoint's live listing — newer than the installed catalog — carries no
+    // address of its own. One route serves one origin: it resolves to the
+    // shortest version-carrying endpoint the installed siblings declare, the
+    // spelling that records the mounted API.
+    const expected = getBuiltinModels('opencode')
+      .map(model => model.baseUrl)
+      .filter(url => /\/v\d+$/.test(url))
+      .reduce((shortest, url) => (url.length < shortest.length ? url : shortest))
+    const resolved = resolveProfiles({ opencode: { models: [{ id: 'newer-than-catalog' }] } })
+    const [model] = resolved.get('opencode')?.piProvider.getModels() ?? []
+    expect(model?.baseUrl).toBe(expected)
+  })
+
+  it('mounts a derived endpoint at its version segment for the verbatim-base protocols', () => {
+    // `opencode-go` records the published prefix only, while the OpenAI SDK
+    // appends `/chat/completions` to the base verbatim — so the derived base
+    // for an id the catalog does not describe is the published prefix mounted
+    // at `/v1`, the same convention the listing probe follows.
+    const shortest = getBuiltinModels('opencode-go')
+      .map(model => model.baseUrl)
+      .reduce((shortest, url) => (url.length < shortest.length ? url : shortest))
+    expect(shortest).not.toMatch(/\/v\d+$/)
+    const resolved = resolveProfiles({ 'opencode-go': { models: [{ id: 'newer-than-catalog' }] } })
+    const [model] = resolved.get('opencode-go')?.piProvider.getModels() ?? []
+    expect(model?.baseUrl).toBe(`${shortest}/v1`)
+  })
+
   it('repoints a catalog route at another wire protocol without restating its endpoint', () => {
     const resolved = resolveProfiles({ openai: { api: 'openai-completions' } })
     const models = resolved.get('openai')?.piProvider.getModels() ?? []

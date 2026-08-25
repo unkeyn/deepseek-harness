@@ -10,6 +10,7 @@
  * reports both pressure and a route capacity. */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import type { UseProjection } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: the `contextPressure` / `contextBreakdown` projection key merges.
 import type {} from '@deepseek-ai/dsh-token-meter/client'
@@ -124,9 +125,24 @@ export function ContextMeter({
   }, [open])
 
   // Hovering the ring swaps the stats line's billing group for the heuristic
-  // composition; leaving hands the strip back.
-  const swapStats = (hovered: boolean): void => {
-    contextMeterHover.set(hovered)
+  // composition; leaving hands the strip back. The swap can flip the strip's
+  // line count, which lifts this ring away from a stationary pointer and fires
+  // a layout-induced pointerleave; reverting on it re-swaps, and the
+  // enter/leave pair rocks the composer for as long as the pointer rests near
+  // the ring. A leave therefore hands back only once the pointer has also left
+  // where it entered the ring: reverting restores the ring to that exact rect,
+  // so a sustaining cycle would need the pointer inside and outside it at once.
+  const entryRef = useRef<DOMRect | null>(null)
+  const ringEnter = (e: ReactPointerEvent<HTMLButtonElement>): void => {
+    entryRef.current = e.currentTarget.getBoundingClientRect()
+    contextMeterHover.set(true)
+  }
+  const ringLeave = (e: ReactPointerEvent<HTMLButtonElement>): void => {
+    const entry = entryRef.current
+    if (entry !== null
+      && e.clientX >= entry.left && e.clientX <= entry.right
+      && e.clientY >= entry.top && e.clientY <= entry.bottom) return
+    contextMeterHover.set(false)
   }
   useEffect(() => () => { contextMeterHover.set(false) }, [])
 
@@ -176,8 +192,8 @@ export function ContextMeter({
           aria-label={t('context.aria', { percent: reading })}
           aria-haspopup="dialog"
           aria-expanded={open}
-          onPointerEnter={() => { swapStats(true) }}
-          onPointerLeave={() => { swapStats(false) }}
+          onPointerEnter={ringEnter}
+          onPointerLeave={ringLeave}
           onClick={() => { setOpen(!open) }}
         >
           <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden>

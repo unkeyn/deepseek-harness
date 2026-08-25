@@ -73,16 +73,21 @@ describe('fork bundle composition', () => {
       name: '@deepseek-ai/dsh-fork-web-fetch-http',
     })
     for (const id of [
-      'model-catalog-fork', 'compaction-policy-fork', 'budget-context', 'credential-health',
-      'credential-pool-store', 'credential-broker', 'web-search-brave-fork',
+      'model-catalog-fork', 'compaction-policy-fork', 'budget-context', 'key-pool',
+      'web-search-brave-fork',
       'web-search-firecrawl-fork', 'web-search-pool', 'freebuff-rpc',
     ]) expect(all.some(entry => entry.id === id)).toBe(true)
     expect(all.find(entry => entry.id === 'budget-context')).toMatchObject({
       name: '@deepseek-ai/dsh-fork-budget-context',
     })
-    expect(all.find(entry => entry.id === 'command-freebuff-login')).toMatchObject({
-      name: '@deepseek-ai/dsh-fork-command-freebuff',
+    expect(all.find(entry => entry.id === 'credential-freebuff-oauth')).toMatchObject({
+      name: '@deepseek-ai/dsh-fork-credential-freebuff-oauth',
     })
+    expect(all.find(entry => entry.id === 'ui-freebuff-oauth')).toMatchObject({
+      name: '@deepseek-ai/dsh-fork-client-ui-freebuff-oauth',
+    })
+    expect(all.some(entry => entry.id === 'llm-freebuff')).toBe(false)
+    expect(all.some(entry => entry.id === 'command-freebuff-login')).toBe(false)
 
     const restored = applyEntryPatches(rows, [
       { id: 'llm-fork', disabled: true },

@@ -22,6 +22,7 @@ const DEFAULT_PHASES = Object.freeze([
 const DEFAULT_RETRYABLE_CODES = Object.freeze([
   EMPTY_RESPONSE_CODE,
   'RATE_LIMIT',
+  'CREDENTIAL_COOLDOWN',
   'SERVER',
   'TIMEOUT',
   'TRANSPORT',

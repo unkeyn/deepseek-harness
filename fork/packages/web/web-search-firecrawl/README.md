@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-Firecrawl Search provider for `ctx.web`. Set `apiKey` or `FIRECRAWL_API_KEY`; an empty key makes the provider unavailable. `baseURL` is optional and defaults to the public Firecrawl search endpoint. Results with non-empty descriptions become normalized sources; HTTP, network, malformed-body, and cancellation failures use `WebError`.
+Firecrawl Search provider for `ctx.web`. Set `apiKey` or `FIRECRAWL_API_KEY`; an empty key makes the provider unavailable. `baseURL` is optional and defaults to `https://api.firecrawl.dev/v2` (`/search` is appended). Each search is a Firecrawl v2 `POST` carrying `{"query": …}` with `Authorization: Bearer`, and `data.web` entries with non-empty descriptions become normalized sources; HTTP, network, malformed-body, and cancellation failures use `WebError`.
 
 ```yaml
 - id: web-search-firecrawl

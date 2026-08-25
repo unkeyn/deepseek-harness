@@ -11,6 +11,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
+// Type-only: publishes the installed selection refs to `ctx.agentModelSelections`
+// so other plugins write through the SAME ref the gateway reads.
+import type {} from '@deepseek-ai/dsh-fork-agent-model-selection'
 import { AttachmentError, admitEncodedImages } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { contentHasImage, createUserMessage, freezeMessage, ReasoningEffortId } from '@deepseek-ai/dsh-fork-llm'
@@ -1118,6 +1121,9 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     }
     installModelSelection(agent.ctx, selection)
     selections.set(agent, selection)
+    // Publish for cross-plugin writers (agent modes); absent service — a
+    // composition without the fork registry — simply has no external writers.
+    ctx.get('agentModelSelections')?.bind(agent, selection)
     return selection
   }
 

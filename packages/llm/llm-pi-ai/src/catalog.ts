@@ -653,6 +653,62 @@ function sharedCatalogApi(defaults: ReadonlyMap<string, Model<Api>>): string | u
   return apis.size === 1 ? [...apis][0] : undefined
 }
 
+/** A URL whose path ends in an API version segment, e.g. `https://gw.example/v1`. */
+const VERSION_SUFFIX = /\/v\d+$/
+
+/**
+ * The wire protocols whose client takes the request base verbatim: the OpenAI
+ * SDK appends `/chat/completions` or `/responses` to `baseURL` as given, so a
+ * base for these protocols must name the versioned API mount. The Anthropic
+ * SDK adds its own `/v1`, so a recorded prefix for the other protocols stays
+ * untouched.
+ */
+const VERBATIM_BASE_APIS: ReadonlySet<string> = new Set(['openai-completions', 'openai-responses'])
+
+/**
+ * The endpoint one installed catalog route serves, derived when no layer names
+ * one. The catalog provider's own baseUrl wins; a provider that states none —
+ * the address lives on each model — answers with the shortest endpoint its
+ * models carry, preferring spellings that end in a version segment because
+ * those record the mounted API rather than a published prefix. This is the
+ * same derivation the model-discovery probe uses, so an id adopted from an
+ * endpoint's live listing — newer than the installed catalog — resolves to the
+ * endpoint it was listed at, with no restated route `baseURL`.
+ * @param provider - provider route key.
+ * @param installed - the route's installed catalog models.
+ * @returns the route's endpoint, or `undefined` when the catalog states none.
+ */
+export function routeCatalogBaseUrl(
+  provider: string,
+  installed: ReadonlyMap<string, Model<Api>>,
+): string | undefined {
+  const declared = catalogProvider(provider)?.baseUrl
+  if (declared !== undefined && declared.length > 0) return declared
+  const endpoints = [...installed.values()].map(model => model.baseUrl).filter(url => url.length > 0)
+  if (endpoints.length === 0) return undefined
+  const versioned = endpoints.filter(url => VERSION_SUFFIX.test(url))
+  const pool = versioned.length > 0 ? versioned : endpoints
+  return pool.reduce((shortest, url) => (url.length < shortest.length ? url : shortest))
+}
+
+/**
+ * The request base one sibling-derived endpoint names for a resolved protocol.
+ * Per-model catalog addresses record a published prefix, while a base for a
+ * verbatim-base protocol must carry the version segment — gateways that
+ * publish an unversioned prefix mount under `/v1`, the convention the listing
+ * probe follows with its fallback candidate. A provider-declared baseUrl is an
+ * upstream statement about its own API and is never rewritten here, nor is
+ * explicit configuration.
+ * @param endpoint - the sibling-derived catalog endpoint, when one exists.
+ * @param api - the resolved wire protocol.
+ * @returns the request base, or `undefined` past the endpoint.
+ */
+function derivedRequestBase(endpoint: string | undefined, api: string): string | undefined {
+  if (endpoint === undefined) return undefined
+  if (!VERBATIM_BASE_APIS.has(api)) return endpoint
+  return VERSION_SUFFIX.test(endpoint) ? endpoint : `${endpoint}/v1`
+}
+
 function referenceModel(catalog: ModelCatalog | undefined, id: string): Model<Api> | undefined {
   const reference = catalog?.resolve(id)
   if (reference === undefined) return undefined
@@ -860,7 +916,7 @@ export interface RouteCatalog {
 export function resolveRouteModels(request: RouteCatalogRequest): RouteCatalog {
   const { provider } = request
   const defaults = catalogModels(provider)
-  const providerBaseUrl = catalogProvider(provider)?.baseUrl
+  const routeEndpoint = routeCatalogBaseUrl(provider, defaults)
   // An absent `models` key and an empty one are the same request: the config
   // schema materializes `[]` for the absent case, and an empty catalog could
   // serve no request anyway, so both mean "serve the installed catalog".
@@ -931,7 +987,15 @@ export function resolveRouteModels(request: RouteCatalogRequest): RouteCatalog {
       .map(previous => bases.get(previous.id)?.api)
       .find(candidate => candidate !== undefined)
     const api = request.api ?? base?.api ?? routeApi ?? siblingApi ?? GATEWAY_DEFAULT_API
-    const baseUrl = request.baseURL ?? base?.baseUrl ?? providerBaseUrl
+    // An installed entry with no endpoint of its own defers to the route's
+    // catalog endpoint; an empty string is the reference answer's "no address"
+    // spelling and must not win the chain. Explicit configuration and the
+    // provider's declared baseUrl are taken verbatim; only an endpoint derived
+    // from per-model siblings is mounted at its version segment.
+    const entryBaseUrl = base?.baseUrl !== undefined && base.baseUrl.length > 0 ? base.baseUrl : undefined
+    const declared = catalogProvider(provider)?.baseUrl
+    const declaredBaseUrl = declared !== undefined && declared.length > 0 ? declared : undefined
+    const baseUrl = request.baseURL ?? entryBaseUrl ?? declaredBaseUrl ?? derivedRequestBase(routeEndpoint, api)
     if (baseUrl === undefined) {
       invalid(provider, `model "${entry.id}" needs a baseURL; the installed catalog does not describe this route`)
     }

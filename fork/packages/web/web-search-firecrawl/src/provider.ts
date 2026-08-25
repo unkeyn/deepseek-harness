@@ -1,7 +1,7 @@
 /**
- * `FirecrawlSearchProvider`: a `WebSearchProvider` backed by the Firecrawl API.
- * Firecrawl provides web scraping and crawling capabilities. This provider
- * integrates with Firecrawl's search functionality.
+ * `FirecrawlSearchProvider`: a `WebSearchProvider` backed by the Firecrawl v2
+ * search API (`POST {base}/search`, `Authorization: Bearer`, results under
+ * `data.web`).
  * @module @deepseek-ai/dsh-fork-web-search-firecrawl/provider
  */
 
@@ -16,8 +16,8 @@ import type {
 /** Stable id this provider registers under. */
 export const FIRECRAWL_PROVIDER_ID = 'firecrawl'
 
-/** Default Firecrawl API endpoint for search. */
-export const FIRECRAWL_DEFAULT_BASE_URL = 'https://api.firecrawl.ai/v1/search'
+/** Default Firecrawl API endpoint base for search; `/search` is appended. */
+export const FIRECRAWL_DEFAULT_BASE_URL = 'https://api.firecrawl.dev/v2'
 
 /** Attribution header sent on every request. Bump with the package version. */
 const USER_AGENT = 'deepseek-harness/0.0.1'
@@ -34,7 +34,7 @@ export interface FirecrawlSearchProviderOptions {
  * Map a Firecrawl result to a normalized source, or `undefined` when it carries no
  * portable snippet.
  *
- * @param result - one entry of Firecrawl's results.
+ * @param result - one entry of Firecrawl's `data.web`.
  * @returns the normalized source, or `undefined` when the entry has no
  *   non-blank snippet.
  */
@@ -53,19 +53,21 @@ export function mapFirecrawlResult(result: {
 }
 
 /**
- * Map a Firecrawl response envelope to a normalized search result.
+ * Map a Firecrawl v2 response envelope to a normalized search result.
  *
  * @param response - the parsed Firecrawl search response body.
  * @returns the normalized result; snippet-less entries are dropped.
  */
 export function mapFirecrawlResponse(response: {
-  results?: Array<{
-    url: string
-    title?: string | null
-    description?: string | null
-  }>
+  data?: {
+    web?: Array<{
+      url: string
+      title?: string | null
+      description?: string | null
+    }>
+  }
 }): WebSearchResult {
-  const sources = (response.results ?? [])
+  const sources = (response.data?.web ?? [])
     .map(mapFirecrawlResult)
     .filter((source): source is WebSearchSource => source !== undefined)
   return { sources, truncated: false }
@@ -83,17 +85,19 @@ export class FirecrawlSearchProvider implements WebSearchProvider {
   }
 
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
-    const endpoint = `${this.options.baseURL}?query=${encodeURIComponent(request.query)}`
+    const endpoint = `${this.options.baseURL}/search`
     let response: Response
     try {
       response = await fetch(endpoint, {
-        method: 'GET',
+        method: 'POST',
         redirect: 'error',
         headers: {
-          'x-api-key': this.options.apiKey,
-          'user-agent': USER_AGENT,
+          'authorization': `Bearer ${this.options.apiKey}`,
+          'content-type': 'application/json',
           'accept': 'application/json',
+          'user-agent': USER_AGENT,
         },
+        body: JSON.stringify({ query: request.query }),
         ...signal !== undefined ? { signal } : {},
       })
     } catch (error: unknown) {
@@ -116,11 +120,13 @@ export class FirecrawlSearchProvider implements WebSearchProvider {
 
     try {
       const payload = await response.json() as {
-        results?: Array<{
-          url: string
-          title?: string | null
-          description?: string | null
-        }>
+        data?: {
+          web?: Array<{
+            url: string
+            title?: string | null
+            description?: string | null
+          }>
+        }
       }
       return mapFirecrawlResponse(payload)
     } catch (error: unknown) {

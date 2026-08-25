@@ -1,0 +1,518 @@
+/* The mode panel: the same rounded chip chrome as the sibling Access
+   trigger, plus a two-pane configuration card whose right pane slides in
+   from the right. */
+
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 220px;
+  height: 28px;
+  padding: 0 4px 0 8px;
+  border: none;
+  border-radius: 24px;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.trigger:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.trigger:focus-visible {
+  box-shadow: 0 0 0 2px var(--dsw-alias-border-l3);
+}
+
+.trigger:disabled {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: default;
+}
+
+.triggerIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+/* The shared 16px glyphs render one step smaller on the exposed trigger. */
+.triggerIcon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.triggerLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  /* inline-flex, not inline: an inline seat reserves baseline descent under
+     the svg and floats the glyph off-center in the 28px trigger. */
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-caption);
+  transition: transform 120ms ease;
+}
+
+@container (max-width: 460px) {
+  .trigger .triggerLabel {
+    display: none;
+  }
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* The card opens above the trigger, bottom-aligned like the sibling menus. */
+.card {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  display: flex;
+  align-items: stretch;
+  min-width: 200px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-elevated, var(--dsw-alias-bg-card, var(--dsw-alias-bg-base)));
+  box-shadow: 0 8px 28px rgb(0 0 0 / 32%);
+  overflow: hidden;
+}
+
+.modesPane {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-width: 188px;
+  padding: 4px;
+}
+
+.modeRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 4px 0 8px;
+  border: none;
+  border-radius: 8px;
+  outline: none;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  cursor: default;
+  user-select: none;
+}
+
+.modeRow:hover,
+.modeRow:focus-visible,
+.modeRowActive {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.modeRowMain {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.modeName {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+/* The effective mode's check: the model routed here, not the user. */
+.modeCheck {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.modeCheck svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* The assigned model, half-transparent to the right of the mode name. */
+.assignedModel {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-caption);
+  font-size: 12px;
+}
+
+.pencil {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-caption);
+  cursor: pointer;
+}
+
+.pencil:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* A mode with a saved custom instruction (or an open editor) marks its
+   pencil bright so the state reads at a glance. */
+.pencilCustom,
+.pencilCustom:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.pencil svg {
+  width: 13px;
+  height: 13px;
+}
+
+.separator {
+  flex: 0 0 auto;
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--dsw-alias-border-l2);
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  border: 1.3px solid var(--dsw-alias-label-caption);
+  border-radius: 4px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.checkbox svg {
+  width: 11px;
+  height: 11px;
+}
+
+.error {
+  padding: 4px 8px;
+  color: var(--dsw-alias-label-danger, #e5484d);
+  font-size: 12px;
+}
+
+/* The right pane slides in from the right, fast and light. */
+.subPane {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  width: 232px;
+  padding: 4px;
+  border-left: 1px solid var(--dsw-alias-border-l2);
+  animation: pane-in 140ms ease-out;
+}
+
+@keyframes pane-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.subHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 8px 6px;
+}
+
+.subTitle {
+  overflow: hidden;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resetLink {
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-caption);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.resetLink:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.catalogScroll {
+  flex: 1 1 auto;
+  max-height: 264px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.catalogLoading {
+  padding: 6px 8px;
+  color: var(--dsw-alias-label-caption);
+  font-size: 12px;
+}
+
+.providerGroup + .providerGroup {
+  margin-top: 4px;
+}
+
+.providerName {
+  padding: 4px 8px 2px;
+  color: var(--dsw-alias-label-caption);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.modelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 7px;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.modelRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.modelRowSelected {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-selected, var(--dsw-alias-interactive-bg-hover));
+}
+
+.modelRowMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.effortList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 1px 0 3px;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--dsw-alias-border-l2);
+  margin-left: 12px;
+}
+
+.effortRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.effortRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.effortRowSelected {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-selected, var(--dsw-alias-interactive-bg-hover));
+}
+
+.modelName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editorArea {
+  flex: 1 1 auto;
+  min-height: 120px;
+  margin: 0 4px;
+  padding: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 17px;
+  resize: vertical;
+}
+
+.editorArea:focus-visible {
+  border-color: var(--dsw-alias-border-l3);
+}
+
+.editorActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 6px 4px 2px;
+}
+
+.editorButton {
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 7px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.editorButton:hover {
+  background: var(--dsw-alias-interactive-bg-selected, var(--dsw-alias-interactive-bg-hover));
+}
+
+.editorClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-caption);
+  cursor: pointer;
+}
+
+.editorClose:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.editorClose svg {
+  width: 12px;
+  height: 12px;
+}
+
+.presetSaveRow {
+  display: flex;
+  gap: 6px;
+  padding: 0 4px 6px;
+}
+
+.presetInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 7px;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+}
+
+.presetInput:focus-visible {
+  border-color: var(--dsw-alias-border-l3);
+}
+
+.presetRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 7px;
+}
+
+.presetRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.presetRowActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.presetDelete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dsw-alias-label-caption);
+  cursor: pointer;
+}
+
+.presetDelete:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.presetDelete svg {
+  width: 11px;
+  height: 11px;
+}

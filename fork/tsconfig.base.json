@@ -841,6 +841,33 @@
       "@deepseek-ai/dsh-file-reference/src/*": [
         "../packages/context/file-reference/src/*"
       ],
+      "@deepseek-ai/dsh-fork-agent-model-selection": [
+        "packages/agent/model-selection/src"
+      ],
+      "@deepseek-ai/dsh-fork-agent-model-selection/*": [
+        "packages/agent/model-selection/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-agent-model-selection/src/*": [
+        "packages/agent/model-selection/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-agent-modes": [
+        "packages/agent/modes/src"
+      ],
+      "@deepseek-ai/dsh-fork-agent-modes/*": [
+        "packages/agent/modes/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-agent-modes/src/*": [
+        "packages/agent/modes/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-agent-modes": [
+        "packages/client/ui-agent-modes/src"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-agent-modes/*": [
+        "packages/client/ui-agent-modes/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-agent-modes/src/*": [
+        "packages/client/ui-agent-modes/src/*"
+      ],
       "@deepseek-ai/dsh-fork-client-ui-conversation": [
         "packages/client/ui-conversation/src"
       ],
@@ -984,6 +1011,15 @@
       ],
       "@deepseek-ai/dsh-fork-credential-pool-store/src/*": [
         "packages/credentials/credential-pool-store/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-key-pool": [
+        "packages/credentials/key-pool/src"
+      ],
+      "@deepseek-ai/dsh-fork-key-pool/*": [
+        "packages/credentials/key-pool/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-key-pool/src/*": [
+        "packages/credentials/key-pool/src/*"
       ],
       "@deepseek-ai/dsh-fork-host-apiproxy": [
         "packages/host/apiproxy/src"

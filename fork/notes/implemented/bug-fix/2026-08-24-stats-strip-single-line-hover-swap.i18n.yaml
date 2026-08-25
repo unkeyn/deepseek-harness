@@ -1,0 +1,7 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record the hashes with
+#   git hash-object <file>
+# (the fork overlay is outside the root pairing corpus and records its pairs here).
+2026-08-24-stats-strip-single-line-hover-swap.md: 6274acad99275a74be2e70efb5415236384f7035
+2026-08-24-stats-strip-single-line-hover-swap.zh.md: 74d1d41d3ab97f2d09c08b29094562e0fe85322d

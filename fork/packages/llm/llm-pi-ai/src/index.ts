@@ -61,7 +61,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { assertUsableApiKey, LlmError } from '@deepseek-ai/dsh-fork-llm'
-import type { AdapterRegistrationHandle, DirectoryRegistrationHandle, LlmConfigurableProvider } from '@deepseek-ai/dsh-fork-llm'
+import type { AdapterRegistrationHandle, DirectoryRegistrationHandle, LlmAdapter, LlmConfigurableProvider } from '@deepseek-ai/dsh-fork-llm'
+import { BrokeredLlmAdapter } from '@deepseek-ai/dsh-fork-llm-credential-broker'
 import type { ModelCatalog } from '@deepseek-ai/dsh-fork-model-catalog'
 import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { PiAiAdapter } from './adapter.ts'
@@ -95,15 +96,20 @@ const NS = settingsNamespace('llm-pi-ai')
  * Sorted by provider so a settings document that merely reorders its keys is
  * not mistaken for a route change.
  */
-function registrationFacts(profiles: ReadonlyMap<string, ResolvedPiAiProviderProfile>): unknown {
+function registrationFacts(
+  profiles: ReadonlyMap<string, ResolvedPiAiProviderProfile>,
+  adapter: LlmAdapter,
+): unknown {
   return [...profiles.entries()]
     // `displayName` rides along because the registry hands it to every selector
     // through `providerInfo()`: a rename that did not re-register would leave
     // the old label showing until some unrelated fact happened to change.
+    // The retry policy reads through the registered adapter so the brokered
+    // wrapper's pool-driven retry floor is a fact a pool change re-registers.
     .map(([provider, profile]) => ({
       provider,
       displayName: profile.displayName,
-      retryPolicy: profile.retryPolicy,
+      retryPolicy: adapter.providerRetryPolicy(provider) ?? profile.retryPolicy,
     }))
     .sort((left, right) => left.provider.localeCompare(right.provider))
 }
@@ -220,6 +226,15 @@ export function apply(ctx: Context, config: Config): void {
       )
     },
   })
+  // Every route this adapter serves streams through the brokered decorator.
+  // Its resolvers read the key-pool composition per call — the route comes
+  // from the request itself, so one instance covers every profile — and until
+  // a pool exists for a route the decorator streams straight through, so the
+  // wrap is invisible to providers the user gave one key.
+  const routed = new BrokeredLlmAdapter(ctx, request => request.provider, adapter, (request, credential) => adapter.streamWithKey(request, credential), {
+    failover: request => ctx.get('keyPool')?.failover(request.provider),
+    health: () => ctx.get('credentialHealth'),
+  })
   // The full installed catalog is configurable from the moment the plugin
   // mounts — dormant or not — so configuration surfaces can offer every
   // pi-ai provider before any route exists. Hand-declared routes join it as
@@ -272,7 +287,7 @@ export function apply(ctx: Context, config: Config): void {
   let registration: AdapterRegistrationHandle | undefined
   let registeredFacts: unknown
   const ensureRegistrationFacts = (): void => {
-    const facts = registrationFacts(profiles())
+    const facts = registrationFacts(profiles(), routed)
     if (deepEqualJson(facts, registeredFacts)) return
     // The registry captures the route set and each route's retry policy at
     // registration, so a change to either must re-register. The swap is
@@ -288,13 +303,38 @@ export function apply(ctx: Context, config: Config): void {
         registeredFacts = facts
         return
       }
-      registration = ctx.llm.registerAdapter(routes, adapter)
+      registration = ctx.llm.registerAdapter(routes, routed)
     } else {
       registration.replace(routes)
     }
     registeredFacts = facts
   }
   ensureRegistrationFacts()
+  ctx.effect(() => {
+    // The registry captures each route's retry policy at registration, and the
+    // brokered wrapper raises it from the live pool policy — so the pool
+    // plugin's arrival and its later configuration changes re-read it here.
+    let offPool: (() => void) | undefined
+    const refresh = (): void => {
+      try {
+        ensureRegistrationFacts()
+      } catch (error) {
+        ctx.logger.error('llm-pi-ai: keeping the previously registered routes after a key-pool update')
+        ctx.logger.error(error)
+      }
+    }
+    const offService = ctx.on('internal/service', (name: string) => {
+      if (name !== 'keyPool') return
+      offPool?.()
+      offPool = ctx.get('keyPool')?.onChange(refresh)
+      refresh()
+    })
+    offPool = ctx.get('keyPool')?.onChange(refresh)
+    return () => {
+      offService()
+      offPool?.()
+    }
+  }, 'llm-pi-ai: key-pool registration facts')
 
   installSettingsSection(ctx, NS, Config, config, {
     // Refuse an unserviceable section where it is written: without this a
