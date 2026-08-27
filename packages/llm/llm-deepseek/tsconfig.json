@@ -21,10 +21,29 @@
       "path": "../../llm/llm"
     },
     {
+      "path": "../../attachment/attachment"
+    },
+    {
+      "path": "../../fs/fs"
+    },
+    {
+      "path": "../../util/atomic-write"
+    },
+    {
+      "path": "../../util/brand"
+    },
+    {
+      "path": "../../util/home-paths"
+    },
+    {
       "path": "../../credentials/credentials"
     },
     {
+<<<<<<< HEAD
       "path": "../../credentials/credential-oauth"
+=======
+      "path": "../deepseek-llm-api-extensions"
+>>>>>>> upstream/master
     },
     {
       "path": "../../util/launch-environment"

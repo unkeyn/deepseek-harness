@@ -23,7 +23,11 @@
  */
 
 import { INVALID_CREDENTIAL_CODE, LlmError, normalizeApiKey } from '@deepseek-ai/dsh-llm'
+<<<<<<< HEAD
 import type { LlmDiscoveredModel, LlmModelDiscoveryRequest, ModelModality } from '@deepseek-ai/dsh-llm'
+=======
+import type { LlmDiscoveredModel, LlmModelDiscoveryOperation } from '@deepseek-ai/dsh-llm'
+>>>>>>> upstream/master
 import { attributionHeaders } from '@deepseek-ai/dsh-llm'
 import { getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type { ModelCatalog } from '@deepseek-ai/dsh-model-catalog'
@@ -285,7 +289,7 @@ function usableProbeKey(raw: string): string {
  *   refuses or fails the request, or the reply is not a model listing.
  */
 export async function discoverModels(
-  request: LlmModelDiscoveryRequest,
+  request: LlmModelDiscoveryOperation,
   storedApiKey?: () => Promise<string | undefined>,
   identityCatalog?: ModelCatalog,
 ): Promise<readonly LlmDiscoveredModel[]> {
