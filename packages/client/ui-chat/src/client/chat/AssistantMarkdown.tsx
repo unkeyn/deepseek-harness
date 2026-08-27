@@ -1,10 +1,5 @@
 import { Fragment, memo, useMemo } from 'react'
 import type { ReactNode } from 'react'
-<<<<<<< HEAD:packages/client/ui-conversation/src/client/chat/AssistantMarkdown.tsx
-import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
-import type { AssistantBlock } from '@deepseek-ai/dsh-client-runtime/client'
-=======
->>>>>>> upstream/master:packages/client/ui-chat/src/client/chat/AssistantMarkdown.tsx
 import { JsonBlock, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatNodeOwnerProps, ChatViewSlotProps } from '../contract/slots.ts'
@@ -14,9 +9,6 @@ import { ReasoningRow } from './ReasoningRow.tsx'
 import { useSearchableHidden } from './searchable-hidden.ts'
 import css from './AssistantMarkdown.module.css'
 
-/** The reasoning presentation seat's dispatch function (fallback lives at the call site). */
-export type RenderReasoning = PropsRenderSlots<'conversation.chat.reasoning'>['renderSlot']
-
 export interface AssistantMarkdownProps {
   blocks: readonly AssistantBlock[]
   streaming: boolean
@@ -24,15 +16,10 @@ export interface AssistantMarkdownProps {
   interrupted?: boolean | undefined
   /** Render consecutive image blocks through the attachment slot. */
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
-<<<<<<< HEAD:packages/client/ui-conversation/src/client/chat/AssistantMarkdown.tsx
-  /** Render one reasoning block through its presentation seat (built-in fallback included). */
-  renderReasoning: RenderReasoning
-=======
   /** Hide reasoning that belongs to the Turn-level process disclosure. */
   reasoningHidden?: boolean | undefined
   /** Reveal the owning Turn-level process disclosure. */
   revealProcess?: (() => void) | undefined
->>>>>>> upstream/master:packages/client/ui-chat/src/client/chat/AssistantMarkdown.tsx
   /** Resolved prose file mentions for this Assistant's closing turn. */
   mentions?: MarkdownFileMentions | undefined
   /** The owning view's locale seat, passed down as a plain prop. */
@@ -41,12 +28,8 @@ export interface AssistantMarkdownProps {
 
 /** Reasoning block as the Think variant summary row (figma 39:28304). */
 export const AssistantMarkdown = memo(function AssistantMarkdown({
-<<<<<<< HEAD:packages/client/ui-conversation/src/client/chat/AssistantMarkdown.tsx
-  blocks, streaming, interrupted, renderMessageImages, renderReasoning, mentions, t,
-=======
   blocks, streaming, interrupted, renderMessageImages,
   reasoningHidden = false, revealProcess, mentions, t,
->>>>>>> upstream/master:packages/client/ui-chat/src/client/chat/AssistantMarkdown.tsx
 }: AssistantMarkdownProps) {
   // Stable per locale revision (t identity changes on switch): a fresh object
   // per render would rebuild MarkdownText's component table every chunk.
@@ -77,15 +60,6 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
         break
       case 'reasoning':
         rendered.push(
-<<<<<<< HEAD:packages/client/ui-conversation/src/client/chat/AssistantMarkdown.tsx
-          <Fragment key={i}>
-            {renderReasoning(
-              'conversation.chat.reasoning',
-              { text: block.text, running: streaming && i === last, t },
-              { fallback: <ReasoningRow text={block.text} running={streaming && i === last} t={t} /> },
-            )}
-          </Fragment>,
-=======
           <ProcessReasoning
             key={i}
             hidden={reasoningHidden}
@@ -93,7 +67,6 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
           >
             <ReasoningRow text={block.text} running={streaming && i === last} t={t} />
           </ProcessReasoning>,
->>>>>>> upstream/master:packages/client/ui-chat/src/client/chat/AssistantMarkdown.tsx
         )
         break
       case 'image': {

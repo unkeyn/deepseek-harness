@@ -38,11 +38,7 @@ const dshBinScript = fileURLToPath(new URL('../../../../src/bin.ts', import.meta
 const tsconfigPath = fileURLToPath(new URL('../../../../../../tsconfig.json', import.meta.url))
 const reasoningConfigPath = fileURLToPath(new URL('./fixtures/cli.cordis.yml', import.meta.url))
 const deepseekDefaultsConfigPath = fileURLToPath(new URL('./fixtures/deepseek-defaults.cordis.yml', import.meta.url))
-<<<<<<< HEAD:examples/headless-agent/tests/headless.snapshot.ts
-const twinmindBearerConfigPath = fileURLToPath(new URL('./fixtures/twinmind-bearer.cordis.yml', import.meta.url))
-=======
 const piAiDefaultsConfigPath = fileURLToPath(new URL('./fixtures/pi-ai-defaults.cordis.yml', import.meta.url))
->>>>>>> upstream/master:apps/cli/tests/profiles/headless/tests/headless.expected.e2e.ts
 const headlessOverlayPath = fileURLToPath(new URL('./fixtures/headless-profile.cordis.yml', import.meta.url))
 const headlessSessionExpected = join(goldensDir, 'headless-profile', 'session.expected.jsonl')
 const headlessReasoningExpected = join(goldensDir, 'headless-profile', 'reasoning.stderr.expected.txt')
@@ -62,47 +58,6 @@ interface DeepSeekDefaultsServer {
   readonly url: string
   readonly requests: JsonObject[]
   close(): Promise<void>
-}
-
-interface TwinMindSnapshotServer extends DeepSeekDefaultsServer {
-  readonly paths: string[]
-  readonly authorizations: (string | undefined)[]
-}
-
-/** Serve one deterministic TwinMind SSE response while retaining its request. */
-async function twinMindSnapshotServer(): Promise<TwinMindSnapshotServer> {
-  const requests: JsonObject[] = []
-  const paths: string[] = []
-  const authorizations: (string | undefined)[] = []
-  const server = createServer((request: IncomingMessage, response: ServerResponse) => {
-    let body = ''
-    request.setEncoding('utf8')
-    request.on('data', (chunk: string) => { body += chunk })
-    request.on('end', () => {
-      paths.push(request.url ?? '')
-      authorizations.push(request.headers.authorization)
-      requests.push(JSON.parse(body) as JsonObject)
-      response.writeHead(200, { 'content-type': 'text/event-stream' })
-      response.end([
-        'data: {"type":"run_start","session_id":"snapshot-twinmind-session"}',
-        'data: {"type":"text_start"}',
-        'data: {"type":"text_delta","content":"TWINMIND_SNAPSHOT_OK"}',
-        'data: {"type":"done"}',
-        'data: [DONE]',
-        '',
-      ].join('\n\n'))
-    })
-  })
-  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
-  const address = server.address()
-  if (address === null || typeof address === 'string') throw new Error('TwinMind snapshot server has no port')
-  return {
-    url: `http://127.0.0.1:${address.port}`,
-    requests,
-    paths,
-    authorizations,
-    close: () => new Promise(resolve => server.close(() => { resolve() })),
-  }
 }
 
 /** Serve one deterministic DeepSeek-compatible response while retaining its request body. */
@@ -518,114 +473,6 @@ describe('headless stream-json snapshots', () => {
     }
   }, LOADER_SMOKE_TEST_TIMEOUT_MS)
 
-<<<<<<< HEAD:examples/headless-agent/tests/headless.snapshot.ts
-  it('streams the custom TwinMind Bearer route through the one-shot app', async () => {
-    const server = await twinMindSnapshotServer()
-    try {
-      const token = `header.${Buffer.from(JSON.stringify({ exp: 4_102_444_800 })).toString('base64url')}.signature`
-      const result = await runLoaderSmoke({
-        label: 'TwinMind Bearer provider headless stream-json snapshot',
-        tempDirPrefix: 'headless-snapshot-twinmind-bearer-',
-        binScript,
-        libBinScript: binScript,
-        configPath: twinmindBearerConfigPath,
-        binArgs: [twinmindBearerConfigPath, 'return the deterministic TwinMind response'],
-        tsconfigPath,
-        env: {
-          TWINMIND_BEARER_TOKEN: token,
-          TWINMIND_SNAPSHOT_BASE_URL: server.url,
-          NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
-        },
-      })
-
-      expect(result.stderr).toBe('')
-      expect(server.paths).toEqual(['/api/v3/chat'])
-      expect(server.authorizations).toEqual([`Bearer ${token}`])
-      expect(server.requests[0]).toMatchObject({
-        type: 'app',
-        version: 1,
-        response_version: 1,
-        model: 'auto',
-        mode: 'default',
-      })
-      expect(result.stdout).toContain('TWINMIND_SNAPSHOT_OK')
-      expect(result.stdout).not.toContain(token)
-    } finally {
-      await server.close()
-    }
-  }, LOADER_SMOKE_TEST_TIMEOUT_MS)
-
-  it('replays the advanced toolchain through the one-shot app', async () => {
-    const prompt = await scenarioPrompt(advancedScenarioDir, 'advanced-toolchain')
-    const fixtureFiles = [
-      advancedSessionFixture,
-      join(advancedScenarioDir, 'session.1.jsonl'),
-      join(advancedScenarioDir, 'session.2.jsonl'),
-    ]
-    let expectedSessions = await Promise.all(fixtureFiles.map(file => readFile(file, 'utf8')))
-    let runCwd = ''
-    const result = await runLoaderSmoke({
-      label: 'advanced headless stream-json snapshot',
-      tempDirPrefix: 'headless-snapshot-advanced-',
-      binScript,
-      libBinScript: binScript,
-      configPath: advancedConfigPath,
-      binArgs: [advancedConfigPath, prompt],
-      tsconfigPath,
-      env: {
-        DSH_SNAPSHOT: 'replay',
-        DSH_SNAPSHOT_FILE: advancedSessionFixture,
-        DSH_SNAPSHOT_CHILD_FILES: [
-          join(advancedScenarioDir, 'session.1.jsonl'),
-          join(advancedScenarioDir, 'session.2.jsonl'),
-        ].join(delimiter),
-        NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
-      },
-      prepare: (cwd) => { runCwd = cwd },
-      inspect: async (cwd) => {
-        const logs = await persistedLogs(cwd)
-        expect(logs).toHaveLength(3)
-        const parents = logs.filter(log => typeof log.header.parentSession !== 'string')
-        expect(parents).toHaveLength(1)
-        const parent = parents[0]
-        if (parent === undefined) throw new Error('headless snapshot did not persist its main session')
-        const children = logs.filter(log => typeof log.header.parentSession === 'string')
-          .sort((left, right) => Number(left.header.createdAt) - Number(right.header.createdAt))
-        const actualSessions = [parent, ...children]
-        const actualContext = contextFromLogs(actualSessions.map(log => log.content))
-        if (refreshing) {
-          const harvested = actualSessions.map((log): HarvestedLog => ({
-            id: String(log.header.id),
-            createdAt: Number(log.header.createdAt),
-            ...typeof log.header.parentSession === 'string'
-              ? { parentSession: log.header.parentSession }
-              : {},
-            content: log.content,
-          }))
-          const replacements = refreshFixtureReplacements(harvested, expectedSessions)
-          expectedSessions = await Promise.all(actualSessions.map(async (actual, index) => {
-            const existing = expectedSessions[index]
-            const file = fixtureFiles[index]
-            if (existing === undefined || file === undefined) {
-              throw new Error(`headless snapshot has no fixture for persisted log ${index}`)
-            }
-            const stable = tokenizeSessionFixtureCwd(
-              stabilizeRefreshLog(actual.content, existing, replacements, actualContext),
-            )
-            await writeFile(file, stable)
-            return stable
-          }))
-        }
-        const expectedContext = contextFromLogs(expectedSessions)
-        for (const [index, actual] of actualSessions.entries()) {
-          const expected = expectedSessions[index]
-          if (expected === undefined) throw new Error(`headless snapshot has no fixture for persisted log ${index}`)
-          expect(scrubRequestHeaders(normalizeSessionLog(actual.content, actualContext)))
-            .toBe(scrubRequestHeaders(normalizeSessionLog(expected, expectedContext)))
-        }
-      },
-    })
-=======
   it('sends pi-ai DeepSeek compatibility through the one-shot app', async () => {
     const server = await deepseekDefaultsServer()
     try {
@@ -646,7 +493,6 @@ describe('headless stream-json snapshots', () => {
           NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
         },
       })
->>>>>>> upstream/master:apps/cli/tests/profiles/headless/tests/headless.expected.e2e.ts
 
       expect(result.stderr).toBe('')
       expect(server.requests).toHaveLength(1)

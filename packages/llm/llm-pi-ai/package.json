@@ -32,46 +32,32 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-attachment": "workspace:^",
     "@deepseek-ai/dsh-authorization": "workspace:^",
     "@deepseek-ai/dsh-credentials": "workspace:^",
-<<<<<<< HEAD
-=======
     "@deepseek-ai/dsh-fs": "workspace:^",
     "@deepseek-ai/dsh-launch-environment": "workspace:^",
->>>>>>> upstream/master
     "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/dsh-launch-environment": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
-    "@deepseek-ai/dsh-model-catalog": "workspace:^",
-    "@deepseek-ai/dsh-timeout": "workspace:^"
+    "@deepseek-ai/dsh-settings": "workspace:^",
+    "@deepseek-ai/dsh-timeout": "workspace:^",
+    "@deepseek-ai/cordis": "workspace:^"
   },
   "dependencies": {
-<<<<<<< HEAD
-    "@deepseek-ai/schemastery": "workspace:^",
-    "@earendil-works/pi-ai": "^0.82.1"
-=======
     "@earendil-works/pi-ai": "^0.84.2",
     "@deepseek-ai/schemastery": "workspace:^"
->>>>>>> upstream/master
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-attachment": "workspace:^",
     "@deepseek-ai/dsh-authorization": "workspace:^",
     "@deepseek-ai/dsh-credentials": "workspace:^",
-<<<<<<< HEAD
-=======
     "@deepseek-ai/dsh-fs": "workspace:^",
     "@deepseek-ai/dsh-launch-environment": "workspace:^",
->>>>>>> upstream/master
     "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/dsh-launch-environment": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
-    "@deepseek-ai/dsh-model-catalog": "workspace:^",
     "@deepseek-ai/dsh-llm-deepseek": "workspace:^",
     "@deepseek-ai/dsh-settings": "workspace:^",
-    "@deepseek-ai/dsh-timeout": "workspace:^"
+    "@deepseek-ai/dsh-timeout": "workspace:^",
+    "@deepseek-ai/cordis": "workspace:^"
   }
 }

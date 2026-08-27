@@ -24,14 +24,6 @@ llm 组提供 harness 的模型调用能力：一个提供方无关的服务，�
 
 | 包 | 职责 | ctx key |
 |---|---|---|
-<<<<<<< HEAD
-| [`llm/`](llm/README.md) | LLM 服务和共享流式词汇 | `ctx.llm` |
-| [`token-meter/`](token-meter/README.md) | 可感知回放的 token 测量 | `ctx.tokenMeter` |
-| [`llm-retry/`](llm-retry/README.md) | 提供方作用域的重试策略 | 监听 `agent/request-error` |
-| [`llm-deepseek/`](llm-deepseek/README.md) | 直接 DeepSeek 适配器 | 注册到 `ctx.llm` |
-| [`llm-pi-ai/`](llm-pi-ai/README.md) | 多提供方 pi-ai 适配器 | 注册到 `ctx.llm` |
-| [`llm-bearer/`](llm-bearer/README.md) | Bearer/Firebase TwinMind 适配器 | 注册到 `ctx.llm` |
-=======
 | [`llm/`](llm/README.zh.md) | 通过已注册的提供方适配器流式发起一次模型调用，并共享 harness 的消息、块与分片词汇 | `ctx.llm` |
 | [`llm-deepseek/`](llm-deepseek/README.zh.md) | 以 DeepSeek chat-completions 直连、thinking 与图片输入服务 `deepseek-official` 路由 | 注册到 `ctx.llm` |
 | [`llm-pi-ai/`](llm-pi-ai/README.zh.md) | 通过 pi-ai 目录与协议格式服务配置的提供方路由，包括手工声明的网关 | 注册到 `ctx.llm` |
@@ -39,7 +31,6 @@ llm 组提供 harness 的模型调用能力：一个提供方无关的服务，�
 | [`plugin-package-inventory-deepseek/`](plugin-package-inventory-deepseek/README.zh.md) | 为官方 DeepSeek 请求贡献活跃 Loader 包清单 | 贡献 `dsh_plugin_packages` |
 | [`llm-retry/`](llm-retry/README.zh.md) | 在持久 agent 步骤边界上按各提供方策略重试失败的模型请求 | 监听 `agent/request-error` |
 | [`token-meter/`](token-meter/README.zh.md) | 用固定启发式规则从持久会话日志测量请求与上下文压力 | `ctx.tokenMeter` |
->>>>>>> upstream/master
 
 -----
 

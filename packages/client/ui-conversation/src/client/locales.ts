@@ -52,19 +52,6 @@ export const zh = {
   'context.system': '系统提示词',
   'context.tools': '工具',
   'context.messages': '对话消息',
-<<<<<<< HEAD
-  'context.compactionThreshold': '自动压缩阈值',
-  'context.compactNow': '立即压缩',
-  'context.compacting': '正在压缩…',
-  'stats.counts': '{turns} 轮 · {steps} 步',
-  'stats.llm': 'LLM {duration}',
-  'stats.toolCall': '工具调用 {duration}',
-  'stats.ttftAverage': '首 token 平均 {duration}',
-  'stats.tokensPerSecond': '{throughput} tok/s',
-  'stats.cacheHit': '缓存命中 {percent}%',
-  'stats.tokens': '输入 {input} tok · 输出 {output} tok',
-=======
->>>>>>> upstream/master
   'settings.enter.title': '繁忙时 Enter 键行为',
   'settings.enter.description': '仅在智能体运行时生效；Cmd/Ctrl+Enter 使用另一行为',
   'settings.enter.queue': '排队发送',
@@ -213,19 +200,6 @@ export const en = {
   'context.system': 'System prompt',
   'context.tools': 'Tools',
   'context.messages': 'Messages',
-<<<<<<< HEAD
-  'context.compactionThreshold': 'Automatic compaction threshold',
-  'context.compactNow': 'Compact now',
-  'context.compacting': 'Compacting…',
-  'stats.counts': '{turns} turns · {steps} steps',
-  'stats.llm': 'LLM {duration}',
-  'stats.toolCall': 'Tool call {duration}',
-  'stats.ttftAverage': 'TTFT avg {duration}',
-  'stats.tokensPerSecond': '{throughput} tok/s',
-  'stats.cacheHit': 'Cache hit {percent}%',
-  'stats.tokens': 'Input {input} tok · Output {output} tok',
-=======
->>>>>>> upstream/master
   'settings.enter.title': 'Enter behavior while busy',
   'settings.enter.description': 'Busy only; Cmd/Ctrl+Enter uses the other behavior',
   'settings.enter.queue': 'Queue',

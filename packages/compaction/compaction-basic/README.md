@@ -20,20 +20,7 @@ English | [中文](README.zh.md)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
 
-<<<<<<< HEAD
-- **Measurement** — the singleton `ctx.tokenMeter` prices the latest canonical logged envelope and current surface at one consumed-log revision. Step-boundary pressure therefore includes the actual system prompt, tools, routing, assistant completion, tool results, buffered context, and steering.
-- **Routed policy** — proactive pressure resolves capacity from the adapter that owns the latest durable provider/model route, then scales the default policy plus an optional exact-target override into concrete token budgets. Model discovery remains advisory and is not consulted.
-- **Model-free pruning** — after pressure or canonical overflow qualifies, the optional [`ctx.toolResultPruner`](../compaction-tool-result-pruner/README.md) service rewrites oversized tool results before range selection. Compact-basic remeasures through `ctx.tokenMeter`, skips summarization when pressure becomes safe, and otherwise summarizes the pruned surface. Below-pressure step checks never prune.
-- **Retention** — compact the oldest whole surface units while preserving a recent tail and balanced tool-call/result cuts through the [`dsh-compaction` boundary helpers](../compaction/README.md#tool-pairing-boundaries). Turn boundaries do not protect old steps inside a runaway turn. An open indivisible tail declines until it closes. The optional pruner can repair an oversized closed tool unit when its text-bearing result is the removable bulk; indivisible non-tool units and non-prunable tool remainders remain out of scope.
-- **Convergence** — retry head-checkpoint compaction up to `compactionRetries`; reject a summary that does not shrink its source, and throw if retries cannot return below threshold.
-- **Summarization** — a direct `llm/stream` call uses the configured provider/model pair and cap, falling back to the latest logged request target and then the agent target, without running the loop-only `agent/request` extension point. The call replays the conversation's own system prompt, tools, and shadowed-region messages verbatim, including image references, and appends the compaction instruction as the final user message, so it reuses the provider's warm prefix cache instead of invalidating it. The selected adapter must resolve or explicitly reject those images. It sets `GenerateOptions.purpose` to `compaction`, which adapters may forward as request attribution (the DeepSeek adapter sends `x-deepseek-harness-compact: 1`) without touching the model-visible body. Only returned text enters the checkpoint, excluding reasoning and tool calls that would leak private reasoning or create an orphaned call; image output fails with `UNSUPPORTED_CONTENT` rather than disappearing.
-- **Framing** — the replacement user message marks established checkpoint context with `<compacted-summary>` tags. The raw summary remains on the `compaction/summary` event, and later automatic cycles merge the prior checkpoint.
-- **Lifecycle** — all entry points share one bracket-first region transaction. It validates the range and live lock, appends `compaction/start` synchronously, prepares and awaits the summary, revalidates, appends `compaction/summary` plus the replacement, and makes exactly one closing attempt. Automatic compaction runs from the serial `agent/pre-step` listener after the previous step has closed and before the next request is assembled, so the current turn continues after the replacement. The optional Host `compactionPolicy` service overrides the resolved threshold ratio from the `compaction-policy` settings namespace; an absent service or unset field leaves the configured ratio unchanged. `compactNow()` remains an idle-only explicit operation and is not used for automatic pressure.
-- **Overflow recovery** — provider-confirmed overflow needs no capacity metadata: it bypasses normal pressure and retention, prunes, then attempts one maximal balanced head reduction while leaving the newest indivisible unit. Retry is authorized whenever `surface.replaceGeneration` advances, including when pruning lands before later summary work throws. No replacement, an exhausted target-specific cap, cancellation, or an unknown/noncanonical error preserves the original provider failure.
-- **Failure handling** — a live unmatched `compaction/start` is the durable lock. An unmatched marker before a newer `session/end-seed` is stale evidence from a prior lifecycle and does not block; one after that boundary reports `busy`. Summary and changed-span failures close with an error and leave the conversation surface untouched, though the attempt remains in the log. A failed close deliberately leaves a blocking orphan. Operational pressure failures warn and continue, while overflow-recovery failure preserves the original provider error only when no earlier replacement advanced the surface. Cancellation remains authoritative after cleanup and durability.
-=======
 -----
->>>>>>> upstream/master
 
 <a id="use-this-package"></a>
 ## Use this package
@@ -48,33 +35,12 @@ With the default settings you get four behaviors: automatic condensation as the 
 
 Mount session storage, token measurement, the optional pruner, this backend, and optionally the on-demand command:
 
-<<<<<<< HEAD
-## Usage
-
-`BasicCompactionEngine` requires `ctx.llm`, `ctx.tokenMeter`, and `ctx.sessions`; it optionally reads `ctx.compactionPolicy` from [`dsh-compaction-policy`](../compaction-policy/README.md). The composition below receives `ctx.llm` from its host and installs the other two services:
-
-```ts
-import type { Context } from '@deepseek-ai/cordis'
-import { BasicCompactionEngine } from '@deepseek-ai/dsh-compaction-basic'
-import SessionStore from '@deepseek-ai/dsh-session'
-import TokenMeter from '@deepseek-ai/dsh-token-meter'
-
-export const name = 'compaction-basic'
-export const inject = ['llm']
-
-export function apply(ctx: Context): void {
-  ctx.plugin(SessionStore)
-  ctx.plugin(TokenMeter)
-  ctx.plugin(BasicCompactionEngine)
-}
-=======
 ```yaml
 - name: '@deepseek-ai/dsh-session'
 - name: '@deepseek-ai/dsh-token-meter'
 - name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
 - name: '@deepseek-ai/dsh-compaction-basic'
 - name: '@deepseek-ai/dsh-command-compact'
->>>>>>> upstream/master
 ```
 
 You can verify success by watching the conversation continue past the point where it would otherwise overflow, and by running `/compact` for an immediate condensation. If the composition lacks an LLM, session storage, or token measurement, the plugin fails to load. One backend can serve models with different context sizes; give each route its own threshold and retention with a per-model override:

@@ -85,8 +85,8 @@
       name: '@deepseek-ai/dsh-llm-retry'
 
     # User-settings document (`$DSH_HOME/settings.yaml`, hot-reloaded): a
-    # `llm-deepseek:`, `llm-pi-ai:`, or `llm-bearer:` section there overrides
-    # the adapter entries below without a restart and is what Models writes.
+    # `llm-deepseek:` or `llm-pi-ai:` section there overrides the adapter entries
+    # below without a restart, and is what the web Models page writes.
     - id: settings
       name: '@deepseek-ai/dsh-settings-file'
 
@@ -104,17 +104,8 @@
     # Supplying those profiles is exactly what the web Models page does. Which
     # adapters exist is composition; which providers run is the user's settings
     # document.
-    - id: model-catalog
-      name: '@deepseek-ai/dsh-model-catalog'
-
     - id: llm-pi-ai
       name: '@deepseek-ai/dsh-llm-pi-ai'
-
-    # Bearer routes are a separate dormant adapter family. The Models page
-    # writes only credential references and public refresh configuration into
-    # `llm-bearer:`; access and refresh values stay in the credential store.
-    - id: llm-bearer
-      name: '@deepseek-ai/dsh-llm-bearer'
 
     - id: session-persistence-jsonl
       name: '@deepseek-ai/dsh-session-persistence-jsonl'
@@ -332,10 +323,6 @@
     - id: token-meter
       name: '@deepseek-ai/dsh-token-meter'
 
-    # Host-plane user policy shared by every preset-local compaction backend.
-    - id: compaction-policy
-      name: '@deepseek-ai/dsh-compaction-policy'
-
     - id: compaction-basic
       name: '@deepseek-ai/dsh-compaction-basic'
 
@@ -471,20 +458,8 @@
       config:
         apiKeyEnv: DEEPSEEK_API_KEY
 
-<<<<<<< HEAD
-    - id: web-search-brave
-      name: '@deepseek-ai/dsh-web-search-brave'
-      config:
-        apiKeyEnv: BRAVE_API_KEY
-
-    - id: web-search-firecrawl
-      name: '@deepseek-ai/dsh-web-search-firecrawl'
-      config:
-        apiKeyEnv: FIRECRAWL_API_KEY
-=======
     - id: web-fetch-http
       name: '@deepseek-ai/dsh-web-fetch-http'
->>>>>>> upstream/master
 
     - id: tool-web
       name: '@deepseek-ai/dsh-tool-web'

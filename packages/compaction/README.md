@@ -26,22 +26,12 @@ Each package below provides one piece of the feature; open a package page for ho
 
 | Package | Role | ctx key |
 |---|---|---|
-<<<<<<< HEAD
-| [`compaction/`](compaction/README.md) | Compaction seam and event vocabulary | `ctx.compaction` |
-| [`compaction-basic/`](compaction-basic/README.md) | Token-pressure and summarization backend | registers `ctx.compaction` |
-| [`compaction-policy/`](compaction-policy/README.md) | Host-backed automatic threshold preference | `ctx.compactionPolicy` |
-| [`compaction-tool-result-pruner/`](compaction-tool-result-pruner/README.md) | Optional model-free tool-result pruning | `ctx.toolResultPruner` |
-| [`command-compact/`](command-compact/README.md) | Human compaction command | registers on `ctx.commands` |
-
-The backend, policy provider, optional pruner, and human command compose through the seam; token measurement remains a separate LLM-family service. The [compaction capability-seam Agent Note](../../.agents/notes/implemented/feature/2026-06-18-compaction-capability-seam.md) owns the dependency rationale.
-=======
 | [`compaction/`](compaction/README.md) | The shared condensation contract: the operations and summary format every backend and trigger use | `ctx.compaction` |
 | [`compaction-basic/`](compaction-basic/README.md) | Automatic condensation of older history into a summary as token pressure builds | registers `ctx.compaction` |
 | [`compaction-tool-result-pruner/`](compaction-tool-result-pruner/README.md) | Trims oversized tool outputs so less history needs condensing | `ctx.toolResultPruner` |
 | [`command-compact/`](command-compact/README.md) | The `/compact` command to condense history on demand | registers on `ctx.commands` |
 
 -----
->>>>>>> upstream/master
 
 <a id="related-documentation"></a>
 ## Related documentation

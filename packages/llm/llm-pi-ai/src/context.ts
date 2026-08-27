@@ -14,7 +14,6 @@ import type {
   RequestImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
 import type { Context as PiContext, ImageContent, Message as PiMessage, TextContent, Tool as PiTool } from '@earendil-works/pi-ai'
-import type { PiAiReplayMode } from './config.ts'
 import { toPiAssistant } from './replay.ts'
 import { DEFAULT_REQUEST_IMAGE_MAX_BYTES, DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET } from './config.ts'
 
@@ -138,17 +137,8 @@ function piContext(options: GenerateOptions, messages: PiMessage[]): PiContext {
   }
 }
 
-<<<<<<< HEAD
-function textOnlyContext(
-  options: GenerateOptions,
-  onReplayDegrade: ((reason: string) => void) | undefined,
-  replayMode: PiAiReplayMode,
-): PiContext {
-  const toolNames = new Map<CallId, string>()
-=======
 function textOnlyContext(options: GenerateOptions, onReplayDegrade?: (reason: string) => void): PiContext {
   const toolNames = new Map<ToolCallId, string>()
->>>>>>> upstream/master
   const messages: PiMessage[] = []
   for (const message of options.messages) {
     if (contentHasImage(message.content)) {
@@ -159,13 +149,8 @@ function textOnlyContext(options: GenerateOptions, onReplayDegrade?: (reason: st
       continue
     }
     if (message.role === 'assistant') {
-<<<<<<< HEAD
-      const assistant = toPiAssistant(message, replayMode, onReplayDegrade)
-      for (const block of assistant.content) if (block.type === 'toolCall') toolNames.set(CallId(block.id), block.name)
-=======
       const assistant = toPiAssistant(message, onReplayDegrade)
       for (const block of assistant.content) if (block.type === 'toolCall') toolNames.set(ToolCallId(block.id), block.name)
->>>>>>> upstream/master
       messages.push(assistant)
       continue
     }
@@ -207,14 +192,12 @@ export interface PiImageRequestContext {
  * @param options - the harness request; `options.system` maps to pi-ai's single `systemPrompt` slot.
  * @param images - absent; selects the synchronous conversion.
  * @param onReplayDegrade - forwarded to {@link toPiAssistant} for each assistant message.
- * @param replayMode - assistant-history replay policy for this route.
  * @returns the pi-ai context; `tools` is omitted when the request declares none.
  */
 export function toPiContext(
   options: GenerateOptions,
   images?: undefined,
   onReplayDegrade?: (reason: string) => void,
-  replayMode?: PiAiReplayMode,
 ): PiContext
 /**
  * Convert harness history to a pi-ai Context while resolving durable images.
@@ -225,51 +208,27 @@ export function toPiContext(
  * @param options - the harness request; `options.system` maps to pi-ai's single `systemPrompt` slot.
  * @param images - attachment provider, current path resolver, and request limits.
  * @param onReplayDegrade - forwarded to {@link toPiAssistant} for each assistant message.
-<<<<<<< HEAD
- * @param replayMode - assistant-history replay policy for this route.
- * @param maxRequestImageBytes - request-level bound on base64-encoded image payload; omission leaves every image in place.
-=======
->>>>>>> upstream/master
  * @returns the asynchronously resolved pi-ai context.
  */
 export function toPiContext(
   options: GenerateOptions,
   images: PiImageRequestContext,
   onReplayDegrade?: (reason: string) => void,
-<<<<<<< HEAD
-  replayMode?: PiAiReplayMode,
-  maxRequestImageBytes?: number,
-=======
->>>>>>> upstream/master
 ): Promise<PiContext>
 export function toPiContext(
   options: GenerateOptions,
   images?: PiImageRequestContext,
   onReplayDegrade?: (reason: string) => void,
-<<<<<<< HEAD
-  replayMode: PiAiReplayMode = 'native',
-  maxRequestImageBytes?: number,
-): PiContext | Promise<PiContext> {
-  return attachments === undefined
-    ? textOnlyContext(options, onReplayDegrade, replayMode)
-    : toPiContextWithImages(options, attachments, onReplayDegrade, replayMode, maxRequestImageBytes)
-=======
 ): PiContext | Promise<PiContext> {
   return images === undefined
     ? textOnlyContext(options, onReplayDegrade)
     : toPiContextWithImages(options, images, onReplayDegrade)
->>>>>>> upstream/master
 }
 
 async function toPiContextWithImages(
   options: GenerateOptions,
   images: PiImageRequestContext,
   onReplayDegrade?: (reason: string) => void,
-<<<<<<< HEAD
-  replayMode: PiAiReplayMode = 'native',
-  maxRequestImageBytes?: number,
-=======
->>>>>>> upstream/master
 ): Promise<PiContext> {
   const { attachments, resolveImageAccess, maxRequestImageBytes } = images
   const requestImagePolicy = images.requestImagePolicy ?? {
@@ -304,7 +263,7 @@ async function toPiContextWithImages(
       continue
     }
     if (message.role === 'assistant') {
-      const assistant = toPiAssistant(message, replayMode, onReplayDegrade)
+      const assistant = toPiAssistant(message, onReplayDegrade)
       for (const block of assistant.content) {
         if (block.type === 'toolCall') toolNames.set(ToolCallId(block.id), block.name)
       }

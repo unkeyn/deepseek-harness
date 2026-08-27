@@ -128,11 +128,7 @@ describe('ui-settings-plugins apply', () => {
     await ctx.plugin({ inject: [...inject], apply }).await()
 
     expect(slots.entries('settings.plugin.item').map(entry => entry.options.key))
-<<<<<<< HEAD
-      .toEqual(['shell', 'agent-loop', 'web-search-deepseek', 'web-search-brave', 'web-search-exa', 'web-search-firecrawl'])
-=======
       .toEqual(['shell', 'agent-loop', 'subagent-model-selection', 'web-search-deepseek'])
->>>>>>> upstream/master
   })
 
   it('dispatches the served namespaces its cards claim, and no others', async () => {
@@ -235,11 +231,7 @@ describe('ui-settings-plugins apply', () => {
     declareRoot(slots)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-<<<<<<< HEAD
-    expect(slots.entries('settings.plugin.item')).toHaveLength(6)
-=======
     expect(slots.entries('settings.plugin.item')).toHaveLength(4)
->>>>>>> upstream/master
 
     await fiber.dispose()
 

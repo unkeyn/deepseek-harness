@@ -23,7 +23,6 @@ import type {
   StreamChunk,
 } from './types.ts'
 import { freezeMessage, type Message } from './message.ts'
-import type { ContentBlock } from './types.ts'
 import { resolveRetryPolicy } from './retry-policy.ts'
 import type { ResolvedRetryPolicy } from './retry-policy.ts'
 import type { ProviderRequestId } from './brand.ts'
@@ -163,11 +162,7 @@ export interface PreparedLlmCall {
   readonly retryPolicy: ResolvedRetryPolicy
   /** Detached context metadata resolved with the registration-bound call. */
   readonly context?: LlmModelContext
-<<<<<<< HEAD
-  /** Exact-model input modalities captured with the registration-bound call. */
-=======
   /** Exact model modalities captured with the adapter dispatch generation. */
->>>>>>> upstream/master
   readonly inputModalities?: readonly ModelModality[]
   /** Config fields materialized by the captured adapter rather than proposed by the caller. */
   readonly adapterDefaults: LlmCallConfigAdapterDefaults
@@ -604,21 +599,11 @@ export class LlmRuntime extends TypertRemoteService {
     for (const model of discovered) {
       if (typeof model.id !== 'string' || model.id.length === 0 || seen.has(model.id)) continue
       seen.add(model.id)
-      // Rebuilt rather than passed through so duplicate dropping cannot hand
-      // back an aliased row, and so every field a row may carry is named here:
-      // a capability fact the enriching adapter supplied must survive this
-      // seam the same way its capacities do.
-      const capabilities = {
-        ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
-        ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
-        ...model.inputModalities === undefined ? {} : { inputModalities: [...model.inputModalities] },
-        ...model.reasoningLevels === undefined ? {} : { reasoningLevels: [...model.reasoningLevels] },
-        ...model.catalogMatched === undefined ? {} : { catalogMatched: model.catalogMatched },
-      }
       models.push({
         id: model.id,
         ...model.name === undefined ? {} : { name: model.name },
-        ...capabilities,
+        ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
+        ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
       })
     }
     return models
@@ -851,11 +836,7 @@ export class LlmRuntime extends TypertRemoteService {
     registration: AdapterRegistration,
     config: LlmCallConfig,
     signal?: AbortSignal,
-<<<<<<< HEAD
-  ): Promise<{ config: LlmCallConfig; context?: LlmModelContext; inputModalities?: readonly ModelModality[] }> {
-=======
   ): Promise<{ config: LlmCallConfig; context?: LlmModelContext; modelInfo: LlmResolvedModelInfo }> {
->>>>>>> upstream/master
     const info = await this.resolveModelInfoFor(registration, config.model, signal)
     return this.resolveCallWithInfo(config, info)
   }
@@ -893,11 +874,7 @@ export class LlmRuntime extends TypertRemoteService {
     return {
       config: resolvedConfig,
       ...info.context === undefined ? {} : { context: info.context },
-<<<<<<< HEAD
-      ...info.inputModalities === undefined ? {} : { inputModalities: info.inputModalities },
-=======
       modelInfo: info,
->>>>>>> upstream/master
     }
   }
 
@@ -918,9 +895,6 @@ export class LlmRuntime extends TypertRemoteService {
     const context = resolved.context === undefined
       ? undefined
       : deepFreeze(structuredClone(resolved.context))
-    const inputModalities = resolved.inputModalities === undefined
-      ? undefined
-      : deepFreeze([...resolved.inputModalities])
     const adapterDefaults = deepFreeze<LlmCallConfigAdapterDefaults>({
       ...config.reasoningEffort === undefined && resolvedConfig.reasoningEffort !== undefined
         ? { reasoningEffort: true }
@@ -935,13 +909,9 @@ export class LlmRuntime extends TypertRemoteService {
       retryPolicy: registration.retryPolicy,
       adapterDefaults,
       ...context === undefined ? {} : { context },
-<<<<<<< HEAD
-      ...inputModalities === undefined ? {} : { inputModalities },
-=======
       ...modelInfo.inputModalities === undefined
         ? {}
         : { inputModalities: Object.freeze([...modelInfo.inputModalities]) },
->>>>>>> upstream/master
       stream: (options: GenerateOptions): AsyncIterable<StreamChunk> => {
         if (dispatched) {
           throw new LlmError('a prepared LLM call can only be dispatched once', 'INVALID_PREPARED_CALL')
@@ -956,12 +926,8 @@ export class LlmRuntime extends TypertRemoteService {
         return this.streamWithRegistration(options, {
           registration,
           config: resolvedConfig,
-<<<<<<< HEAD
-          ...inputModalities === undefined ? {} : { inputModalities },
-=======
           modelInfo,
           dispatch: options => adapterCall.stream(options),
->>>>>>> upstream/master
         })
       },
     })
@@ -974,28 +940,17 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /** Remove replay state whose historical route is owned by another adapter. */
-  /** Remove replay state and unsupported historical images before adapter dispatch. */
-  private forAdapter(options: GenerateOptions, adapter: LlmAdapter, acceptsImages: boolean): GenerateOptions {
-    let changed = false
-    const projectContent = (content: readonly ContentBlock[]): ContentBlock[] => content.flatMap((block) => {
-      if (block.type === 'image') {
-        changed = true
-        return [{ type: 'text' as const, text: '[Image omitted: selected model does not support image input.]' }]
-      }
-      if (block.type !== 'tool-result' || acceptsImages) return [block]
-      const nested = projectContent(block.content)
-      return nested.every((item, index) => item === block.content[index]) ? [block] : [{ ...block, content: nested }]
-    })
+  private forAdapter(options: GenerateOptions, adapter: LlmAdapter): GenerateOptions {
     const messages: Message[] = options.messages.map((message) => {
       const source = message.source
-      const replay = message.role === 'assistant' && source.kind === 'model' && source.replayState !== undefined
-        && this.adapters.get(source.provider)?.adapter !== adapter
-      const content = acceptsImages ? message.content : projectContent(message.content)
-      if (!replay && content.every((block, index) => block === message.content[index])) return message
-      changed = true
-      return freezeMessage({ ...message, content, ...replay ? { source: { kind: 'model', provider: source.provider, model: source.model } } : {} })
+      if (message.role !== 'assistant' || source.kind !== 'model' || source.replayState === undefined) return message
+      if (this.adapters.get(source.provider)?.adapter === adapter) return message
+      return freezeMessage({
+        ...message,
+        source: { kind: 'model', provider: source.provider, model: source.model },
+      })
     })
-    if (!changed) return options
+    if (messages.every((message, index) => message === options.messages[index])) return options
     const filtered = { ...options, messages }
     return Object.isFrozen(options) ? deepFreeze(filtered) : filtered
   }
@@ -1007,21 +962,11 @@ export class LlmRuntime extends TypertRemoteService {
    */
   private async * adapterStream(
     options: GenerateOptions,
-<<<<<<< HEAD
-    prepared?: { registration: AdapterRegistration; config: LlmCallConfig; inputModalities?: readonly ModelModality[] },
-=======
     prepared?: PreparedDispatch,
->>>>>>> upstream/master
   ): AsyncGenerator<StreamChunk> {
     let iterator: AsyncIterator<StreamChunk>
     try {
       const registration = prepared?.registration ?? this.registration(options.provider)
-<<<<<<< HEAD
-      const resolved = prepared === undefined
-        ? await this.resolveCallFor(registration, options, options.signal)
-        : prepared
-      const resolvedConfig = resolved.config
-=======
       const adapter = registration.adapter
       let modelInfo: LlmResolvedModelInfo
       let resolvedConfig: LlmCallConfig
@@ -1036,7 +981,6 @@ export class LlmRuntime extends TypertRemoteService {
         resolvedConfig = prepared.config
         dispatch = prepared.dispatch
       }
->>>>>>> upstream/master
       if (prepared !== undefined && !callConfigEquals(options, resolvedConfig)) {
         throw new LlmError(
           'prepared LLM call config changed before adapter dispatch',
@@ -1048,10 +992,6 @@ export class LlmRuntime extends TypertRemoteService {
         : Object.isFrozen(options)
           ? deepFreeze({ ...options, ...resolvedConfig })
           : { ...options, ...resolvedConfig }
-<<<<<<< HEAD
-      const adapter = registration.adapter
-      const stream = adapter.stream(this.forAdapter(resolvedOptions, adapter, resolved.inputModalities?.includes('image') !== false))
-=======
       const projectedOptions = modelInfo.inputModalities !== undefined
         && !modelInfo.inputModalities.includes('image')
         && resolvedOptions.messages.some(message => contentHasImage(message.content))
@@ -1060,7 +1000,6 @@ export class LlmRuntime extends TypertRemoteService {
           : { ...resolvedOptions, messages: projectImagesForTextModel(resolvedOptions.messages) as Message[] }
         : resolvedOptions
       const stream = dispatch(this.forAdapter(projectedOptions, adapter))
->>>>>>> upstream/master
       iterator = stream[Symbol.asyncIterator]()
     } catch (error: unknown) {
       yield adapterFailureChunk(error, options.signal)
@@ -1114,11 +1053,7 @@ export class LlmRuntime extends TypertRemoteService {
 
   private streamWithRegistration(
     options: GenerateOptions,
-<<<<<<< HEAD
-    prepared?: { registration: AdapterRegistration; config: LlmCallConfig; inputModalities?: readonly ModelModality[] },
-=======
     prepared?: PreparedDispatch,
->>>>>>> upstream/master
   ): AsyncIterable<StreamChunk> {
     return this.ctx.waterfall(
       this,

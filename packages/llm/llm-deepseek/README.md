@@ -36,31 +36,6 @@ Choose this adapter when the deployment targets DeepSeek's official API, optiona
 ```yaml
 - name: '@deepseek-ai/dsh-llm-deepseek'
   config:
-<<<<<<< HEAD
-    apiKeyEnv: DEEPSEEK_API_KEY  # default; resolved per request via ctx.credentials, then the environment
-    baseURL: https://api.deepseek.com # optional; $DEEPSEEK_BASE_URL then the public API when omitted
-    thinking: enabled        # optional; provider default is enabled
-    reasoningEffort: high    # optional; off | low | high | max — omitted ⇒ high
-    maxTokens: 256000        # optional positive per-request output cap; this is the default
-    streamIdleTimeoutMs: 60000 # optional; positive finite Node timer delay; one-minute default
-    maxRequestImageBytes: 20971520 # optional positive integer; 20 MiB base64-payload default
-    retryPolicy:             # optional; omission uses ten retries in two phases
-      mode: always           # normal | always
-      backoff:
-        initialDelayMs: 500
-        maxDelayMs: 10000
-        jitterRatio: 0.1
-    defaultContextWindow: 1000000 # optional positive-integer fallback; this is the default
-    models:                  # optional; defaults to V4 Flash and V4 Pro
-      - id: deepseek-v4-flash
-        name: DeepSeek-V4-Flash
-      - id: private-vision
-        name: Private Vision
-        inputModalities: [text, image]
-      - id: private-reasoner
-        description: Company-hosted reasoning model
-        contextWindow: 512000
-=======
     apiKeyEnv: DEEPSEEK_API_KEY  # credential reference, resolved per request
     baseURL: https://api.deepseek.com # optional; $DEEPSEEK_BASE_URL then this default
     reasoningEffort: high        # optional; off | low | high | max
@@ -69,7 +44,6 @@ Choose this adapter when the deployment targets DeepSeek's official API, optiona
     maxInlineRequestImageBytes: 20971520
     maxImagesPerRequest: 600
     filesApiTimeoutMs: 60000
->>>>>>> upstream/master
 ```
 
 A request selects the route with `provider: deepseek-official`; the model id passes through to the wire, so new DeepSeek models need no re-registration. Omitted `models` advertises `deepseek-v4-flash` as the fast, economical choice for focused work, `deepseek-v4-pro` as the stronger, higher-cost choice for complex or quality-critical work, and the image-capable `deepseek-v4-flash-vision-exp`; each has a 1,000,000-token context window. An explicit list replaces those defaults, and unlisted model ids still pass through as text-only routes. Clients, including model discovery tools, can read the advisory entries through `ctx.llm.listModels('deepseek-official')`. Image-capable entries may set `imagePixelBudget` to a positive integer or `low`, and may set `imageMaxBytes`.
@@ -204,15 +178,11 @@ Loop-retained response blocks append to the next request and preserve its earlie
 
 ## Known Limitations and Deferred Work
 
-<<<<<<< HEAD
-- **OAuth route composition is programmatic only** — `createDeepSeekOAuthAdapter` composes a caller-owned `OAuthLifecycle` and provider-owned `ProviderOAuthAdapter` with the DeepSeek route. The Loader cannot configure this yet because no DeepSeek OAuth callback/refresh provider or account-to-credential-broker mapping exists; adding a Loader row without those owners would not create a usable OAuth route.
-=======
 <a id="known-limitations-and-deferred-work"></a>
 
 
 These limits define where the adapter stops and future work begins. They are current package constraints, not a general DeepSeek comparison or a task backlog.
 
->>>>>>> upstream/master
 - **A settings `models` list replaces the composition list wholesale** — settings-layer merging is per-field, and arrays are one field; per-entry catalog merging would need a keyed shape.
 - **`tool_choice` is not mapped** — not part of the core vocabulary (shared with the pi-ai twin).
 - **Requests use raw `fetch`, not `@cordisjs/plugin-http`** — no shared proxy or interception configuration.

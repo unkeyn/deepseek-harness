@@ -9,11 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-<<<<<<< HEAD
-每个提供方适配器都拥有可选的嵌套 `retryPolicy`；路由在 `ctx.llm` 上注册时会捕获该策略，任何到达该注册最终适配器边界的调用都会携带它。如果之后释放或替换路由，进行中的失败仍会保留当时为其提供服务的策略；在选中任何最终适配器前发生的失败没有提供方策略，会继续委托。省略策略时使用 normal mode：为 `EMPTY_RESPONSE`、`RATE_LIMIT`、`SERVER`、`TIMEOUT` 和 `TRANSPORT` 重试十次，分为两个有界延迟阶段并使用 10% jitter。`EMPTY_RESPONSE` 是适配器对未产生任何持久内容的退化提供方完成所作的分类，因此可安全重复。normal 策略可以更改其有限预算、符合条件的 code 和退避配置。always mode 会先请求下游恢复，再无次数上限地重试每个模型请求失败；成功、取消或插件 dispose（资源释放）会在活跃的委托恢复完全停稳后终止它。
-=======
 `@deepseek-ai/dsh-llm-retry` 是失败模型请求的重试执行器：它在 agent loop 的打开步骤 `agent/request-error` 扩展点上应用各提供方解析后的重试策略，因此每次重试都会在同一个打开的轮次内重跑同一个步骤（基于同一份持久历史）。它不包装流式调用本身——每次适配器调用仍是一次提供方尝试，直接 `ctx.llm.stream()` 消费方仍是单次尝试。重试调度是持久的：插件在等待之前就把 `llm/retry` 事件追加进会话日志，退避期间取消会让日志保持一致。normal mode 以指数退避重试一组有界的失败 code，最多 `maxRetries` 次；always mode 先询问下游恢复，然后无尝试上限地重试每个失败。
->>>>>>> upstream/master
 
 ## 目录
 

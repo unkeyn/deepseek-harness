@@ -21,19 +21,10 @@ export function registerChatNodeRenderers(ctx: Context): void {
     { name: 'conversation.chat.node', key: 'steering', locale: NS }, UserMessageNodeView))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
     { name: 'conversation.chat.node', key: 'context', locale: NS }, ContextMessageNodeView))
-<<<<<<< HEAD:packages/client/ui-conversation/src/client/chat/register-node-renderers.ts
-  ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
-    name: 'conversation.chat.node',
-    key: 'assistant-step',
-    locale: NS,
-    children: { 'conversation.chat.reasoning': { kind: 'single', scope: 'session' } },
-  }, AssistantNodeView))
-=======
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
     { name: 'conversation.chat.node', key: 'system-prompt', locale: NS }, SystemPromptNodeView))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
     { name: 'conversation.chat.node', key: 'assistant-step', locale: NS }, AssistantNodeView))
->>>>>>> upstream/master:packages/client/ui-chat/src/client/chat/register-node-renderers.ts
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
     name: 'conversation.chat.node',
     key: 'command',

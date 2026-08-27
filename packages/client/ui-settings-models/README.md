@@ -22,31 +22,15 @@ English | [中文](README.zh.md)
 
 -----
 
-<<<<<<< HEAD
-## Bearer credentials
-
-**Add a Bearer provider** opens a separate creation card backed by the `llm-bearer` namespace; **Add a custom provider** remains the API-key path backed by `llm-pi-ai`. The Bearer card writes the primary secret to `auth.accessTokenEnv` and the Firebase refresh secret to `auth.refresh.refreshTokenEnv`, using the derived `<ROUTE>_BEARER_TOKEN` and `<ROUTE>_REFRESH_TOKEN` references. TwinMind defaults its endpoint, protocol, model `auto`, automatic refresh, and public Firebase Web API key.
-
-The optional cookie-import field accepts a browser cookie-export array and parses it entirely in the client. It requires the exact `session` and `firebase_refresh_token` cookies for `app.twinmind.com`, ignores every other cookie, copies only those values into the two credential drafts, and clears the raw JSON immediately. Direct browser extraction is unavailable because the source cookies are cross-origin and `HttpOnly`. Rows join both credential references and require both when refresh is enabled; deletion removes them only when they match the page-derived names.
-
-## Model list and endpoint interrogation
-
-A model row edits identity and optional capacities only. Reasoning levels and accepted input are runtime capabilities resolved automatically by the Host model catalog and are not authored in this UI. Unknown model fields survive every row edit; context and output capacities remain behind the row's disclosure.
-=======
 <a id="use-this-package"></a>
 ## Use this package
 
 Open the Models page from the Settings navigation to see every configured provider as a row. A whole-section provider whose key is not configured anywhere renders as its open setup card instead, but only in the first-run posture and only until the user closes that card. Each card kind owns its own open state, so closing one never discards a draft in another.
->>>>>>> upstream/master
 
 ### API keys
 
 The primary field on an editor card is a single **API key** input — the page never asks for an environment-variable name. A typed key stores write-only through `credentials.set` under the profile's reference, deriving `<ROUTE>_API_KEY` when the profile has none, and the pi-ai profile records that derivation as `apiKeyEnv`, so `settings.yaml` never carries a key value. Leaving a new pi-ai provider's key blank saves a reference-free profile and preserves provider-native authentication (for example the Bedrock credential chain or Vertex ADC). A row labels API-key state with a green solid dot only when a referenced credential is confirmed configured, and with a red solid dot only when a named reference is confirmed missing. A successful Apply emits a local accessible status message without echoing secret material.
 
-<<<<<<< HEAD
-Bearer creation writes the complete profile to `llm-bearer` first, then stores access and refresh values through separate `credentials.set` calls. A failed secret write leaves the provider visible and retryable without replaying the stale-revision profile mutation. API-key creation stays in `llm-pi-ai` and retains `<ROUTE>_API_KEY` and reference-free native authentication exactly as before.
-
-=======
 ### Editing a provider
 
 The collapsed 自定义设置 fold carries the curated extras: `baseURL` for both families (the deepseek placeholder shows the public endpoint), each adapter's model catalog, and the **display name** and **API protocol** of a pi-ai route the adapter does not ship. The Provider ID stays fixed: it is the settings key, the name every other namespace and every logged session references, and the stem of a credential reference the page cannot read back to move. Reasoning effort is deliberately not among the editable fields: it is a per-model capability, so a provider-scoped control could only be set to a value some models reject. Each DeepSeek row edits `id`, optional display `name`, and optional `contextWindow`/`maxTokens`; existing fields outside that curated set survive edits.
@@ -103,7 +87,6 @@ These pages cover the settings base, the seams this page joins, and the design r
 -----
 
 <a id="model-experience"></a>
->>>>>>> upstream/master
 ## Model Experience
 
 None, as the package is a browser-side UI plugin layer that registers nothing model-facing.
@@ -121,7 +104,7 @@ These limits define the editor's field coverage and the page's reach; they are c
 
 - **Only the API key and curated fold fields are editable on the card** — the hand-written editor traded schema-generic field coverage for the mockup layout. Retry policy, timeouts, DeepSeek model descriptions, and other advanced fields remain in `settings.yaml`; existing model fields the editor does not show are preserved.
 - **Credential cleanup is intentionally narrow** — deleting a row removes the configured, writable credential only when its reference is the exact `<ROUTE>_API_KEY` target this page derives. Custom references, environment credentials, and unidentifiable targets are retained because the row cannot prove ownership of them.
-- **Hand-declared routes use two explicit families** — API-key creation writes `llm-pi-ai`; Bearer creation writes `llm-bearer`. A `llm-deepseek` route is a composition fact, not something this page can create.
+- **Only pi-ai routes can be hand-declared** — the custom-provider card writes into `llm-pi-ai`, the one namespace whose profiles describe a whole provider. A `llm-deepseek` route is a composition fact, not something this page can create.
 - **Interrogation covers OpenAI-compatible endpoints** — the adapter reads only that model-list response format, so a gateway speaking another protocol reports that it cannot be asked and its models are entered by hand.
 - **Undeclared live routes render nowhere** — a route registered without a configurable-provider declaration has no settings address; it stays visible in pickers but not on this page's rows.
 

@@ -124,7 +124,7 @@ function profileOptions(
     ...profile.thinkingBudgets === undefined ? {} : { thinkingBudgets: profile.thinkingBudgets },
     ...profile.cacheRetention === undefined ? {} : { cacheRetention: profile.cacheRetention },
     ...profile.transport === undefined ? {} : { transport: profile.transport },
-    timeoutMs: profile.timeoutMs,
+    ...profile.timeoutMs === undefined ? {} : { timeoutMs: profile.timeoutMs },
     ...profile.websocketConnectTimeoutMs === undefined ? {} : { websocketConnectTimeoutMs: profile.websocketConnectTimeoutMs },
     // The agent recovery layer owns visible attempts; one adapter call is one SDK attempt.
     maxRetries: 0,
@@ -362,16 +362,6 @@ export class PiAiAdapter extends LlmAdapter {
         this.config.onReplayDegrade?.({ provider: options.provider, model: options.model, reason })
       }
       const context = attachments === undefined
-<<<<<<< HEAD
-        ? toPiContext(options, undefined, onReplayDegrade, profile.replayMode)
-        : await toPiContext(
-          options,
-          attachments,
-          onReplayDegrade,
-          profile.replayMode,
-          profile.maxRequestImageBytes,
-        )
-=======
         ? toPiContext(options, undefined, onReplayDegrade)
         : await toPiContext({ ...options, signal: watchdog.signal }, {
           attachments,
@@ -382,7 +372,6 @@ export class PiAiAdapter extends LlmAdapter {
             maxBytes: profile.requestImageMaxBytes,
           },
         }, onReplayDegrade)
->>>>>>> upstream/master
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },

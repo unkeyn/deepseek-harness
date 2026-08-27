@@ -150,16 +150,8 @@ describe('Conversation inject API', () => {
     expect(absent.hooks.notices.getSnapshot()).toBeNull()
     expect(absent.hooks.lexicon.getSnapshot().size).toBe(0)
     expect(absent.hooks.menuLauncher.getSnapshot()).toBeNull()
-<<<<<<< HEAD
-    expect(absent.hooks.compactionThreshold.getSnapshot()).toBe(80)
-    absent.setCompactionThreshold(25)
-    // A scope whose service tree lost 'conversation' (the feature fiber
-    // unloaded while a retained inject closure re-runs): fails loud too.
-    const stop = injectFn(ROOT).stop!
-=======
 
     const stop = injectBar(ROOT).stop!
->>>>>>> upstream/master
     await b.feature.dispose()
     expect(() => { stop() }).toThrow(/unavailable through the session scope/)
     await b.runtime.dispose()

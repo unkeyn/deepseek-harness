@@ -61,16 +61,10 @@ class CatalogAdapter extends LlmAdapter {
 
   override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
     if (this.exactError !== undefined) return Promise.reject(this.exactError)
-    const catalogModel = this.models instanceof Error
-      ? undefined
-      : this.models.find(entry => entry.id === model)
     return Promise.resolve({
       provider,
       id: model,
       name: model,
-      ...catalogModel?.inputModalities === undefined
-        ? {}
-        : { inputModalities: catalogModel.inputModalities },
       ...this.reasoning === undefined ? {} : { reasoning: this.reasoning },
     })
   }
@@ -105,8 +99,8 @@ async function harness(logged?: {
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(AgentRegistry)
   ctx.llm.registerAdapter(['deepseek-official'], new CatalogAdapter('DeepSeek', [
-    { provider: 'deepseek-official', id: 'deepseek-chat', name: 'DeepSeek Chat', inputModalities: ['text', 'image'] },
-    { provider: 'deepseek-official', id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', description: 'Reasoning model', inputModalities: ['text', 'image'] },
+    { provider: 'deepseek-official', id: 'deepseek-chat', name: 'DeepSeek Chat' },
+    { provider: 'deepseek-official', id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', description: 'Reasoning model' },
   ], REASONING))
   ctx.llm.registerAdapter(['broken'], new CatalogAdapter('Broken Provider', new Error('catalog offline')))
   ctx.llm.registerAdapter(['metadata-broken'], new CatalogAdapter('Metadata Broken', [
@@ -237,11 +231,7 @@ describe('Web session model selection', () => {
     await ctx.fiber.dispose()
   })
 
-<<<<<<< HEAD:packages/host/apiproxy/tests/api-proxy-models.spec.ts
-  it('allows a text-only selection after durable images but not while an image prompt is pending', async () => {
-=======
   it('allows a text-only selection while durable or pending images remain available for later models', async () => {
->>>>>>> upstream/master:packages/api/session-controller/tests/session-models.host.spec.ts
     const { ctx, agent, sessionId } = await harness()
     registerTextOnly(ctx)
     const remote = createSessionTestRemote(ctx, {
@@ -255,17 +245,6 @@ describe('Web session model selection', () => {
     const imageEvent = agent.session.append('user/message', {
       id: 'image-message', role: 'user', source: { kind: 'user' }, content: [image],
     } as never, { surfaceOp: 'append' })
-<<<<<<< HEAD:packages/host/apiproxy/tests/api-proxy-models.spec.ts
-    expect(expectValue(await api.sessions.selectModel(request({
-      sessionId, provider: 'text-only', model: 'plain',
-    }))).selected).toEqual({ provider: 'text-only', model: 'plain' })
-    ;(agent.inbox.nextTurn as UserMessage[]).push({
-      id: 'pending-image', role: 'user', source: { kind: 'user' }, content: [image],
-    } as never)
-    expect((await api.sessions.selectModel(request({
-      sessionId, provider: 'text-only', model: 'plain',
-    }))).result.ok).toBe(false)
-=======
     expect(expectValue(await remote.selectModel(request({
       sessionId, provider: 'text-only', model: 'plain',
     }))).selected).toEqual({ provider: 'text-only', model: 'plain' })
@@ -283,35 +262,9 @@ describe('Web session model selection', () => {
     expect(expectValue(await remote.selectModel(request({
       sessionId, provider: 'text-only', model: 'plain',
     }))).selected).toEqual({ provider: 'text-only', model: 'plain' })
->>>>>>> upstream/master:packages/api/session-controller/tests/session-models.host.spec.ts
     await ctx.fiber.dispose()
   })
 
-  it('accepts a text prompt when the selected model cannot read existing session images', async () => {
-    const { ctx, agent, sessionId } = await harness()
-    registerTextOnly(ctx)
-    const followup = vi.fn()
-    Object.assign(agent, { followup })
-    const api = createApiProxy(ctx, {
-      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
-      cwd: '/tmp',
-    })
-    expect(expectValue(await api.sessions.selectModel(request({
-      sessionId, provider: 'text-only', model: 'plain',
-    }))).selected).toEqual({ provider: 'text-only', model: 'plain' })
-    agent.session.append('user/message', {
-      id: 'image-message', role: 'user', source: { kind: 'user' }, content: [{
-        type: 'image', attachment: { attachmentId: 'att-history', mediaType: 'image/png', bytes: 1, width: 1, height: 1 },
-      }],
-    } as never, { surfaceOp: 'append' })
-
-    const result = await api.sessions.prompt(request({
-      sessionId, mode: 'queue' as const, content: [{ type: 'text', text: 'continue' }],
-    }))
-    expect(result.result).toMatchObject({ ok: true, value: { accepted: true } })
-    expect(followup).toHaveBeenCalledOnce()
-    await ctx.fiber.dispose()
-  })
   it('authorizes attachment bytes only when the session event stream references the id', async () => {
     const { ctx, agent, sessionId } = await harness()
     const ref = {

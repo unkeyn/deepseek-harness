@@ -72,21 +72,10 @@
   /* Indent under the title, which starts at leading (16 + delta) + gap 6. */
   padding: 4px 0 4px calc(22px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-tertiary);
-<<<<<<< HEAD:packages/client/ui-conversation/src/client/chat/ReasoningRow.module.css
-  font-size: 14px;
-  line-height: 24px;
-}
-
-/* The markdown sheet's block margins assume the 16/28 message body; inside
-   the dimmed think body they read as gaps twice the row rhythm. */
-.thinkBody :where(p, li) {
-  margin: 4px 0;
-=======
   font-size: var(--dsh-content-font-size-secondary, 13px);
   line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
   white-space: pre-wrap;
   word-break: break-word;
->>>>>>> upstream/master:packages/client/ui-chat/src/client/chat/ReasoningRow.module.css
 }
 
 @media (prefers-reduced-motion: reduce) {

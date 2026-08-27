@@ -60,7 +60,6 @@
     "@deepseek-ai/dsh-client-ui-commands": "workspace:^",
     "@deepseek-ai/dsh-client-ui-chat": "workspace:^",
     "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
-    "@deepseek-ai/dsh-compaction-policy": "workspace:^",
     "@deepseek-ai/dsh-client-ui-cordis": "workspace:^",
     "@deepseek-ai/dsh-client-ui-deliverables": "workspace:^",
     "@deepseek-ai/dsh-client-ui-directory-picker-browse": "workspace:^",
@@ -73,11 +72,7 @@
     "@deepseek-ai/dsh-client-ui-settings-plugin-inventory": "workspace:^",
     "@deepseek-ai/dsh-client-ui-permission-presets": "workspace:^",
     "@deepseek-ai/dsh-client-ui-plan": "workspace:^",
-<<<<<<< HEAD
-    "@deepseek-ai/dsh-client-ui-reasoning": "workspace:^",
-=======
     "@deepseek-ai/dsh-client-ui-session": "workspace:^",
->>>>>>> upstream/master
     "@deepseek-ai/dsh-client-ui-settings-plugins": "workspace:^",
     "@deepseek-ai/dsh-client-ui-user-questions": "workspace:^",
     "@deepseek-ai/dsh-client-ui-settings": "workspace:^",

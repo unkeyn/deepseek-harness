@@ -19,10 +19,7 @@
  *         apiKeyEnv: OPENAI_API_KEY
  *         retryPolicy:
  *           mode: normal
- *           maxRetries: 10
- *           phases:
- *             - { retries: 5, initialDelayMs: 2000, maxDelayMs: 2000, stepMs: 0 }
- *             - { retries: 5, initialDelayMs: 10000, maxDelayMs: 30000, stepMs: 5000 }
+ *           maxRetries: 2
  *       # Catalog route with the catalog narrowed and one capacity corrected.
  *       anthropic:
  *         apiKeyEnv: ANTHROPIC_API_KEY
@@ -160,7 +157,7 @@ export function apply(ctx: Context, config: Config): void {
   const profiles = (): ReadonlyMap<string, ResolvedPiAiProviderProfile> => {
     const raw = current()
     if (raw === lastRaw && memoized !== undefined) return memoized
-    const next = resolveProfiles(raw.providers, ctx.get('modelCatalog'))
+    const next = resolveProfiles(raw.providers)
     lastRaw = raw
     memoized = next
     return next
@@ -260,17 +257,10 @@ export function apply(ctx: Context, config: Config): void {
   // except the credential: a configuration surface edits a redacted descriptor
   // and never holds a stored secret, so an already-configured route supplies
   // its own here rather than being interrogated unauthenticated.
-<<<<<<< HEAD
-  ctx.llm.registerModelDiscovery(
-    NS,
-    request => discoverModels(request, () => storedApiKey(request.provider), ctx.get('modelCatalog')),
-  )
-=======
   ctx.llm.registerModelDiscovery(NS, (request, signal) => discoverModels(
     { ...request, ...signal === undefined ? {} : { signal } },
     () => storedApiKey(request.provider),
   ))
->>>>>>> upstream/master
   // Route effects bind to this apply fiber via the stable `ctx` reference,
   // even when a swap runs inside the scoped settings callback below. A bare
   // mount (zero routes) is the dormant posture: nothing registers until a

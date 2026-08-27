@@ -63,14 +63,10 @@ interface ComposerChainProps {
 
 业务 package 可仅在一个 Remote waterfall request pending 期间安装 entry：
 
-<<<<<<< HEAD
-聊天统计行的 token 账目来自经标准套件 `useProjection` 读取的通用 token-meter 投影 `tokenUsage`：计费输入为未缓存输入、缓存读取与缓存写入之和；缓存命中率以缓存读取除以该总量。轮次与步骤计数、LLM（大语言模型）与工具墙钟时间、以及延迟／吞吐分组都来自全日志的 `sessionStats` 投影（Host 端从步边界、首 token chunk、工具配对与已组装消息折算），因此分页与压缩都无法改变统计条的任何数字；未组合该单元的装配回退为对可见节点做窗口折算，其字段与投影一一对应。统计条把每个有完整记录的步骤的 TTFT（首 token 延迟）取平均，并用采样到的输出 token 数除以其解码时长之和，得到经 `conversation` locale 命名空间本地化的延迟／吞吐分组（中文为 `首 token 平均 … · … tok/s`）；缺少某个 timing 边界或 usage 采样的步骤会直接退出这些数字，而不是让它们失真；压缩（compaction）使已加载窗口不再包含 assistant 节点时，持久计数、token 与上下文分组仍保持可见。轮次计数、步骤计数、耗时、缓存与 token 各项的标签也使用同一命名空间。每个已结算轮次还会在其 assistant footer 的 `用时` 之后追加 hover 才显示的 `首 token {s}秒 · {tps} tok/s` 标签——即该轮次首个步骤的 TTFT 与轮次聚合的解码吞吐——仅当该轮次的 timing 位于已加载窗口内才显示（窗口是日志的连续后缀，因此窗口内的轮次必然带着它的全部步骤），未记录的数字会各自省略。未组合 token-meter 的部署会整组省略 token 分组；统计行过长时以省略号截断，仅在内容真的被裁切时由延迟 hover tooltip 承载完整文本。展开面板提供由 Host 持有的 25–95% 自动压缩阈值与 `立即压缩` 操作；圆环在达到所选阈值时完成一整圈，而标题与组成进度条仍保留相对于完整上下文窗口的绝对百分比。滑块写入 `compaction-policy` settings namespace，compaction-basic 在每次请求前的 agent `agent/pre-step` 边界读取该实时覆盖值，因此跨过阈值后会先完成当前安全步骤，在下一次模型请求前压缩，并保留当前轮次。活动轮次期间，显式操作仍保持禁用。上下文占用率渲染为 composer 尾部的 ContextMeter：模型座位之后的一枚 14px 占用圆环， `contextPressure` 供数，仅当分子与路由容量都已知时才渲染；点击弹出的面板把「已用百分比」标题与 `~已用 / 容量` 数字，与来自 `contextBreakdown` 投影、带 `~` 前缀的启发式组成明细行（系统提示词、工具、对话消息）及分色分段进度条并列。圆环与标题读取 `projectedTokens`——把提供方样本沿此后表层的增减推进到当下——因此压缩会立刻反映出来，而不必再等一整轮；组成明细行仍是纯启发式，因此加起来依然不等于标题数字（[原理](../../llm/token-meter/README.md)）。占用率是刻意为之的近似值：分子与容量是两个相互独立的「后写覆盖」投影字段，并非同一次请求的原子观测。
-=======
 ```tsx
 import type { ComposerChainProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChainSelect, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
->>>>>>> upstream/master
 
 interface Request {
   readonly sessionId: SessionId

@@ -9,11 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-<<<<<<< HEAD
-The Host-reported provider/model/reasoning `ModelSelection` is the single selection fact, but it is echoed only when the exact provider/model pair remains in the advertised groups; an absent catalog row leaves the routable selection intact while the trigger prompts `Select model`, no stale row is synthesized, and no Effort row is shown until the user picks an advertised model. Historical images do not remove text-only choices: after an image prompt settles, users may switch freely and the LLM runtime projects old image blocks to omission markers for a text-only request. Directory loads and selections share a generation counter so an older response never overwrites a newer one; a connection reset drops every resident projection and repulls the Host-restored selection before display. Provider-local metadata failures list inline while usable groups stay selectable, and selection failures retain the prior selection and directory.
-=======
 This package provides model selection in the Web GUI: the `/model` popup command and the composer's model seat, both over one per-session directory of provider-grouped models. Choosing a model submits the complete selection — provider, model, and reasoning effort — which the Host snapshots at the next prompt-assembly boundary, so the following request uses it while a running step keeps its assembled selection. The composer seat shows a two-level Model/Effort menu: models stay provider-grouped, and the selected exact model supplies its adapter-owned effort names and default. When the Host reports that no adapter serves the session's route, the composer input goes inert until a route becomes available.
->>>>>>> upstream/master
 
 ## Table of Contents
 

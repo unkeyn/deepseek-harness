@@ -274,11 +274,7 @@ describe('pi-ai request context conversion', () => {
       }]),
       user([{ type: 'image', attachment: sized }, { type: 'text', text: 'newer' }]),
       user([{ type: 'image', attachment: sized }]),
-<<<<<<< HEAD
-    ]), store, undefined, 'native', 8)
-=======
     ]), imageContext(store, { maxRequestImageBytes: 8 }))
->>>>>>> upstream/master
 
     expect(context.messages).toEqual([
       {
@@ -362,11 +358,7 @@ describe('pi-ai request context conversion', () => {
     const exact = await toPiContext(request([
       user([{ type: 'image', attachment: sized }]),
       user([{ type: 'image', attachment: sized }]),
-<<<<<<< HEAD
-    ]), attachments, undefined, 'native', 8)
-=======
     ]), imageContext(attachments, { maxRequestImageBytes: 8 }))
->>>>>>> upstream/master
     expect(exact.messages).toEqual([
       {
         role: 'user',
@@ -386,11 +378,7 @@ describe('pi-ai request context conversion', () => {
     const store = projectionStore(readImageRequest)
     const oversized = await toPiContext(request([
       user([{ type: 'image', attachment: { ...ref, bytes: 300 } }]),
-<<<<<<< HEAD
-    ]), store, undefined, 'native', 8)
-=======
     ]), imageContext(store, { maxRequestImageBytes: 8 }))
->>>>>>> upstream/master
     // All-text content collapses to the string form; the placeholder still reaches the model.
     expect(oversized.messages).toEqual([
       { role: 'user', content: offloadedImageText({ ...ref, bytes: 300 }), timestamp: 0 },
@@ -401,15 +389,6 @@ describe('pi-ai request context conversion', () => {
   it('offloads repeated image-block occurrences by position rather than shared object identity', async () => {
     const sized: ImageAttachmentRef = { ...ref, bytes: 3 }
     const shared: ContentBlock = { type: 'image', attachment: sized }
-<<<<<<< HEAD
-    const readImage = vi.fn(() => Promise.resolve({ ref: sized, data: Uint8Array.of(1, 2, 3) }))
-    const store = { readImage } as unknown as AttachmentStore
-    const aliased = await toPiContext(request([user([shared, shared])]), store, undefined, 'native', 4)
-    const replayed = await toPiContext(request([user([
-      { type: 'image', attachment: { ...sized } },
-      { type: 'image', attachment: { ...sized } },
-    ])]), store, undefined, 'native', 4)
-=======
     const readImageRequest = vi.fn((value: ImageAttachmentRef) => (
       Promise.resolve(requestImage(value, Uint8Array.of(1, 2, 3)))
     ))
@@ -422,7 +401,6 @@ describe('pi-ai request context conversion', () => {
       { type: 'image', attachment: { ...sized } },
       { type: 'image', attachment: { ...sized } },
     ])]), imageContext(store, { maxRequestImageBytes: 4 }))
->>>>>>> upstream/master
 
     const expected = [{
       role: 'user',
@@ -466,13 +444,8 @@ describe('pi-ai request context conversion', () => {
       const store = projectionStore(readImageRequest)
       await expect(toPiContext(request([
         history(role, [{ type: 'image', attachment: ref }]),
-<<<<<<< HEAD
-      ]), store, undefined, 'native', 1)).rejects.toMatchObject({ code: 'UNSUPPORTED_CONTENT' })
-      expect(readImage).not.toHaveBeenCalled()
-=======
       ]), imageContext(store, { maxRequestImageBytes: 1 }))).rejects.toMatchObject({ code: 'UNSUPPORTED_CONTENT' })
       expect(readImageRequest).not.toHaveBeenCalled()
->>>>>>> upstream/master
     }
 
     await expect(toPiContext(request([

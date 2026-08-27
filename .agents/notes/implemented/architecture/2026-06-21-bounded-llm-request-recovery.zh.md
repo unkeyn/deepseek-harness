@@ -54,13 +54,9 @@ agent loop（智能体循环）会将终止 finish 的 `LlmFailure` 传给 `agen
 
 `agent/request-error` waterfall 携带当前 `LlmFailure`、在连续恢复序列中授权重试的不可变先前失败列表，以及提供服务的注册项所携带的不可变重试策略。循环只传递而不解释该策略；它拥有连续失败历史，并在模型请求成功后清除。`dsh-llm-retry` 的 normal 策略统计由同一项确切提供方策略安排的持久重试记录，`dsh-compaction-basic` 则维护自己的上下文溢出预算。因此，暂时性失败与上下文溢出交替出现时，会各自独立消耗其有限预算；最大请求数等于 1 加上所有已加载有限预算之和。
 
-<<<<<<< HEAD
-当前配置形状由[提供方策略决策](../feature/2026-07-24-provider-retry-policies.md)规定。提供方适配器会注册嵌套的 `retryPolicy`；省略时使用 normal 默认值：针对上述五个暂时性 code 分两个阶段重试十次，前五次等待约两秒，后五次从约 10 秒线性增加到 30 秒，并施加 10% 抖动。这套更长但仍有限的计划可吸收不稳定网关的连续故障，同时保留明确的终止上限；提供方专用策略仍可替换它。10% 抖动参考 [Codex 的有界抖动](https://github.com/openai/codex/blob/0fb559f0f6e231a88ac02ea002d3ecd248e2b515/codex-rs/codex-client/src/retry.rs#L40-L47)。
-=======
 当前配置形状由[提供方策略决策](../feature/2026-07-24-provider-retry-policies.zh.md)规定。提供方适配器会注册嵌套的 `retryPolicy`；省略时使用 normal 默认值：两次暂时性重试、500 毫秒初始延迟、10 秒延迟上限、10% 抖动，以及上述五个暂时性 code。计数与延迟边界参考了所调查实现中较保守的一端：[OpenCode 使用两次请求重试，延迟边界为 500 毫秒／10 秒](https://github.com/anomalyco/opencode/blob/9976269ab1accfc9f9dc98a4a688c516934de422/%70ackages/llm/src/route/executor.ts#L36-L39)；[Pi 将三次 agent 级重试与提供方重试分开，且提供方重试默认为零](https://github.com/earendil-works/pi/blob/3da591ab74ab9ab407e72ed882600b2c851fae21/%70ackages/coding-agent/docs/settings.md#L139-L147)；[Codex 使用有限请求／流预算以及五分钟空闲超时](https://github.com/openai/codex/blob/0fb559f0f6e231a88ac02ea002d3ecd248e2b515/codex-rs/model-provider-info/src/lib.rs#L25-L33)。10% 抖动参考 [Codex 的有界抖动](https://github.com/openai/codex/blob/0fb559f0f6e231a88ac02ea002d3ecd248e2b515/codex-rs/codex-client/src/retry.rs#L40-L47)。
->>>>>>> upstream/master
 
-对于预算未耗尽的合格失败，从 1 开始的重试计数会选择已配置阶段并应用其线性 `stepMs` 增量；显式旧式策略未配置阶段时则使用指数退避。有效的 `providerRetryAfterMs` 只有在不超过当前阶段或退避上限时才会取代本地延迟；提供方延迟更长时，系统会委托给下一监听器，而不会违反提供方指令提前重试。本地延迟乘以 `[1 - jitterRatio, 1 + jitterRatio]` 内的注入随机因子，并将最终值限制到当前上限；提供方延迟不加抖动。
+对于预算未耗尽的合格失败，从 1 开始的暂时性重试计数使用有界指数退避。有效的 `providerRetryAfterMs` 只有在不超过 `maxDelayMs` 时才会取代指数退避；提供方延迟更长时，系统会委托给下一监听器，而不会违反提供方指令提前重试。本地退避乘以 `[1 - jitterRatio, 1 + jitterRatio]` 内的注入随机因子，并将最终值限制到 `maxDelayMs`；提供方延迟不加抖动。
 
 插件拥有一个覆盖其整个生命周期的 `AbortController`，并跟踪每个活跃的恢复回调，包括委托的 waterfall 工作与退避。effect 的 dispose（资源释放）会先注销监听器，再中止并等待活跃回调；中止会胜过较晚到达的委托重试决策，被捕获的回调在插件 dispose 后既不能重试，也不能进入其 waterfall 的剩余部分。尽管 Cordis 已捕获该监听器，此设计仍能使 HMR（热模块替换）的 dispose 达到完全停稳。
 
@@ -78,7 +74,7 @@ agent-spine 演示组合包加载该插件，因此共享的 stdio/TUI、一次�
 
 ### 在能够终止停滞流的位置施加边界
 
-每个适配器都公开一个经过验证的 `streamIdleTimeoutMs` 配置字段，默认值为一分钟。该间隔不超过 Node 的最大定时器延迟，因此不会被钳制为 1 毫秒。它覆盖每个尚未完成的迭代器 `next()`：从消费方请求下一项开始，到适配器识别到提供方活动为止；消费方在两次 `next()` 调用之间花费的时间不属于提供方空闲时间。DeepSeek SSE（Server-Sent Events）注释计为传输活动，但绝不会成为 `StreamChunk` 值或会话日志事件。
+每个适配器都公开一个经过验证的 `streamIdleTimeoutMs` 配置字段，默认值采用上文引用的五分钟先例。该间隔不超过 Node 的最大定时器延迟，因此不会被钳制为 1 毫秒。它覆盖每个尚未完成的迭代器 `next()`：从消费方请求下一项开始，到适配器识别到提供方活动为止；消费方在两次 `next()` 调用之间花费的时间不属于提供方空闲时间。DeepSeek SSE（Server-Sent Events）注释计为传输活动，但绝不会成为 `StreamChunk` 值或会话日志事件。
 
 `@deepseek-ai/dsh-timeout` 公开一个可重新布防的空闲看门狗原语。一个稳定的局部 `AbortController` 会与调用方信号融合，并在整个适配器调用期间传给传输层；每个尚未完成的 `next()` 都会布防看门狗，该调用完成时解除布防，下一次请求数据时再重新布防。带外传输活动会调用 `pulse()`，在不产生值的情况下为尚未完成的需求重新布防。超时会使用能力自身拥有的 `TimeoutReason` 中止这个稳定控制器，`finally` 则会清除定时器。适配器将自身看门狗归类为 `TIMEOUT`，将更早发生的上游中止归类为 `ABORTED`。现有的一次性 `deadline()` 不会被描述为滑动计时器。
 
@@ -117,13 +113,8 @@ agent-spine 演示组合包加载该插件，因此共享的 stdio/TUI、一次�
 - `agent/request-error` 携带当前失败事实、不可变的先前已重试失败事实，以及提供服务的注册项所携带的不可变重试策略；成功会清除历史，暂时性失败／上下文溢出交替发生的集成测试证明两种策略只消耗各自的有限预算。
 - 每个提供方适配器都在 Loader 启动时验证其嵌套重试策略，`ctx.llm` 则将该策略与路由一同捕获；normal mode 会委托不合格路径，而且在没有其他策略时最多发起 `maxRetries + 1` 次提供方请求。
 - 退避期间执行 HMR 的测试证明：dispose 过程会注销监听器、中止并等待其捕获的回调，dispose 后不发出重试决策，也不留下存活的定时器或 promise。
-<<<<<<< HEAD
-- 纯单元测试覆盖暂时性 code 选择、分阶段线性延迟和旧式指数延迟、抖动边界、有效及超出上限的 `Retry-After`、耗尽的预算、确定性定时器／随机数钩子，以及退避期间中止。
-- 真实 agent-loop 测试覆盖分片前失败、部分分片后失败、抛出及带内失败、在新轮次中重试至成功、耗尽后写入结构化 `turn/end.reason`，以及与 `dsh-compaction-basic` 上下文溢出恢复的组合。
-=======
 - 纯单元测试覆盖暂时性 code 选择、指数退避和抖动边界、有效及超出上限的 `Retry-After`、耗尽的预算、确定性定时器／随机数钩子，以及退避期间中止。
 - 真实 agent-loop 测试覆盖分片前失败、部分分片后失败、抛出及带内失败、在同一轮次内重试至成功、耗尽后写入结构化 `turn/end.reason`，以及与 `dsh-compaction-basic` 上下文溢出恢复的组合。
->>>>>>> upstream/master
 - 部分分片集成测试证明：失败分片仍归属于失败步骤，该步骤不会提交 assistant 消息或工具副作用，成功的重试会记录自己的分片 seq 和提供方／模型路由。
 - 插件拥有的不进入表层的 `llm/retry` 事件可在 JSONL 和 SQLite 往返后保留，被消息派生忽略，并驱动 TUI 和 Web 撤回及计划重试渲染。客户端测试覆盖完整的 wire 验证、独立于时钟的倒计时、已取消与已完成重试标签的区别以及轨迹归属；无密钥 UI 快照覆盖 Web 的调度与成功，真实 Web 组合测试覆盖部分传输失败直至恢复，以及耗尽后终态错误行与定格重试链并列的画面，ACP 自动化快照确认，被丢弃的尝试不会通过协议发出，而恢复后的回复会正常发出。
 - 空闲看门狗测试证明：只有 `next()` 尚未完成时才会重新布防稳定信号；在消费方思考期间及 `finally` 中会解除布防；它与总调用 deadline 以及更早发生的调用方中止分开分类。适配器测试证明该信号会终止底层请求，而不只是与其脱离。

@@ -23,14 +23,7 @@ import { ComposerBlockRegistry } from './input/blocks.ts'
 import type { ComposerBlock } from './contract/composer-blocks.ts'
 import { InputHub } from './input/hub.ts'
 import { ComposerSubmissionPolicy } from './input/submission-policy.ts'
-<<<<<<< HEAD
-import {
-  COMPACTION_POLICY_SETTINGS_NAMESPACE, CompactionPolicyController, type CompactionPolicySettings,
-} from './input/compaction-policy.ts'
-import { InputBar } from './skeleton/InputBar.tsx'
-=======
 import { queueDockEntry } from './queue/QueueDock.tsx'
->>>>>>> upstream/master
 import { EnterBehaviorRow } from './settings/EnterBehaviorRow.tsx'
 import type { EnterBehaviorRowInjected } from './settings/EnterBehaviorRow.tsx'
 import { ConversationRoot } from './skeleton/ConversationRoot.tsx'
@@ -111,9 +104,6 @@ export function apply(ctx: Context): void {
   const conversationStore = createConversationStore()
   const submissionPolicy = new ComposerSubmissionPolicy(
     ctx.settingsScope.bind<ConversationSettings>({ namespace: CONVERSATION_SETTINGS_NAMESPACE }),
-  )
-  const compactionPolicy = new CompactionPolicyController(
-    ctx.settingsScope.bind<CompactionPolicySettings>({ namespace: COMPACTION_POLICY_SETTINGS_NAMESPACE }),
   )
 
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
@@ -269,18 +259,10 @@ export function apply(ctx: Context): void {
           toggleCommandMenu: undefined,
           stop: undefined,
           command: undefined,
-<<<<<<< HEAD
-          setCompactionThreshold: (value) => { compactionPolicy.setThreshold(value) },
-=======
->>>>>>> upstream/master
           hooks: {
             notices: ABSENT_NOTICES,
             lexicon: ABSENT_LEXICON,
             menuLauncher: ABSENT_MENU_LAUNCHER,
-<<<<<<< HEAD
-            compactionThreshold: compactionPolicy.threshold,
-=======
->>>>>>> upstream/master
           },
         }
       }
@@ -332,12 +314,10 @@ export function apply(ctx: Context): void {
           const result = await session.command(line)
           return result.ok && result.value.matched
         },
-        setCompactionThreshold: (value) => { compactionPolicy.setThreshold(value) },
         hooks: {
           notices: shell.notices,
           lexicon: shell.lexicon,
           menuLauncher: inputTriggers?.launcher ?? ABSENT_MENU_LAUNCHER,
-          compactionThreshold: compactionPolicy.threshold,
         },
       }
     },

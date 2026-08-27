@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import type {
   AssistantMessageNode, ChatSnapshot, LegacyConversationSlice, ToolResultNode,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
@@ -17,6 +17,14 @@ import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
 const t: StatsLineProps['t'] = makeTranslate(zh, commonZh)
 const tEn: StatsLineProps['t'] = makeTranslate(en, commonEn)
 
+/** jsdom has no ResizeObserver; StatsLine watches its row for ellipsis truncation through one. */
+class ResizeObserverStub {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+beforeEach(() => { vi.stubGlobal('ResizeObserver', ResizeObserverStub) })
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -160,7 +168,7 @@ describe('StatsLine', () => {
     const view = render(<StatsLine {...props(source)} />)
     // No timing on the fixture: the duration group drops out whole. Tokens come
     // from the projection, so paging the window cannot change them.
-    expect(view.container.textContent).toBe('1 turns · 1 stepsCache hit 90%Input 100 tok · Output 5 tok')
+    expect(view.container.textContent).toBe('1 turns · 1 steps| Cache hit 90%| Input 100 tok · Output 5 tok')
     const empty = makeSource()
     const emptyView = render(<StatsLine {...props(empty.source, {
       tokenUsage: { uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
@@ -169,16 +177,6 @@ describe('StatsLine', () => {
     expect(emptyView.container.textContent).toBe('')
   })
 
-<<<<<<< HEAD:packages/client/ui-conversation/tests/chat-stats.client.spec.tsx
-  it('keeps every stats group visible for narrow composer layouts', () => {
-    const { source } = makeSource({ nodes: [assistant(1, 1)] })
-    const view = render(<StatsLine {...props(source)} />)
-    expect(view.container.textContent).toContain('1 turns · 1 steps')
-    expect(view.container.textContent).toContain('Cache hit 90%')
-    expect(view.container.textContent).toContain('Input 100 tok · Output 5 tok')
-    expect(view.container.firstElementChild?.getAttribute('aria-label'))
-      .toBe('1 turns · 1 steps. Cache hit 90%. Input 100 tok · Output 5 tok')
-=======
   it.each([
     { actual: '98.6%', tokenUsageValue: tokenUsage(986, 14), expected: 'Cache hit 99%' },
     { actual: '99.1%', tokenUsageValue: tokenUsage(991, 9), expected: 'Cache hit 99%' },
@@ -225,7 +223,6 @@ describe('StatsLine', () => {
     fireEvent.mouseEnter(view.container.firstElementChild!)
     act(() => { vi.advanceTimersByTime(500) })
     expect(view.container.querySelector('[role="tooltip"]')).toBeNull()
->>>>>>> upstream/master:packages/client/ui-chat/tests/chat-stats.client.spec.tsx
   })
 
   it('renders window latency and throughput beside the wall-time group', () => {
@@ -235,7 +232,7 @@ describe('StatsLine', () => {
     }
     const { source } = makeSource({ nodes: [timed] })
     const view = render(<StatsLine {...props(source)} />)
-    expect(view.container.textContent).toContain('LLM 3.8sTTFT avg 0.8s · 20 tok/s')
+    expect(view.container.textContent).toContain('LLM 3.8s| TTFT avg 0.8s · 20 tok/s')
   })
 
   it('takes every stats label from the active locale', () => {
@@ -246,11 +243,7 @@ describe('StatsLine', () => {
     const { source } = makeSource({ nodes: [timed] })
     const view = render(<StatsLine {...props(source, { tokenUsage: tokenUsage(9_995, 5) })} t={t} />)
     expect(view.container.textContent)
-<<<<<<< HEAD:packages/client/ui-conversation/tests/chat-stats.client.spec.tsx
-      .toBe('1 轮 · 1 步LLM 3.8s首 token 平均 0.8s · 20 tok/s缓存命中 90%输入 100 tok · 输出 5 tok')
-=======
       .toBe('1 轮 · 1 步| LLM 3.8秒| 首 token 平均 0.8秒 · 20 tok/s| 缓存命中 99.95%| 输入 10K tok · 输出 1 tok')
->>>>>>> upstream/master:packages/client/ui-chat/tests/chat-stats.client.spec.tsx
   })
 
   it('renders without ResizeObserver support', () => {
@@ -267,7 +260,7 @@ describe('StatsLine', () => {
     })} />)
     // Context occupancy lives on the composer's ContextMeter ring, not here.
     expect(view.container.textContent)
-      .toBe('Cache hit 90%Input 100 tok · Output 5 tok')
+      .toBe('Cache hit 90%| Input 100 tok · Output 5 tok')
   })
 
   it('drops every token group when no projection is composed', () => {
@@ -285,7 +278,7 @@ describe('StatsLine', () => {
       sessionStats: sessionStats({ turns: 10, steps: 89 }),
     })} />)
     expect(view.container.textContent)
-      .toBe('10 turns · 89 stepsCache hit 90%Input 100 tok · Output 5 tok')
+      .toBe('10 turns · 89 steps| Cache hit 90%| Input 100 tok · Output 5 tok')
   })
 
   it('treats a defined zero-count projection as empty, not as fallback', () => {
@@ -319,7 +312,7 @@ describe('StatsLine', () => {
       sessionStats: sessionStats({ turns: 7, steps: 44 }),
     })} />)
     expect(view.container.textContent)
-      .toBe('7 turns · 44 stepsCache hit 90%Input 100 tok · Output 5 tok')
+      .toBe('7 turns · 44 steps| Cache hit 90%| Input 100 tok · Output 5 tok')
   })
 
   it('renders whole-log wall times and speeds from the projection, not the loaded window', () => {
@@ -335,7 +328,7 @@ describe('StatsLine', () => {
       }),
     })} />)
     expect(view.container.textContent).toBe(
-      '200 turns · 200 stepsLLM 1m40s · Tool call 1m2sTTFT avg 0.8s · 20 tok/sCache hit 90%Input 100 tok · Output 5 tok',
+      '200 turns · 200 steps| LLM 1m40s · Tool call 1m2s| TTFT avg 0.8s · 20 tok/s| Cache hit 90%| Input 100 tok · Output 5 tok',
     )
   })
 
@@ -344,7 +337,7 @@ describe('StatsLine', () => {
     const view = render(<StatsLine {...props(source, {
       tokenUsage: { uncachedInputTokens: 0, outputTokens: 7, cacheReadTokens: 0, cacheWriteTokens: 0 },
     })} />)
-    expect(view.container.textContent).toBe('1 turns · 1 stepsInput 0 tok · Output 7 tok')
+    expect(view.container.textContent).toBe('1 turns · 1 steps| Input 0 tok · Output 7 tok')
   })
 
   it('includes cache writes in billed input and the cache-hit denominator', () => {
@@ -358,7 +351,7 @@ describe('StatsLine', () => {
       },
     })} />)
     expect(view.container.textContent)
-      .toBe('1 turns · 1 stepsCache hit 45%Input 200 tok · Output 7 tok')
+      .toBe('1 turns · 1 steps| Cache hit 45%| Input 200 tok · Output 7 tok')
   })
 
   it('renders ZERO times during streaming chunk frames (RFC hard acceptance)', () => {

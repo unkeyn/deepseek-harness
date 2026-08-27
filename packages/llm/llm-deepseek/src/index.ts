@@ -17,8 +17,6 @@ import { assertUsableApiKey, LlmError, resolveImageAttachmentAccess, resolveRetr
 import type { ModelModality, RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-fs'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
-import { OAuthLifecycle } from '@deepseek-ai/dsh-credential-oauth'
-import type { ProviderOAuthAdapter } from '@deepseek-ai/dsh-credential-oauth'
 import { launchEnvironmentOf, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -37,9 +35,6 @@ import {
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   DeepSeekAdapter,
 } from './adapter.ts'
-<<<<<<< HEAD
-import type { DeepSeekAdapterOptions, DeepSeekCatalogModel, DeepSeekConnectionOptions } from './adapter.ts'
-=======
 import type { DeepSeekCatalogModel, DeepSeekConnectionOptions } from './adapter.ts'
 import {
   DEFAULT_LOW_DETAIL_IMAGE_PIXEL_BUDGET,
@@ -48,7 +43,6 @@ import {
   DEFAULT_REQUEST_IMAGE_MAX_BYTES,
   DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET,
 } from './request-pricing.ts'
->>>>>>> upstream/master
 
 export {
   DEFAULT_CONTEXT_WINDOW,
@@ -85,27 +79,6 @@ export { DeepSeekUploadIndex, deepSeekFileScope } from './upload-index.ts'
 export type { DeepSeekUploadRecord } from './upload-index.ts'
 export type { RequestDefaults } from './serialize.ts'
 export type * from './types.ts'
-
-/** Provider request facts passed to the injected OAuth transport. */
-export interface DeepSeekOAuthRequest {
-  /** Endpoint used by the composed DeepSeek route. */
-  readonly baseURL: string
-  /** Provider-specific request path when the OAuth transport needs it. */
-  readonly path: string
-}
-
-/** Provider authorization data returned by the injected OAuth transport. */
-export interface DeepSeekOAuthAuthorization {
-  /** Authorization header value for the composed provider request. */
-  readonly authorization: string
-}
-
-/** DeepSeek OAuth adapter contract. */
-export type DeepSeekOAuthProvider = ProviderOAuthAdapter<
-  DeepSeekOAuthRequest,
-  DeepSeekOAuthAuthorization,
-  unknown
->
 
 export const name = 'llm-deepseek'
 export const inject = ['llm']
@@ -163,13 +136,8 @@ export interface Config {
   defaultContextWindow?: number
   /** Advisory models shown by discovery consumers; defaults to V4 Flash, V4 Pro, and V4 Flash Vision Exp. */
   models?: DeepSeekCatalogModel[]
-  /** Maximum provider idle time while one stream read is outstanding (default one minute). */
+  /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
   streamIdleTimeoutMs?: number
-<<<<<<< HEAD
-  /** Maximum accumulated base64 image payload per request (default 20 MiB). */
-  maxRequestImageBytes?: number
-  /** Provider-owned model-request retry policy; omission uses normal mode with ten retries in two delay phases. */
-=======
   /** Maximum accumulated file-referenced image bytes per chat request (default 128 MiB). */
   maxRequestFilesBytes?: number
   /** Maximum accumulated base64 image payload after Files API fallback (default 20 MiB). */
@@ -191,7 +159,6 @@ export interface Config {
   /** Oldest harness-owned files deleted before one quota-recovery upload retry (default 100). */
   fileQuotaCleanupBatch?: number
   /** Provider-owned model-request retry policy; omission uses normal mode with five retries. */
->>>>>>> upstream/master
   retryPolicy?: RetryPolicyConfig
 }
 
@@ -241,44 +208,6 @@ const BASE_URL_ENV = 'DEEPSEEK_BASE_URL'
  * newer key.
  */
 export type ResolvedDeepSeekOptions = DeepSeekConnectionOptions
-
-/** Options for composing one OAuth account into the DeepSeek provider route. */
-export interface DeepSeekOAuthAdapterOptions extends Omit<DeepSeekAdapterOptions, 'resolveApiKey'> {
-  /** Lifecycle owning the provider account and token refresh. */
-  readonly lifecycle: OAuthLifecycle
-  /** Account selected by the caller for this provider route. */
-  readonly accountId: string
-  /** Provider-owned callback and request semantics for the OAuth lifecycle. */
-  readonly provider: DeepSeekOAuthProvider
-}
-
-/**
- * Compose provider-owned OAuth authorization with the existing DeepSeek adapter.
- * The lifecycle resolves or refreshes the selected account for each request; the
- * adapter continues to own DeepSeek serialization, SSE parsing, errors, and
- * attribution headers.
- * @param options - OAuth lifecycle, account, provider semantics, and adapter options.
- * @returns a DeepSeek adapter using the selected OAuth account for authorization.
- */
-export function createDeepSeekOAuthAdapter(options: DeepSeekOAuthAdapterOptions): DeepSeekAdapter {
-  const { lifecycle, accountId, provider, ...adapterOptions } = options
-  const oauth = lifecycle.adapter(provider)
-  return new DeepSeekAdapter({
-    ...adapterOptions,
-    resolveApiKey: async (connection) => {
-      const authorization = await oauth.authorization(accountId, { baseURL: connection.baseURL, path: '/chat/completions' })
-      const prefix = 'Bearer '
-      if (!authorization.authorization.startsWith(prefix)) {
-        throw new LlmError('llm-deepseek: OAuth provider returned an invalid authorization header', 'INVALID_CREDENTIAL')
-      }
-      return assertUsableApiKey(
-        authorization.authorization.slice(prefix.length),
-        'llm-deepseek',
-        `oauth_${accountId}`,
-      )
-    },
-  })
-}
 
 /** Resolve, validate, and detach the advisory model catalog. */
 function resolveModels(models: readonly DeepSeekCatalogModel[] | undefined): DeepSeekCatalogModel[] {

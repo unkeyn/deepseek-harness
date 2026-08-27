@@ -7,7 +7,7 @@ import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import type { JsonValue, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { ModelsSection, providerCopy } from '../src/client/ModelsSection.tsx'
 import type { ModelsSectionInjected, ModelsSectionProps } from '../src/client/ModelsSection.tsx'
-import { BearerProviderCard, CustomProviderCard } from '../src/client/CustomProviderCard.tsx'
+import { CustomProviderCard } from '../src/client/CustomProviderCard.tsx'
 import { formatCapacity, parseCapacity } from '../src/client/DeepSeekModelsEditor.tsx'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { ModelsSettingsStore, deriveKeyRef, protocolChoices } from '../src/client/store.ts'
@@ -33,42 +33,13 @@ const PiAiConfig = Schema.object({
       name: Schema.string(),
       contextWindow: Schema.number(),
       maxTokens: Schema.number(),
-      input: Schema.array(Schema.union(['text', 'image'])),
-      reasoningEfforts: Schema.union([
-        Schema.const(false),
-        Schema.dict(Schema.union([Schema.string(), Schema.const(null)])),
-      ]),
     })),
     reasoning: Schema.union(['off', 'high']),
   })),
 })
 
-<<<<<<< HEAD
-const BearerConfig = Schema.object({
-  providers: Schema.dict(Schema.object({
-    auth: Schema.object({
-      type: Schema.const('bearer'),
-      accessTokenEnv: Schema.string().role('credential-ref'),
-      refresh: Schema.union([Schema.object({
-        type: Schema.const('firebase'),
-        refreshTokenEnv: Schema.string().role('credential-ref'),
-        apiKey: Schema.string(),
-      }), Schema.const(null)]),
-    }),
-    displayName: Schema.string(),
-    api: Schema.union(['twinmind-chat']),
-    baseURL: Schema.string(),
-    models: Schema.array(Schema.object({ id: Schema.string().required() })),
-  })),
-})
-
-let nextRpc = 0
-function ok<T>(value: T): RpcResponse<T> {
-  return { rpcId: `r-${nextRpc++}` as never, result: { ok: true, value } }
-=======
 function ok<T>(value: T) {
   return { ok: true as const, value }
->>>>>>> upstream/master
 }
 function fail(message: string, code: string) {
   return { ok: false as const, error: { code, message, details: {} } }
@@ -100,19 +71,6 @@ function piAiNamespace(
   }
 }
 
-function emptyBearerNamespace(): SettingsNamespaceView {
-  return {
-    ns: 'llm-bearer',
-    schema: JSON.parse(JSON.stringify(BearerConfig.toJSON())) as unknown,
-    value: { providers: {} },
-    base: { providers: {} },
-    user: { providers: {} },
-    applies: 'live',
-    secrets: [],
-    revision: 4,
-  }
-}
-
 function scriptedFace(options: {
   providers?: Record<string, JsonValue>
   /** User layer, when it differs from the effective section. */
@@ -124,7 +82,6 @@ function scriptedFace(options: {
   discover?: ReturnType<typeof vi.fn>
   mutate?: ReturnType<typeof vi.fn>
   set?: ReturnType<typeof vi.fn>
-  bearerMounted?: boolean
 } = {}) {
   const providers = options.providers ?? {
     openai: { apiKeyEnv: 'OPENAI_API_KEY', baseURL: 'https://proxy.example/v1' },
@@ -150,16 +107,7 @@ function scriptedFace(options: {
       discoverModels: discover,
     },
     settings: {
-<<<<<<< HEAD
-      describe: vi.fn(() => Promise.resolve(ok({
-        writable: true,
-        namespaces: [namespace, ...options.bearerMounted === true ? [emptyBearerNamespace()] : []],
-      }))),
-      update: vi.fn(),
-      replace: vi.fn(),
-=======
       describe: vi.fn(() => Promise.resolve(remoteOk({ writable: true, namespaces: [namespace] }))),
->>>>>>> upstream/master
       mutate,
     },
     credentials: {
@@ -278,33 +226,6 @@ describe('model list editing', () => {
       expectedRevision: 3,
       ops: [{ op: 'set', path: ['providers', 'openai', 'models'], value: [{ id: 'acme-large', contextWindow: 65_536 }] }],
     })
-  })
-
-  it('keeps catalog capabilities automatic and preserves hidden profile corrections', async () => {
-    const { mutate } = await mountSection({
-      providers: { openai: { models: [{
-        id: 'vision-reasoner',
-        reasoningEfforts: { low: 'low', high: 'high' },
-        input: ['text', 'image'],
-      }] } },
-    })
-    openEditor('openai')
-
-    const row = screen.getByLabelText(`${en.modelId} 1`).closest('[class*="modelEntry"]')
-    if (row === null) throw new Error('model row missing')
-    expect(row.querySelectorAll('select')).toHaveLength(0)
-    expect(row.textContent).not.toContain('Reasoning levels')
-    expect(row.textContent).not.toContain('Accepted input')
-
-    fireEvent.change(screen.getByLabelText(`${en.modelName} 1`), { target: { value: 'Vision Reasoner' } })
-    fireEvent.click(screen.getByText(en.apply))
-    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
-    expect(firstMutate(mutate).ops[0]?.value).toEqual([{
-      id: 'vision-reasoner',
-      name: 'Vision Reasoner',
-      reasoningEfforts: { low: 'low', high: 'high' },
-      input: ['text', 'image'],
-    }])
   })
 
   it('names a duplicate model id in the edit flow too', async () => {
@@ -582,34 +503,6 @@ describe('endpoint interrogation', () => {
     ])
   })
 
-  it('shows reference-catalog capability chips and adopts image capability with the row', async () => {
-    const discover = vi.fn(() => Promise.resolve(ok({
-      models: [
-        { id: 'visionary', inputModalities: ['text', 'image'], reasoningLevels: ['low', 'high'], catalogMatched: true },
-        { id: 'opaque', catalogMatched: false },
-      ],
-    })))
-    const { mutate } = await mountSection({ discover })
-    openEditor('openai')
-
-    fireEvent.click(screen.getByText(en.fetchModels))
-    const dialog = await screen.findByRole('dialog')
-    // The described candidate annotates its chips; the unknown one shows none.
-    expect(dialog.textContent).toContain(en.capabilityImage)
-    expect(dialog.textContent).toContain(`${en.capabilityReasoning} 2`)
-    expect(dialog.textContent?.split(en.capabilityImage)).toHaveLength(2)
-
-    fireEvent.click(screen.getByText(en.fetchAdopt))
-    fireEvent.click(screen.getByText(en.apply))
-    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
-    // Image capability rides onto the adopted row; reasoning does not — its
-    // wire spellings are adapter-owned and resolution consults the catalog.
-    expect(firstMutate(mutate).ops[0]?.value).toEqual([
-      { id: 'visionary', input: ['text', 'image'] },
-      { id: 'opaque' },
-    ])
-  })
-
   it('keeps the rows editable when the provider cannot be interrogated', async () => {
     const discover = vi.fn(() => Promise.resolve(
       fail('https://proxy.example/v1/models answered 401; check the API key', 'model-discovery-failed'),
@@ -817,22 +710,6 @@ describe('hand-declared providers', () => {
     return { ...scripted, onClose }
   }
 
-  function mountBearerCard(wire: Parameters<typeof scriptedFace>[0] = {}) {
-    const scripted = scriptedFace(wire)
-    const onClose = vi.fn()
-    render(
-      <BearerProviderCard
-        taken={['openai']}
-        revision={4}
-        api={scripted.face as never}
-        t={t}
-        readOnly={false}
-        onClose={onClose}
-      />,
-    )
-    return { ...scripted, onClose }
-  }
-
   it('writes the whole profile and the key under the derived reference', async () => {
     const { mutate, set, onClose } = mountCard()
 
@@ -857,10 +734,7 @@ describe('hand-declared providers', () => {
           apiKeyEnv: 'ACME_GATEWAY_API_KEY',
           api: 'openai-completions',
           baseURL: 'https://gateway.acme.example/v1',
-          models: [{
-            id: 'acme-large',
-            contextWindow: 65_536,
-          }],
+          models: [{ id: 'acme-large', contextWindow: 65_536 }],
         },
       }],
       // The section this card was drafted over: a route another tab declared
@@ -868,44 +742,6 @@ describe('hand-declared providers', () => {
       expectedRevision: 7,
     })
     expect(set).toHaveBeenCalledWith('ACME_GATEWAY_API_KEY', 'gw-key')
-  })
-
-  it('creates a TwinMind Bearer provider with durable Firebase refresh credentials', async () => {
-    const { mutate, set, onClose } = mountBearerCard()
-
-    const accessToken = 'header.eyJleHAiOjQxMDI0NDQ4MDB9.signature'
-    fireEvent.change(screen.getByLabelText(en.cookieImport), { target: { value: JSON.stringify([
-      { name: 'session', value: accessToken, domain: 'app.twinmind.com' },
-      { name: 'analytics', value: 'ignored', domain: '.twinmind.com' },
-      { name: 'firebase_refresh_token', value: 'refresh-token', domain: 'app.twinmind.com' },
-    ]) } })
-    fireEvent.click(screen.getByRole('button', { name: en.cookieImportAction }))
-    expect(screen.getByLabelText<HTMLTextAreaElement>(en.cookieImport).value).toBe('')
-    fireEvent.click(screen.getByText(en.create))
-
-    await waitFor(() => { expect(onClose).toHaveBeenCalledWith(true) })
-    expect(firstMutate(mutate)).toMatchObject({ ns: 'llm-bearer', expectedRevision: 4 })
-    expect(firstMutate(mutate).ops).toEqual([{
-      op: 'set',
-      path: ['providers', 'twinmind'],
-      value: {
-        displayName: 'TwinMind',
-        auth: {
-          type: 'bearer',
-          accessTokenEnv: 'TWINMIND_BEARER_TOKEN',
-          refresh: {
-            type: 'firebase',
-            refreshTokenEnv: 'TWINMIND_REFRESH_TOKEN',
-            apiKey: 'AIzaSyD2Sd_NP3vA4rwvoroKqDefpXZeCMDXcIQ',
-          },
-        },
-        api: 'twinmind-chat',
-        baseURL: 'https://api2.twinmind.com',
-        models: [{ id: 'auto' }],
-      },
-    }])
-    expect(set).toHaveBeenNthCalledWith(1, { ref: 'TWINMIND_BEARER_TOKEN', value: accessToken })
-    expect(set).toHaveBeenNthCalledWith(2, { ref: 'TWINMIND_REFRESH_TOKEN', value: 'refresh-token' })
   })
 
   it('scopes each card to fields a provider can actually own', async () => {
@@ -919,9 +755,7 @@ describe('hand-declared providers', () => {
 
     mountCard()
     fireEvent.change(screen.getByLabelText(en.customRoute), { target: { value: 'acme' } })
-    expect(fields()).toEqual([
-      en.customRoute, en.customDisplayName, en.baseUrl, en.customApi, en.keyInput,
-    ])
+    expect(fields()).toEqual([en.customRoute, en.customDisplayName, en.baseUrl, en.customApi, en.keyInput])
     cleanup()
 
     // A shipped route's models each carry their own protocol, so its editor
@@ -1394,15 +1228,6 @@ describe('hand-declared providers', () => {
     fireEvent.click(screen.getByText(en.cancel))
     await waitFor(() => { expect(screen.queryByText(en.customTitle)).toBeNull() })
     expect(screen.getByRole('button', { name: en.customAdd })).toBeTruthy()
-  })
-
-  it('opens the separate Bearer card from the adjacent action', async () => {
-    await mountSection({ bearerMounted: true })
-
-    fireEvent.click(screen.getByRole('button', { name: en.bearerAdd }))
-    expect(screen.getByText(en.bearerCustomTitle)).toBeTruthy()
-    expect(screen.queryByText(en.customTitle)).toBeNull()
-    expect(screen.getByLabelText(en.cookieImport)).toBeTruthy()
   })
 
   it('refuses an unusable key on the field and blocks creation', () => {

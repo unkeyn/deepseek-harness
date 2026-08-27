@@ -46,19 +46,6 @@ export { ConversationViewRegistry } from './conversation/view-registry.ts'
 
 export type { ConversationKey } from './locales.ts'
 export type {
-<<<<<<< HEAD
-  AssistantChatData, ChatNode, ChatNodeDataMap, ChatNodeKind, ManualCompactionChatData,
-  RetryChatData, ToolChatData, TurnTailChatData,
-} from './contract/chat-nodes.ts'
-export type {
-  ChatFileMentions, ChatNodeOwnerProps, ChatNodeViewProps,
-  ChatStore, ChatViewInjected, ChatViewSlotProps, CommandRowOwnerProps, CommandRowProps, ComposerBarInjected,
-  ComposerAttachment, ComposerAttachmentsOwnerProps, ComposerAttachmentsProps, ComposerChainProps, ConversationInjected,
-  ConversationSessionHeaderInjected, ConversationSessionInjected, ConversationSlotProps, ConvViewOwnerProps,
-  ConvViewProps, DetailsInjected, DetailsSlotProps, DetailsToolOwnerProps, EmptyWorkspaceOwnerProps, HeroBrandMarkOwnerProps,
-  MessageImagesOwnerProps, MessageImagesProps, ReasoningOwnerProps, RenderMessageImages, TurnTailOwnerProps,
-  UseChatNodeTurnData,
-=======
   ComposerAttachment, ComposerAttachmentsOwnerProps, ComposerAttachmentsProps,
   ComposerBarInjected, ComposerBarOwnerProps, ComposerBarProps, ComposerChainProps,
   ConversationHeaderActionOwnerProps, ConversationHeaderLineageOwnerProps,
@@ -68,7 +55,6 @@ export type {
   HeroAgentPresetOwnerProps, HeroBrandMarkOwnerProps, InputControlOwnerProps, InputZone,
   MessageImageLoader, MessageImageSource, MessageImagesOwnerProps, RenderMessageImages, UseConversation,
   UseConversationViews,
->>>>>>> upstream/master
 } from './contract/slots.ts'
 export type {
   ArbitrateKey, ArbitrateOutcome, BeginCommandRequest, CommandClaim, ConsumeTokenRequest,

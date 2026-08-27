@@ -9,11 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-<<<<<<< HEAD
-Each provider adapter owns an optional nested `retryPolicy`, captured when its route registers on `ctx.llm` and carried with each call that reaches that registration's final adapter boundary. An in-flight failure retains that serving policy if the route is later disposed or replaced; a failure before any final adapter is selected has no provider policy and delegates. Omission uses normal mode: ten retries for `EMPTY_RESPONSE`, `RATE_LIMIT`, `SERVER`, `TIMEOUT`, and `TRANSPORT`, split across two bounded delay phases with 10 percent jitter. `EMPTY_RESPONSE` is the adapters' classification of a degenerate provider completion that produced no durable content, so repeating it is safe. A normal policy can change its finite budget, eligible codes, and backoff. Always mode asks downstream recovery first, then retries every model-request failure without an attempt limit; success, cancellation, or plugin disposal stops it after active delegated recovery reaches quiescence.
-=======
 `@deepseek-ai/dsh-llm-retry` is the retry executor for failed model requests: it applies each provider's resolved retry policy at the agent loop's open-step `agent/request-error` extension point, so every retry re-runs the same step inside the same open turn over the same durable history. It does not wrap the streaming call itself — every adapter call remains one provider attempt, and direct `ctx.llm.stream()` consumers stay single-attempt. Retry scheduling is durable: the plugin appends `llm/retry` events to the session log before waiting, and cancellation during backoff leaves the log consistent. Normal mode retries a bounded set of failure codes up to `maxRetries` with exponential backoff; always mode asks downstream recovery first, then retries every failure without an attempt limit.
->>>>>>> upstream/master
 
 ## Table of Contents
 

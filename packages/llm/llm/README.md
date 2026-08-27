@@ -58,16 +58,11 @@ After a successful mount, `ctx.llm.listProviders()` reports the registered route
 
 ### What you can do
 
-<<<<<<< HEAD
-- Subclass `LlmAdapter` and call `ctx.llm.registerAdapter(providers, adapter)` to add one or more provider routes. `GenerateOptions.provider` selects the adapter; `GenerateOptions.model` is adapter-owned and may be resolved dynamically. Override `providerRetryPolicy()` to supply provider-owned recovery configuration, `providerInfo()` and asynchronous `listModels()` to expose selector metadata, then implement `resolveModel()` when exact identity, capacity, an output default, or selectable reasoning efforts are available; an asynchronous resolver must honor its optional cancellation signal. The defaults use bounded normal retry policy with ten retries for transient failures in two delay phases, use the route and model ids as names, advertise no models, and return no capacity, output default, or reasoning metadata.
-- Wrap `llm/stream` via `ctx.on()` waterfall listeners for caching, logging, or routing. A wrapper that retries after emitting a chunk has no durable attempt boundary; shipped agent retry policy therefore uses `agent/request-error` instead.
-=======
 - **Stream one model call** — `ctx.llm.stream(options)` yields raw chunks (token-level deltas) for any registered provider and model; consumers assemble them with `BlockAssembler`.
 - **Register provider adapters** — an adapter owns one or more provider routes, and its registration captures that route's retry policy; registering the same route twice fails with `DUPLICATE_ADAPTER`.
 - **Expose and activate providers through configuration** — adapters declare configurable-provider routes plus a settings namespace, so configuration surfaces can activate dormant providers and edit connection facts without a restart.
 - **Discover and resolve models** — list the models an adapter advertises, interrogate an endpoint for the models it serves, and resolve one exact model's context window, output default, reasoning efforts, and input modalities.
 - **Validate call config** — an explicit or configured reasoning effort is checked against the exact model before any provider I/O, and an adapter-configured output cap is materialized when the request omits one.
->>>>>>> upstream/master
 
 ### Failures and recovery
 

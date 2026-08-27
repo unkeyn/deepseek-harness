@@ -131,7 +131,7 @@ export function pathOps(
 /** The editor layout the owning namespace selects. */
 function layoutOf(ns: string): EditorLayout {
   if (ns === 'llm-deepseek') return 'deepseek'
-  if (ns === 'llm-pi-ai' || ns === 'llm-bearer') return 'pi-ai'
+  if (ns === 'llm-pi-ai') return 'pi-ai'
   return 'unknown'
 }
 
@@ -146,30 +146,7 @@ function refFor(
   const named = typeof profile === 'object' && profile !== null
     ? (profile as { apiKeyEnv?: unknown }).apiKeyEnv
     : undefined
-  if (typeof named === 'string' && named.length > 0) return named
-  const auth = typeof profile === 'object' && profile !== null ? (profile as { auth?: unknown }).auth : undefined
-  const access = typeof auth === 'object' && auth !== null
-    ? (auth as { accessTokenEnv?: unknown }).accessTokenEnv
-    : undefined
-  return typeof access === 'string' && access.length > 0 ? access : deriveKeyRef(provider)
-}
-
-/** Firebase refresh reference selected by an effective Bearer profile. */
-function refreshRefFor(profile: unknown): string | undefined {
-  if (typeof profile !== 'object' || profile === null) return undefined
-  const auth = (profile as { auth?: unknown }).auth
-  if (typeof auth !== 'object' || auth === null) return undefined
-  const refresh = (auth as { refresh?: unknown }).refresh
-  if (typeof refresh !== 'object' || refresh === null) return undefined
-  const ref = (refresh as { refreshTokenEnv?: unknown }).refreshTokenEnv
-  return typeof ref === 'string' && ref.length > 0 ? ref : undefined
-}
-
-/** Whether the effective profile explicitly selected Bearer authorization. */
-function isBearerProfile(profile: unknown): boolean {
-  if (typeof profile !== 'object' || profile === null) return false
-  const auth = (profile as { auth?: unknown }).auth
-  return typeof auth === 'object' && auth !== null && (auth as { type?: unknown }).type === 'bearer'
+  return typeof named === 'string' && named.length > 0 ? named : deriveKeyRef(provider)
 }
 
 /**
@@ -181,13 +158,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   const { namespace, schema, settingsPath, api, t } = props
   const [draft, setDraft] = useState<Record<string, unknown>>(() => draftAt(schema, namespace, settingsPath))
   const [keyDraft, setKeyDraft] = useState('')
-<<<<<<< HEAD
-  const [refreshDraft, setRefreshDraft] = useState('')
-  const [keyState, setKeyState] = useState<CredentialView | undefined>(undefined)
-  const [refreshState, setRefreshState] = useState<CredentialView | undefined>(undefined)
-=======
   const [keyState, setKeyState] = useState<CredentialInfo | undefined>(undefined)
->>>>>>> upstream/master
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | undefined>(undefined)
   // A settings success advances both retry baselines immediately. Keeping the
@@ -203,12 +174,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   const disabled = props.readOnly || busy
   const layout = layoutOf(namespace.ns)
   const keyRef = refFor(schema, namespace, settingsPath, props.provider)
-  const bearer = isBearerProfile(fallback)
-  const refreshRef = refreshRefFor(fallback)
   // The same schema read the create card makes, so the choices offered here
   // and there cannot drift apart: both come from the adapter's own `Config`.
-  // Pi-ai-shaped layouts expose a per-route protocol and rehydrate the whole
-  // section schema; the other layouts skip it.
+  // Only the pi-ai layout has a per-route protocol for the read to find, and
+  // it rehydrates the whole section schema, so the other layouts skip it.
   const protocols = useMemo(
     () => layout === 'pi-ai' ? protocolChoices(namespace, schema) : [],
     [layout, namespace, schema],
@@ -217,29 +186,19 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   useEffect(() => {
     let stale = false
     setKeyState(undefined)
-    setRefreshState(undefined)
     // The key state is a placeholder hint, not a precondition for editing:
     // neither a business rejection nor a transport failure may reach the
     // browser as an unhandled rejection, so the card simply renders without
     // the "already configured" hint.
-<<<<<<< HEAD
-    const refs = refreshRef === undefined ? [keyRef] : [keyRef, refreshRef]
-    void api.credentials.describe({ refs }).then(
-      (response) => {
-        if (stale || !response.result.ok) return
-        setKeyState(response.result.value.credentials[keyRef])
-        if (refreshRef !== undefined) setRefreshState(response.result.value.credentials[refreshRef])
-=======
     void api.credentials.describe([keyRef]).then(
       (response) => {
         if (stale || !response.ok) return
         setKeyState(response.value[keyRef])
->>>>>>> upstream/master
       },
       () => undefined,
     )
     return () => { stale = true }
-  }, [api.credentials, keyRef, refreshRef])
+  }, [api.credentials, keyRef])
 
   const stringAt = (source: unknown, key: string): string | undefined => {
     const value = schema.getPath(source, [key])
@@ -260,7 +219,6 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   // so a bad row is named by its position rather than by a blanket message.
   const modelFailure = validateDeepSeekModels(schema.getPath(draft, ['models']))
   const keyFailure = apiKeyFailure(keyDraft)
-  const refreshFailure = apiKeyFailure(refreshDraft)
   // What a probe or a write must carry: the typed key with paste whitespace
   // removed. A blank field yields an empty string, which both call sites read
   // as "no key supplied" rather than as a key — that is how a card whose
@@ -294,7 +252,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     const ns = namespace.ns
     // A pi-ai profile names the conventional reference only when this page is
     // about to store a key. Otherwise the provider keeps its native auth path.
-    const next = layout === 'pi-ai' && !bearer && stringAt(draft, 'apiKeyEnv') === undefined
+    const next = layout === 'pi-ai' && stringAt(draft, 'apiKeyEnv') === undefined
       && stringAt(fallback, 'apiKeyEnv') === undefined && keyValue.length > 0
       ? schema.setPath(draft, ['apiKeyEnv'], keyRef)
       : draft
@@ -338,13 +296,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       const stored = await api.credentials.set(keyRef, keyValue)
       if (!stored.ok) return stored.error.message
     }
-    const refreshValue = refreshDraft.trim()
-    if (refreshRef !== undefined && refreshValue.length > 0) {
-      const stored = await api.credentials.set({ ref: refreshRef, value: refreshValue })
-      if (!stored.result.ok) return stored.result.error.message
-    }
     setKeyDraft('')
-    setRefreshDraft('')
     return undefined
   }
 
@@ -422,14 +374,14 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     return (
       <>
         <div className={styles['field']}>
-          <span className={styles['fieldLabel']}>{t(bearer ? 'bearerInput' : 'keyInput')}</span>
+          <span className={styles['fieldLabel']}>{t('keyInput')}</span>
           <input
             className={styles['input']}
             type="password"
             autoComplete="off"
             value={keyDraft}
             placeholder={keyPlaceholder}
-            aria-label={t(bearer ? 'bearerInput' : 'keyInput')}
+            aria-label={t('keyInput')}
             aria-invalid={shownKeyFailure !== undefined}
             required={props.credentialRequired === true}
             autoFocus={props.autoFocusCredential === true}
@@ -438,24 +390,6 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
           />
           {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
         </div>
-        {refreshRef === undefined
-          ? null
-          : (
-            <div className={styles['field']}>
-              <span className={styles['fieldLabel']}>{t('refreshInput')}</span>
-              <input
-                className={styles['input']}
-                type="password"
-                autoComplete="off"
-                value={refreshDraft}
-                placeholder={refreshState?.configured === true ? t('keyStored') : t('refreshPlaceholder')}
-                aria-label={t('refreshInput')}
-                disabled={disabled || refreshState?.writable === false}
-                onChange={(event) => { setRefreshDraft(event.target.value) }}
-              />
-              {refreshFailure === undefined ? null : <p className={styles['error']}>{t(refreshFailure)}</p>}
-            </div>
-          )}
         {props.credentialOnly === true ? null : <details className={styles['customized']}>
           <summary className={styles['customizedSummary']}>{t('customized')}</summary>
           <div className={styles['customizedBody']}>
@@ -576,7 +510,6 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
         submitDisabled={disabled || layout === 'unknown'
           || (props.credentialOnly !== true && modelFailure !== undefined)
           || shownKeyFailure !== undefined
-          || refreshFailure !== undefined
           || (props.credentialRequired === true && keyValue.length === 0)}
         submitLabelKey={props.submitLabelKey ?? 'apply'}
         submitBusyLabelKey={props.submitBusyLabelKey ?? 'applying'}

@@ -39,11 +39,7 @@
       "path": "../../credentials/credentials"
     },
     {
-<<<<<<< HEAD
-      "path": "../../credentials/credential-oauth"
-=======
       "path": "../deepseek-llm-api-extensions"
->>>>>>> upstream/master
     },
     {
       "path": "../../util/launch-environment"

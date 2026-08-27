@@ -23,14 +23,8 @@
  */
 
 import { INVALID_CREDENTIAL_CODE, LlmError, normalizeApiKey } from '@deepseek-ai/dsh-llm'
-<<<<<<< HEAD
-import type { LlmDiscoveredModel, LlmModelDiscoveryRequest, ModelModality } from '@deepseek-ai/dsh-llm'
-=======
 import type { LlmDiscoveredModel, LlmModelDiscoveryOperation } from '@deepseek-ai/dsh-llm'
->>>>>>> upstream/master
 import { attributionHeaders } from '@deepseek-ai/dsh-llm'
-import { getSupportedThinkingLevels } from '@earendil-works/pi-ai'
-import type { ModelCatalog } from '@deepseek-ai/dsh-model-catalog'
 import { catalogModels } from './catalog.ts'
 
 /**
@@ -168,91 +162,6 @@ function readListing(body: unknown): LlmDiscoveredModel[] {
 }
 
 /**
- * Capability facts one listing entry gains from a reference catalog. The
- * endpoint's own listing shape carries none of these — an OpenAI-compatible
- * `/models` reply is ids and, on generous gateways, capacities — so every
- * field here is answered by the installed pi-ai catalog first and the shared
- * identity catalog second. Absence states "no reference knows this id", which
- * is its own useful answer for a surface deciding what an adopted row needs.
- */
-interface ModelCapabilities {
-  /** Accepted input modalities; text-only when the catalogs say nothing. */
-  inputModalities?: readonly ModelModality[]
-  /** Reasoning effort levels in escalation order; absent for unknown or non-reasoning models. */
-  reasoningLevels?: readonly string[]
-  /** Combined context capacity per the reference catalog, when it sizes one. */
-  contextWindow?: number
-  /** Output capability per the reference catalog, when it sizes one. */
-  maxTokens?: number
-  /** Whether any reference catalog described the exact id. */
-  catalogMatched: boolean
-}
-
-/**
- * Answer one listing entry's capabilities from the two reference catalogs.
- * The installed pi-ai catalog wins: it is keyed by provider route, so its
- * entry describes what THIS endpoint's siblings speak, not merely what the
- * model is elsewhere. The identity catalog fills the rest by model id.
- * @param provider - the route being interrogated, when known.
- * @param id - the advertised model id.
- * @param identityCatalog - optional shared identity-catalog service.
- * @returns the capabilities both catalogs supply, or the unmatched marker.
- */
-function capabilitiesFor(
-  provider: string | undefined,
-  id: string,
-  identityCatalog: ModelCatalog | undefined,
-): ModelCapabilities {
-  if (provider !== undefined) {
-    const installed = catalogModels(provider)
-    const base = installed.get(id)
-    if (base !== undefined) {
-      return {
-        inputModalities: [...base.input],
-        ...base.reasoning ? { reasoningLevels: [...getSupportedThinkingLevels(base)] } : {},
-        catalogMatched: true,
-      }
-    }
-  }
-  const reference = identityCatalog?.resolve(id)
-  if (reference !== undefined) {
-    const efforts = reference.thinking?.efforts ?? []
-    return {
-      ...reference.input.length === 0 ? {} : { inputModalities: [...reference.input] as readonly ModelModality[] },
-      ...reference.reasoning && efforts.length > 0 ? { reasoningLevels: [...efforts] } : {},
-      ...reference.contextWindow === undefined ? {} : { contextWindow: reference.contextWindow },
-      ...reference.maxTokens === undefined ? {} : { maxTokens: reference.maxTokens },
-      catalogMatched: true,
-    }
-  }
-  return { catalogMatched: false }
-}
-
-/**
- * Attach reference-catalog capabilities to one listing. The listing's own
- * fields win where they overlap — an endpoint disclosing a context window
- * knows its gateway better than a cross-provider reference does — so the
- * reference only fills what the listing left unsaid.
- * @param entry - one parsed listing row.
- * @param capabilities - what the reference catalogs answered.
- * @returns the enriched discovered-model row.
- */
-function withCapabilities(entry: LlmDiscoveredModel, capabilities: ModelCapabilities): LlmDiscoveredModel {
-  return {
-    ...entry,
-    ...entry.contextWindow === undefined && capabilities.contextWindow !== undefined
-      ? { contextWindow: capabilities.contextWindow }
-      : {},
-    ...entry.maxTokens === undefined && capabilities.maxTokens !== undefined
-      ? { maxTokens: capabilities.maxTokens }
-      : {},
-    ...capabilities.inputModalities === undefined ? {} : { inputModalities: capabilities.inputModalities },
-    ...capabilities.reasoningLevels === undefined ? {} : { reasoningLevels: capabilities.reasoningLevels },
-    catalogMatched: capabilities.catalogMatched,
-  }
-}
-
-/**
  * Accept one probe key, or refuse it before the header is built. Without this
  * the `fetch` below would throw a ByteString `TypeError` that this function's
  * catch reports as `could not reach <url>` — blaming the network for a local,
@@ -279,34 +188,25 @@ function usableProbeKey(raw: string): string {
  *   network. A configuration surface never holds a stored secret — it edits a
  *   redacted descriptor — so without this an already-configured route would be
  *   interrogated unauthenticated and answer 401.
- * @param identityCatalog - optional shared identity catalog consulted for the
- *   capabilities (`input`, reasoning levels, capacities) a listing endpoint
- *   never reports, so an unlisted model can still be adopted with correct
- *   metadata.
- * @returns the advertised models in endpoint order, each carrying whatever
- *   capability facts the reference catalogs add.
+ * @returns the advertised models in endpoint order.
  * @throws LlmError when the protocol has no readable listing, the endpoint
  *   refuses or fails the request, or the reply is not a model listing.
  */
 export async function discoverModels(
   request: LlmModelDiscoveryOperation,
   storedApiKey?: () => Promise<string | undefined>,
-  identityCatalog?: ModelCatalog,
 ): Promise<readonly LlmDiscoveredModel[]> {
   // A catalog route already has its answer, and a better one: the installed
   // entries carry context windows and output caps no listing endpoint reports.
   if (request.provider !== undefined) {
     const installed = catalogModels(request.provider)
     if (installed.size > 0) {
-      return [...installed.values()].map((model) => {
-        const entry: LlmDiscoveredModel = {
-          id: model.id,
-          name: model.name,
-          contextWindow: model.contextWindow,
-          maxTokens: model.maxTokens,
-        }
-        return withCapabilities(entry, capabilitiesFor(request.provider, model.id, identityCatalog))
-      })
+      return [...installed.values()].map(model => ({
+        id: model.id,
+        name: model.name,
+        contextWindow: model.contextWindow,
+        maxTokens: model.maxTokens,
+      }))
     }
   }
   if (request.baseURL === undefined || request.baseURL.length === 0) {
@@ -380,5 +280,5 @@ export async function discoverModels(
   } catch (error: unknown) {
     throw new LlmError(`${url} did not answer with JSON`, 'DISCOVERY_FAILED', { cause: error })
   }
-  return readListing(body).map(entry => withCapabilities(entry, capabilitiesFor(request.provider, entry.id, identityCatalog)))
+  return readListing(body)
 }

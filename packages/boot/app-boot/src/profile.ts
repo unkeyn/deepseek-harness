@@ -25,18 +25,12 @@
 
 import { createRequire } from 'node:module'
 import {
-<<<<<<< HEAD
-  existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, symlinkSync, unlinkSync, writeFileSync,
-} from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
-=======
   existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync,
   symlinkSync, unlinkSync, writeFileSync,
 } from 'node:fs'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
->>>>>>> upstream/master
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { applyEntryPatches, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
@@ -256,14 +250,6 @@ function ensureSymlink(link: string, target: string): void {
       // junction as a directory and throws EISDIR unless recursive.
       unlinkSync(link)
     }
-<<<<<<< HEAD
-    const currentTarget = readlinkSync(link)
-    if (currentTarget === target && currentTarget !== link) return
-    // unlink deletes the reparse point itself on Windows too; rmSync treats a
-    // junction as a directory and throws EISDIR unless recursive.
-    unlinkSync(link)
-=======
->>>>>>> upstream/master
   }
   try {
     symlinkSync(target, link, 'junction')
@@ -440,37 +426,6 @@ function packageProxySource(
 }
 
 /**
-<<<<<<< HEAD
- * Maintain the flat module fallback `$DSH_HOME/profiles/node_modules`: one
- * symlink per package in the dsh app's resolvable dependency CLOSURE (BFS
- * over `dependencies` from the app manifest), each resolved from its own
- * real location. Node's parent-directory walk from any profile finds this
- * directory after the profile's own `node_modules`, so every in-box plugin
- * resolves without pnpm ever managing it — the exact "bundles come from the
- * installation" contract. The closure (not just direct dependencies) is
- * required for out-of-tree plugins: their peer dependencies name Service
- * Definition packages (`dsh-compaction`, `dsh-invariants`, ...) that the app
- * reaches only through its Service Provider packages. Symlinked packages
- * resolve their own dependencies from their real directories (Node's default
- * symlink-following), so each package needs only its one flat link.
- * Idempotent: correct links are kept and moved installations are
- * re-pointed; a stale link to a vanished package stays until its name is
- * reused (dangling links are invisible to resolution).
- * @param installAnchor - absolute path of the dsh app's package.json.
- * @param home - the Harness home; defaults to {@link resolveDshHome}.
- * @param additionalAnchors - package manifests for loaded out-of-tree bundles;
- * their dependency closures are added after the installation closure.
- */
-export function healProfilesModuleFallback(
-  installAnchor: string,
-  home: string = resolveDshHome(),
-  additionalAnchors: readonly string[] = [],
-): void {
-  const profilesDir = join(home, PROFILES_DIR)
-  const modulesDir = join(profilesDir, 'node_modules')
-  mkdirSync(modulesDir, { recursive: true })
-  const appManifest = JSON.parse(readFileSync(installAnchor, 'utf8')) as ProfileManifest
-=======
  * Materialize a real package proxy whose exports retain pkg's virtual module
  * URL. Files outside the executable cannot traverse a symlink into
  * `/snapshot`, while an ESM re-export can import that URL and preserves the
@@ -543,18 +498,12 @@ function resolveModuleFallbackEntries(
   installAnchor: string,
 ): { entries: ModuleFallbackEntry[]; packageNames: ReadonlySet<string> } {
   const appManifest = readModuleFallbackManifest(installAnchor)
->>>>>>> upstream/master
   const links = new Map<string, string>()
   /* v8 ignore next -- a real app manifest always declares its name */
   if (appManifest.name !== undefined) links.set(appManifest.name, dirname(installAnchor))
   // BFS over the resolvable dependency graph; the visited set is the link
   // map itself (first resolution wins, matching Node's own nearest-wins).
   const queue: { anchor: string; manifest: ProfileManifest }[] = [{ anchor: installAnchor, manifest: appManifest }]
-  for (const anchor of additionalAnchors) {
-    const manifest = JSON.parse(readFileSync(anchor, 'utf8')) as ProfileManifest
-    if (manifest.name !== undefined && !links.has(manifest.name)) links.set(manifest.name, dirname(anchor))
-    queue.push({ anchor, manifest })
-  }
   for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
     // Peer dependencies participate: Service Definition packages (dsh-subprocess,
     // dsh-compaction, ...) are peers of their implementations, never plain
@@ -562,7 +511,7 @@ function resolveModuleFallbackEntries(
     /* v8 ignore next -- a real app manifest always declares dependencies */
     for (const dep of profileDependencyNames(next.manifest)) {
       if (links.has(dep)) continue
-      const dir = packageDirFromAnchor(next.anchor, dep, modulesDir)
+      const dir = packageDirFromAnchor(next.anchor, dep)
       // A declared-but-uninstalled dependency cannot be a loader-visible
       // plugin; skip it rather than fail the whole boot.
       if (dir === undefined) continue
@@ -801,24 +750,13 @@ function normalizeShippedProfile(name: string, dir: string, manifest: ProfileMan
  * matches what the Loader would import from the same anchor, and
  * `existsSync` follows the symlinks pnpm's isolated layout uses.
  */
-<<<<<<< HEAD
-function packageDirFromAnchor(anchor: string, packageName: string, excludedNodeModulesDir?: string): string | undefined {
-  // Out-of-tree bundles are commonly linked into a profile. Resolve their
-  // dependency search paths from the real package location; otherwise Node
-  // searches from the profile-side junction and can select the fallback link
-  // currently being repaired, producing a self-referential junction.
-  const resolutionAnchor = realpathSync(anchor)
-  const excluded = excludedNodeModulesDir === undefined ? undefined : resolve(excludedNodeModulesDir)
-=======
 function packageDirFromAnchor(
   anchor: string, packageName: string,
   exclude: (candidate: string, packageName: string) => boolean = () => false,
 ): string | undefined {
->>>>>>> upstream/master
   // resolve.paths returns null only for builtins, which no bundle name is.
   /* v8 ignore next */
-  for (const searchPath of createRequire(resolutionAnchor).resolve.paths(packageName) ?? []) {
-    if (excluded !== undefined && resolve(searchPath) === excluded) continue
+  for (const searchPath of createRequire(anchor).resolve.paths(packageName) ?? []) {
     const candidate = join(searchPath, packageName)
     if (existsSync(join(candidate, 'package.json')) && !exclude(candidate, packageName)) return candidate
   }

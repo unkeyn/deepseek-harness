@@ -153,14 +153,6 @@ afterEach(() => {
 })
 
 describe('AppFrame', () => {
-<<<<<<< HEAD
-  it('suppresses the browser context menu inside the application frame', () => {
-    const { frame } = mountFrame()
-    const child = frame.querySelector('[data-testid="center-content"]')!
-    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
-    expect(child.dispatchEvent(event)).toBe(false)
-    expect(event.defaultPrevented).toBe(true)
-=======
   it('localizes the product title when the build does not supply one', () => {
     mountFrame()
     expect(document.title).toBe('DSH Local Build')
@@ -179,7 +171,6 @@ describe('AppFrame', () => {
     selectedSession.current = undefined
     act(() => { rerenderFrame() })
     expect(document.title).toBe('Product')
->>>>>>> upstream/master
   })
 
   it('renders three tracks from store state', () => {

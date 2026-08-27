@@ -101,45 +101,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
       scope: 'session'
       owner: ConversationHeaderLineageOwnerProps
     }
-<<<<<<< HEAD
-    /** Optional renderer for one consecutive group of durable message images. */
-    'conversation.message.images': { kind: 'single'; scope: 'session'; owner: MessageImagesOwnerProps }
-    /**
-     * The chat view's per-command row hole: keyed dispatch on the command
-     * name (`command/run.name`; a run-less cross-window node has none and
-     * always lands on the fallback). Declared by the chat view entry; the
-     * render site dispatches via `entryKey: name` with GenericCommandCard as
-     * the `fallback` — a slash command renders durably with zero
-     * registration, and a domain upgrades by registering one row component.
-     */
-    'conversation.chat.commandview': { kind: 'keyed'; scope: 'session'; owner: CommandRowOwnerProps }
-    /**
-     * One assistant reasoning block's presentation seat inside the message
-     * flow (the Think disclosure). Declared by the assistant-step entry; the
-     * render site dispatches with the built-in Think row as the `fallback` —
-     * reasoning stays visible with zero registration, and a presenter plugin
-     * upgrades every block by registering one component.
-     */
-    'conversation.chat.reasoning': { kind: 'single'; scope: 'session'; owner: ReasoningOwnerProps }
-    /**
-     * The completed Turn Node's extension chain, rendered before that Node's
-     * IconActions. Entries derive a match from the engine-owned Turn and
-     * closing seq before mounting, so presentation components never mount
-     * only to return null; an all-declined chain renders nothing.
-     */
-    'conversation.chat.turnTail': { kind: 'chain'; scope: 'session'; owner: TurnTailOwnerProps }
-    /**
-     * Action strip attached to one finalized assistant message, rendered
-     * inside that message's IconActions row. The chat entry owns the render
-     * site and passes the addressed message identity; contributors add
-     * per-message actions without importing the conversation implementation.
-     * Entries render by ascending `order`.
-     */
-    'conversation.chat.assistant-actions': {
-=======
     /** Title-adjacent Session actions in ascending order. */
     'conversation.session.header.actions': {
->>>>>>> upstream/master
       kind: 'list'
       scope: 'session'
       owner: ConversationHeaderActionOwnerProps
@@ -246,135 +209,7 @@ export interface ConvViewOwnerProps {
   completeViewRequest: () => void
 }
 
-<<<<<<< HEAD
-/**
- * Optional prose file-mention provider, consumed via `ctx.get('chatFileMentions')`
- * (optional-service convention): the chat view asks it for a closing message's
- * inline-code vocabulary and threads the result into MarkdownText. Absent
- * service — the providing plugin composed out of cordis.yml — turns the
- * surface off; the prose renders inert code.
- */
-export interface ChatFileMentions {
-  /**
-   * Mention vocabulary for the closing message the owner currency names.
-   * @param owner - Turn-tail owner currency (Turn data, closing seq, opener).
-   * @returns The resolver MarkdownText consumes, or undefined when the turn
-   * produced nothing worth linking.
-   */
-  forClosing(owner: TurnTailOwnerProps): MarkdownFileMentions | undefined
-}
-
-declare module '@deepseek-ai/cordis' {
-  interface Context {
-    /** Prose file-mention provider (ui-deliverables); reach via ctx.get — optional. */
-    chatFileMentions: ChatFileMentions
-  }
-}
-
-/**
- * Owner currency of the chat view's turn-tail hole: the engine-owned Turn and
- * the closing assistant's anchor. Registrants read their own typed Turn data
- * and open files through the same opener the tool rows use.
- */
-export interface TurnTailOwnerProps {
-  /** Engine-owned closing Turn boundary. */
-  turn: TurnLocation
-  /** The closing assistant's seq — the anchor the tail renders under. */
-  seq: number
-  /**
-   * Open a filesystem path through the Host (tool-row semantics; the chat
-   * view resolves relative paths against the session cwd).
-   */
-  openFile: (path: string) => void
-}
-
-/**
- * Owner currency of the assistant-message action strip: the durable identity
- * of the one finalized message the contributed actions address. Only finalized
- * messages reach this slot, so the id is always present.
- */
-export interface AssistantActionOwnerProps {
-  /** Stable identity carried from the `assistant/message` event. */
-  messageId: MessageId
-}
-
-/** Hook constrained to business data published on the current Chat Node's Turn. */
-export type UseChatNodeTurnData = <Key extends Extract<keyof ConversationTurnDataMap, string>>(
-  key: Key,
-) => Readonly<ConversationTurnDataMap[Key]> | undefined
-
-/** Slot-level Hook factory used by renderers reading their Node's Turn data. */
-export interface ChatNodeTurnDataInjected {
-  hooks: {
-    turnData: SlotHookFactory<'conversation.chat.node', UseChatNodeTurnData>
-  }
-}
-
-/** Stable owner currency delivered to one keyed Chat business renderer. */
-export interface ChatNodeOwnerProps {
-  /** Selected Tool call, when the shared details store names one. */
-  selectedCallId?: CallId | undefined
-  /** Session workspace root; Tool summaries display paths relative to it. */
-  cwd?: string | undefined
-  openFile: (path: string) => void
-  inspectCall: (callId: CallId) => void
-  forkAt: (seq: number) => void
-  /** Render a historical image group through the attachment slot. */
-  renderMessageImages: RenderMessageImages
-  fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
-}
-
-/** Full props of one registered keyed Chat business renderer. */
-export type ChatNodeViewProps<Kind extends ChatNodeKind = ChatNodeKind> =
-  PropsRuntime<'conversation.chat.node', Kind> & PropsLocale<'conversation'>
-
-/** Owner currency of the details panel's Tool output renderer. */
-export interface DetailsToolOwnerProps {
-  /** Frozen selected call slice. */
-  block: ToolCallBlock
-  /** Session workspace root for card cwd and relative-path display. */
-  cwd?: string | undefined
-}
-
-/**
- * Owner share of the per-command row slot: the frozen {@link CommandNode}
- * slice off the snapshot (cache-stable reference — memo premise). The node
- * carries the whole lifecycle (structured name/args, pairing id, and
- * outcome-or-executing). A successful domain command may also carry the
- * explicitly linked projection node needed to fold two log records into one
- * presentation row.
- */
-export interface CommandRowOwnerProps {
-  /** Folded command lifecycle node (run + optional done). */
-  node: CommandNode
-  /** Explicitly linked compaction checkpoint for the settled `/compact` presentation. */
-  compaction?: CompactionSummaryNode
-}
-
-/** Owner currency of one reasoning block's presentation seat. */
-export interface ReasoningOwnerProps {
-  /** Complete or streaming reasoning text. */
-  text: string
-  /** Whether this block is the streaming tail of the running turn. */
-  running: boolean
-  /** The chat view's locale seat, forwarded for state announcements. */
-  t: ChatViewSlotProps['t']
-}
-
-/** Full props of a registered command-row component. */
-export type CommandRowProps = PropsRuntime<'conversation.chat.commandview'>
-
-/**
- * Base props of a conversation view entry: the framework standard kit for the
- * session-scope 'conversation.view' slot (useSession narrowed to the
- * conversation snapshot by the runtime merge, sessionId, useSessions).
- * Entries declaring the shared store or an inject face compose their shares
- * on top (the chat entry's {@link ChatViewSlotProps}); store-less pure
- * readers (ui-trajectory) take this base alone.
- */
-=======
 /** Base props of one target-owned Conversation View entry. */
->>>>>>> upstream/master
 export type ConvViewProps = PropsRuntime<'conversation.view'>
 
 /** Business callbacks injected into the resident Conversation shell. */
@@ -440,22 +275,10 @@ export interface ComposerBarInjected {
   toggleCommandMenu: ((selection: EditSelection) => void) | undefined
   stop: (() => void) | undefined
   command: ((line: string) => Promise<boolean>) | undefined
-<<<<<<< HEAD
-  /** Persist one automatic compaction threshold selection. */
-  setCompactionThreshold: (value: number) => void
-  /**
-   * Registrant hooks compartment: the renderer binds these to
-   * useNotices/useLexicon/useCompactionThreshold (static absent sources without a session — hook
-   * order stays constant).
-   */
-=======
->>>>>>> upstream/master
   hooks: {
     notices: ObservableSnapshot<InputNotice | null>
     lexicon: ObservableSnapshot<ReadonlyMap<'/' | '@', readonly string[]>>
     menuLauncher: ObservableSnapshot<string | null>
-    /** Host-backed automatic compaction threshold percentage. */
-    compactionThreshold: ObservableSnapshot<number>
   }
 }
 

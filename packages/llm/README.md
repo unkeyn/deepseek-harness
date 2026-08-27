@@ -24,14 +24,6 @@ The llm group provides the harness's model-call capability: one provider-neutral
 
 | Package | Role | ctx key |
 |---|---|---|
-<<<<<<< HEAD
-| [`llm/`](llm/README.md) | LLM service and shared streaming vocabulary | `ctx.llm` |
-| [`token-meter/`](token-meter/README.md) | Replay-aware token measurement | `ctx.tokenMeter` |
-| [`llm-retry/`](llm-retry/README.md) | Provider-scoped retry policy | listens to `agent/request-error` |
-| [`llm-deepseek/`](llm-deepseek/README.md) | Direct DeepSeek adapter | registers on `ctx.llm` |
-| [`llm-pi-ai/`](llm-pi-ai/README.md) | Multi-provider pi-ai adapter | registers on `ctx.llm` |
-| [`llm-bearer/`](llm-bearer/README.md) | Bearer/Firebase TwinMind adapter | registers on `ctx.llm` |
-=======
 | [`llm/`](llm/README.md) | Streams one model call through a registered provider adapter and shares the harness message, block, and chunk vocabulary | `ctx.llm` |
 | [`llm-deepseek/`](llm-deepseek/README.md) | Serves the `deepseek-official` route with direct DeepSeek chat-completions, thinking, and image input | registers on `ctx.llm` |
 | [`llm-pi-ai/`](llm-pi-ai/README.md) | Serves configured provider routes through pi-ai catalogs and wire protocols, including hand-declared gateways | registers on `ctx.llm` |
@@ -39,7 +31,6 @@ The llm group provides the harness's model-call capability: one provider-neutral
 | [`plugin-package-inventory-deepseek/`](plugin-package-inventory-deepseek/README.md) | Contributes the active Loader package inventory to official DeepSeek requests | contributes `dsh_plugin_packages` |
 | [`llm-retry/`](llm-retry/README.md) | Retries failed model requests under each provider's policy at durable agent-step boundaries | listens to `agent/request-error` |
 | [`token-meter/`](token-meter/README.md) | Measures request and context pressure from the durable session log with a fixed heuristic | `ctx.tokenMeter` |
->>>>>>> upstream/master
 
 -----
 

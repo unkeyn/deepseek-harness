@@ -36,34 +36,6 @@ kind: "package-reference"
 ```yaml
 - name: '@deepseek-ai/dsh-llm-deepseek'
   config:
-<<<<<<< HEAD
-    apiKeyEnv: DEEPSEEK_API_KEY  # default; resolved per request via ctx.credentials, then the environment
-    baseURL: https://api.deepseek.com # optional; $DEEPSEEK_BASE_URL then the public API when omitted
-    thinking: enabled        # optional; provider default is enabled
-    reasoningEffort: high    # optional; off | low | high | max — omitted ⇒ high
-    maxTokens: 256000        # optional positive per-request output cap; this is the default
-    streamIdleTimeoutMs: 60000 # optional; positive finite Node timer delay; one-minute default
-    maxRequestImageBytes: 20971520 # optional positive integer; 20 MiB base64-payload default
-    retryPolicy:             # optional; omission uses ten retries in two phases
-      mode: always           # normal | always
-      backoff:
-        initialDelayMs: 500
-        maxDelayMs: 10000
-        jitterRatio: 0.1
-    defaultContextWindow: 1000000 # optional positive-integer fallback; this is the default
-    models:                  # optional; defaults to V4 Flash and V4 Pro
-      - id: deepseek-v4-flash
-        name: DeepSeek-V4-Flash
-      - id: private-vision
-        name: Private Vision
-        inputModalities: [text, image]
-      - id: private-reasoner
-        description: Company-hosted reasoning model
-        contextWindow: 512000
-```
-
-该插件注册唯一提供方路由 `deepseek-official`，并一同注册解析后的 `retryPolicy`；省略时会解析为 normal 模式并在两个延迟阶段重试十次。请求使用 `provider: deepseek-official` 选择该路由；其 `model` 会作为协议 `model` 字符串原样传递，因此更改 DeepSeek 模型不需要生命周期时注册。省略 `models` 会公布 `deepseek-v4-flash` 和 `deepseek-v4-pro`，两者的上下文窗口均为 1,000,000 token；显式列表会替换这些默认值，`models: []` 则不公布任何模型。在视觉模型端点完成发布前，默认目录不会公布视觉模型，但部署方可以通过 `inputModalities: [text, image]` 主动添加。Catalog 配置项通过 `ctx.llm.listModels('deepseek-official')` 公开给 ACP（Agent Client Protocol）编辑器和 Web 选择器等客户端，但仍只提供建议：未列出模型 id 仍原样传递。省略配置项 name 默认为其 id，省略 `inputModalities` 则表示仅支持 `text`。
-=======
     apiKeyEnv: DEEPSEEK_API_KEY  # credential reference, resolved per request
     baseURL: https://api.deepseek.com # optional; $DEEPSEEK_BASE_URL then this default
     reasoningEffort: high        # optional; off | low | high | max
@@ -75,7 +47,6 @@ kind: "package-reference"
 ```
 
 请求用 `provider: deepseek-official` 选择路由；模型 id 原样传到协议，因此新增 DeepSeek 模型无需重新注册。省略 `models` 时会公布适合专注任务、快速且经济的 `deepseek-v4-flash`，适合复杂或质量关键任务、能力更强且成本更高的 `deepseek-v4-pro`，以及支持图像的 `deepseek-v4-flash-vision-exp`；每个模型都有 1,000,000 token 上下文窗口。显式列表会替换这些默认值，未列出的模型 id 仍作为纯文本路由原样通过。包括模型发现工具在内的客户端可通过 `ctx.llm.listModels('deepseek-official')` 读取这些建议性条目。支持图片的条目可把 `imagePixelBudget` 设置为正整数或 `low`，也可以设置 `imageMaxBytes`。
->>>>>>> upstream/master
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
@@ -207,14 +178,6 @@ loop 保留的响应块会追加到下一个请求，并保留其更早的可复
 
 ## 已知限制与延期工作
 
-<<<<<<< HEAD
-- **OAuth 路由组合目前仅支持编程方式**：`createDeepSeekOAuthAdapter` 将调用方拥有的 `OAuthLifecycle` 和提供方拥有的 `ProviderOAuthAdapter` 组合到 DeepSeek 路由。Loader 目前无法配置它，因为还没有 DeepSeek OAuth 回调／刷新提供方，也没有账户到 credential broker 的映射；缺少这些所有者时增加 Loader 条目不会产生可用的 OAuth 路由。
-- **settings 的 `models` 列表会整体替换组合列表**：settings 层按字段合并，而数组是单个字段；按条目合并 catalog 需要带键的形状。
-- **未映射 `tool_choice`**：它不属于核心词汇（MVP 取舍，与 pi-ai twin 共享）。
-- **请求使用原始 `fetch`，而非 `@cordisjs/plugin-http`**：没有共享 proxy／拦截配置；采用暂缓到第二个适配器需要该功能时（`TODO(http)`）。
-- **会跳过插件添加的内容块类型**：核心文本与支持的图片块会被序列化，空工具输出会以字面 `(no output)` 通过协议发送。
-- **图片是仅输入的持久附件**：不支持直接外部 URL、Files API 和 assistant 图片输出。
-=======
 <a id="known-limitations-and-deferred-work"></a>
 
 
@@ -238,4 +201,3 @@ loop 保留的响应块会追加到下一个请求，并保留其更早的可复
 - `off` 推理强度绝不会以 `reasoning_effort: 'off'` 过线；它序列化为 `thinking: { type: 'disabled' }` 并省略该字段，从而对拒绝未知强度取值的网关保持协议拼写有效。
 
 </details>
->>>>>>> upstream/master
