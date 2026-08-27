@@ -204,7 +204,7 @@ function capabilitiesFor(
     const base = installed.get(id)
     if (base !== undefined) {
       return {
-        ...base.input === undefined ? {} : { inputModalities: [...base.input] },
+        inputModalities: [...base.input],
         ...base.reasoning ? { reasoningLevels: [...getSupportedThinkingLevels(base)] } : {},
         catalogMatched: true,
       }
@@ -298,8 +298,8 @@ export async function discoverModels(
         const entry: LlmDiscoveredModel = {
           id: model.id,
           name: model.name,
-          ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
-          ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
+          contextWindow: model.contextWindow,
+          maxTokens: model.maxTokens,
         }
         return withCapabilities(entry, capabilitiesFor(request.provider, model.id, identityCatalog))
       })

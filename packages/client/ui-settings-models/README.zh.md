@@ -12,6 +12,12 @@
 
 每一次编辑都以 `settings.mutate` 的路径 op 落到已存分节上——每个变更字段一条 set、每个清空字段一条 unset、删除提供方行则是单独一条 unset。页面自始至终只持有**脱敏后**的 descriptor，因此它只修改自己看得见的字段，而不重建分节。DeepSeek 的 `models` 是一个按值整体替换的数组：编辑器会显示继承而来的生效模型行，直到第一次模型编辑将完整数组具化到用户层；重置则会取消该覆盖。每个模型行承载模型 ID 与显示名称，其上下文窗口与最大输出 token 数则收在该行自己的折叠区里，使用与 pi-ai 提供方表单相同的字段。两项容量都按数值键入，可带十进制的 `K` 或 `M` 后缀（`256K`、`1M`；`1M` 即 1000K），存储为纯数值，回显时写成能够往返的最短形式。空 ID、重复 ID、显式填写的空名称，以及无法读取、非正数或非整数的容量都会在写入前失败。键入的 API 密钥同样在它自己的字段上被判定：trim 之后必须非空，且每个字符都是可打印 ASCII（`[\x21-\x7E]`）——这正是 HTTP 标头值所能承载的范围，是 `@deepseek-ai/dsh-llm` 中 `normalizeApiKey` 的孪生体，因源码平面分割禁止直接引入而在此镜像。与整行粘贴的 `NAME=value` 环境变量匹配或首尾成对引号包裹的值，会以同一条格式失败被拒绝；这项粘贴行检查只在浏览器中运行，因为 resolver 中的一次误判会连带让环境变量这条路也拒绝该密钥。只含空白的输入框会失败而不是被静默丢弃；留空则完全不是失败：在编辑卡片上意味着保持已存储的密钥，在新建卡片上则意味着以其他方式鉴权。被拒绝的密钥会同时拦截写入与端点探测，因此页面不会白花一次往返去换取字段上已经写明的答案。每次 settings 写入都携带卡片当前的 `revision`，因此来自另一个标签页或对 `settings.yaml` 的外部编辑所产生的并发写入会以 `settings-conflict` 被拒绝；settings 提交成功后，卡片会在存储凭据前采用响应返回的脱敏用户子树与 revision，因此凭据阶段失败时，重试只会重复该阶段。删除操作只会在 profile 指向页面派生的 `<ROUTE>_API_KEY` 目标时清除已配置且可写的凭据，随后取消设置 profile；两项操作都具备幂等性，部分失败会停留在点名目标的确认对话框中供重试。环境凭据、自定义引用和无法识别目标的凭据保持不变。页面加载完成后会直接订阅转发的 owner 事件 `settings/document-updated`、`credentials/updated`、`llm/adapters-updated`，以及本地 `connection/reset`，因此外部的 `settings.yaml` 编辑、第二个标签页或 settings 新生的路由都无需轮询即可收敛。
 
+## Bearer 凭据
+
+**添加 Bearer 提供方**会打开由 `llm-bearer` namespace 支持的独立创建卡片；**添加自定义提供方**仍是由 `llm-pi-ai` 支持的 API-key 路径。Bearer 卡片把主 secret 写入 `auth.accessTokenEnv`，把 Firebase refresh secret 写入 `auth.refresh.refreshTokenEnv`，并使用派生的 `<ROUTE>_BEARER_TOKEN` 与 `<ROUTE>_REFRESH_TOKEN` 引用。TwinMind 会默认填入 endpoint、protocol、模型 `auto`、自动 refresh 与公开 Firebase Web API key。
+
+可选的 cookie 导入字段接受浏览器 cookie 导出数组，并完全在 client 内解析。它要求 `app.twinmind.com` 下名称精确匹配的 `session` 与 `firebase_refresh_token` cookie，忽略其他所有 cookie，只把这两个值复制到 credential 草稿，然后立即清空原始 JSON。由于源 cookie 跨源且带 `HttpOnly`，浏览器无法直接提取。启用 refresh 时，行会联接并要求两个 credential reference；只有当它们与页面派生名称完全匹配时，删除路由才会一并删除它们。
+
 ## 模型列表与端点询问
 
 模型行只编辑标识与可选容量。推理级别与支持的输入属于运行时能力，由 Host 模型 catalog 自动解析，不在该界面中手工声明。每次编辑模型行都会保留未知字段；上下文与输出容量仍收在该行的折叠区内。
@@ -21,6 +27,8 @@ pi-ai profile 的 `models` 列表就在卡片上编辑：一行一个模型，�
 **获取可用模型**会针对表单**当前显示**的端点调用 `llm.discoverModels`，包括已修改但尚未保存的 API 地址和已键入但尚未存储的密钥，因此新增一个提供方是一趟走完，而不是「先保存再回来」。回复会打开一个选择框而不是直接写入：已配置过的候选默认不勾选，因此采纳一次选择绝不会覆盖用户已更正的容量。**全选**／**取消全选**只会改变选择框当前的勾选状态；点击**添加所选**之前不会写入任何内容。无法被询问的提供方只是绕路而非死路——适配器自己的消息会显示在各行旁边，而这些行仍可手工编辑。
 
 **添加自定义提供方**用来声明 pi-ai 未提供的路由。它是独立的一张卡片而非在编辑器上加字段，因为路由 id 正是在这里被*选定*的，而在选定之前 settings 地址并不存在：一次 `settings.mutate` 在 `providers.<route>` 上设置整个 profile，密钥则经 `credentials.set` 单独传递，使用与既有提供方相同的 `<ROUTE>_API_KEY` 派生。手工声明的路由无法默认的东西会门控创建按钮——唯一的 **Provider ID**、端点、协议，以及至少一个标识唯一的模型——因此失败会在用户仍看着该字段时点名它。该 id 必须以小写字母开头，因为它同时是派生凭据引用的词干，而引用是 POSIX shell 标识符：数字开头的 id 否则会通过这张卡片的每一项检查，然后在凭据 seam 上抛出原始正则表达式错误。容量不参与门控：端点只按 id 描述的模型（这正是多数列表返回的形态）由适配器的回退值定尺寸。协议选项读自该 namespace 自己的 schema，而非某个协议字段或常量，因此它们不会与适配器实际接受的集合发生漂移。只有键入了密钥，这张卡片才记录约定的 `apiKeyEnv` 引用，与编辑器同一条规则，因此一条为提供方原生认证声明的路由不会一出生就指向一个永远不会被设置的引用。当 profile 写入成功而密钥写入失败时，提供方已经存在：卡片会把描述它的字段定住，只重试凭据——再跑一次 profile 写入会带着刚被自己这次写入取代的 revision，宿主将以 `settings-conflict` 应答，密钥就再也无法从这里存下——并且即使用户随后取消，也照实报告提供方已创建。
+
+Bearer 创建会先把完整 profile 写入 `llm-bearer`，再分别通过 `credentials.set` 存储 access 与 refresh 值。secret 写入失败时，提供方保持可见且可以重试，不会用旧 revision 重放 profile mutation。API-key 创建仍位于 `llm-pi-ai`，并原样保留 `<ROUTE>_API_KEY` 与无引用的原生鉴权。
 
 ## 模型体验
 
@@ -34,6 +42,6 @@ pi-ai profile 的 `models` 列表就在卡片上编辑：一行一个模型，�
 
 - **卡片上可编辑的只有 API 密钥与精选折叠区字段**：手写编辑器用 schema 通用的字段覆盖面换来了设计稿上的布局（[Agent Note](../../../.agents/notes/implemented/architecture/2026-07-30-web-config-plane.md)）。两个家族都公开 `baseURL` 与模型的 `id`/`name`/`contextWindow`/`maxTokens`；手工声明的 pi-ai 路由还公开 `displayName` 与 `api`。重试策略、超时、DeepSeek 模型说明及其他进阶字段仍留在 `settings.yaml` 中；编辑器未展示的现有模型字段会予以保留。不带这些约定字段的 profile schema 只渲染该提示，两套精选布局则以 `llm-deepseek`/`llm-pi-ai` 这两个 namespace 的名字为键。
 - **凭据清理范围刻意保持狭窄**：删除一行时，仅当其引用与页面派生的 `<ROUTE>_API_KEY` 目标完全一致，才会清除已配置且可写的凭据。自定义引用、环境凭据和无法识别的目标会保留，因为该行无法证明自己拥有它们。
-- **只有 pi-ai 路由可以手工声明**：自定义提供方卡片写入 `llm-pi-ai`——唯一一个其 profile 描述整个提供方的 namespace。`llm-deepseek` 路由是组合面的事实，不是本页能创建的东西。
+- **手工声明路由使用两个明确家族**：API-key 创建写入 `llm-pi-ai`，Bearer 创建写入 `llm-bearer`。`llm-deepseek` 路由是组合面的事实，不是本页能创建的东西。
 - **询问只覆盖 OpenAI 兼容端点**：适配器只读这种模型列表响应格式，因此讲其他协议的网关会报告自己无法被询问，其模型需手工填写。
 - **未声明的存活路由无处渲染**：未附带可配置提供方声明即注册的路由没有 settings 地址；它在各选择器中仍然可见，但不会出现在本页的行里。

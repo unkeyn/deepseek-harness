@@ -1,7 +1,6 @@
 /**
- * The card that declares a provider pi-ai does not ship — an OpenAI-compatible
- * gateway, a self-hosted server, or a provider newer than the installed
- * catalog.
+ * Cards that declare either an API-key pi-ai route or a dedicated Bearer
+ * route, with one settings write followed by write-only credential storage.
  *
  * This is a create, not an edit, which is why it is its own card rather than
  * the provider editor with extra fields: the route id is being *chosen* here,
@@ -29,12 +28,20 @@ import { EditorFooter } from './EditorFooter.tsx'
 import { validateDeepSeekModels } from './DeepSeekModelsEditor.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
 import type { ModelDraft } from './ModelListEditor.tsx'
-import { deriveKeyRef, messageOf } from './store.ts'
+import { deriveBearerRef, deriveKeyRef, deriveRefreshRef, messageOf } from './store.ts'
+import { twinMindCredentialsFromCookieJson } from './twinMindCookieImport.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
 /** The settings namespace a hand-declared provider is written into. */
-const NS = 'llm-pi-ai'
+const API_KEY_NS = 'llm-pi-ai'
+const BEARER_NS = 'llm-bearer'
+
+/** TwinMind's public web-client defaults; secrets are never embedded here. */
+const TWINMIND_BASE_URL = 'https://api2.twinmind.com'
+const TWINMIND_FIREBASE_API_KEY = 'AIzaSyD2Sd_NP3vA4rwvoroKqDefpXZeCMDXcIQ'
+
+type AuthMethod = 'api-key' | 'bearer'
 
 /**
  * A route id usable as a settings key AND as the stem of a credential name.
@@ -52,8 +59,12 @@ export interface CustomProviderCardProps {
   taken: readonly string[]
   /** Wire protocols the adapter can serve, in the order it reports them. */
   protocols: readonly string[]
+  /** Fixed credential family for this entry point. */
+  authorization?: AuthMethod
+  /** Settings namespace owned by the selected adapter family. */
+  namespace?: string
   /**
-   * Revision of the `llm-pi-ai` user section this card opened at, sent with
+   * Revision of the owning provider namespace this card opened at, sent with
    * the create so a route another tab declared meanwhile is a refusal rather
    * than a silent overwrite of its whole profile.
    */
@@ -75,15 +86,23 @@ export interface CustomProviderCardProps {
  */
 export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
   const { taken, protocols, api, t } = props
+  const authMethod = props.authorization ?? 'api-key'
+  const namespace = props.namespace ?? API_KEY_NS
+  const bearer = authMethod === 'bearer'
   // Captured at mount, like the editor's: the write must be judged against the
   // section this card was drafted over, not whatever it grew into meanwhile.
   const [openedAt] = useState(() => props.revision)
-  const [route, setRoute] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [baseURL, setBaseURL] = useState('')
+  const [route, setRoute] = useState(bearer ? 'twinmind' : '')
+  const [displayName, setDisplayName] = useState(bearer ? 'TwinMind' : '')
+  const [baseURL, setBaseURL] = useState(bearer ? TWINMIND_BASE_URL : '')
   const [protocol, setProtocol] = useState(protocols[0] ?? '')
   const [keyDraft, setKeyDraft] = useState('')
-  const [models, setModels] = useState<readonly ModelDraft[]>([])
+  const [autoRefresh, setAutoRefresh] = useState(bearer)
+  const [refreshDraft, setRefreshDraft] = useState('')
+  const [firebaseApiKey, setFirebaseApiKey] = useState(bearer ? TWINMIND_FIREBASE_API_KEY : '')
+  const [models, setModels] = useState<readonly ModelDraft[]>(bearer ? [{ id: 'auto' }] : [])
+  const [cookieDraft, setCookieDraft] = useState('')
+  const [cookieFailure, setCookieFailure] = useState<string | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | undefined>(undefined)
   /**
@@ -92,6 +111,8 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
    * the credential alone.
    */
   const [committed, setCommitted] = useState(false)
+  const [primaryStored, setPrimaryStored] = useState(false)
+  const [refreshStored, setRefreshStored] = useState(false)
   const disabled = props.readOnly || busy
   /** Everything but the key stops being editable once the provider exists. */
   const profileDisabled = disabled || committed
@@ -107,16 +128,20 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
   // string, which the create path reads as "no key supplied" — a route may
   // legitimately authenticate through the provider's own ambient discovery.
   const keyValue = keyDraft.trim()
+  const refreshValue = refreshDraft.trim()
+  const bearerMissing = authMethod === 'bearer' && keyValue.length === 0
+  const refreshMissing = authMethod === 'bearer' && autoRefresh && refreshValue.length === 0
+  const firebaseApiKeyMissing = authMethod === 'bearer' && autoRefresh && firebaseApiKey.trim().length === 0
   const ready = route.length > 0 && !routeInvalid && !routeTaken
     && baseURL.length > 0 && models.length > 0 && modelFailure === undefined
-    && keyFailure === undefined
+    && keyFailure === undefined && !bearerMissing && !refreshMissing && !firebaseApiKeyMissing
   // The one blocked gate worth a line under the form. A satisfied card says
   // nothing at all rather than printing an empty paragraph.
   const hint = failure !== undefined || ready
     // The key field prints its own failure directly beneath itself, so a card
     // blocked only by the key stays silent here rather than answering with the
     // next unmet gate — which is satisfied, and reads as a second, false fault.
-    || keyFailure !== undefined
+    || keyFailure !== undefined || bearerMissing || refreshMissing || firebaseApiKeyMissing
     // Same for the route id, and it must be tested rather than assumed: the
     // fallback arm below reads "no models yet", so an unmet route gate would
     // fall through to it and contradict the filled-in list right above.
@@ -130,22 +155,43 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
 
   /** Perform the create, returning a failure message or undefined. */
   const createOnce = async (): Promise<string | undefined> => {
-    const keyRef = deriveKeyRef(route)
-    const storesKey = keyValue.length > 0
+    const keyRef = authMethod === 'bearer' ? deriveBearerRef(route) : deriveKeyRef(route)
+    const refreshRef = deriveRefreshRef(route)
+    const storesKey = authMethod === 'bearer' || keyValue.length > 0
     if (!committed) {
+      let credentialProfile: Record<string, unknown> = {}
+      if (storesKey) {
+        if (authMethod === 'bearer') {
+          credentialProfile = {
+            auth: {
+              type: 'bearer',
+              accessTokenEnv: keyRef,
+              ...autoRefresh ? {
+                refresh: {
+                  type: 'firebase',
+                  refreshTokenEnv: refreshRef,
+                  apiKey: firebaseApiKey.trim(),
+                },
+              } : {},
+            },
+          }
+        } else {
+          credentialProfile = { apiKeyEnv: keyRef }
+        }
+      }
       const profile = {
         ...displayName.length === 0 ? {} : { displayName },
         // The profile names the conventional reference only when this card is
         // about to store a key, matching the editor: a route declared with the
         // key left blank keeps its provider-native auth path (a credential
         // chain, ADC) instead of resolving a reference nothing ever sets.
-        ...storesKey ? { apiKeyEnv: keyRef } : {},
+        ...credentialProfile,
         api: protocol,
         baseURL,
         models: models.map(model => ({ ...model })),
       }
       const response = await api.settings.mutate({
-        ns: NS,
+        ns: namespace,
         ops: [{ op: 'set', path: ['providers', route], value: profile }],
         // `taken` is a snapshot too, so the id check alone cannot see a route
         // declared after this card opened; the revision makes that race a
@@ -159,11 +205,17 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
       // key could never be stored from this card at all.
       setCommitted(true)
     }
-    if (storesKey) {
+    if (storesKey && !primaryStored) {
       const stored = await api.credentials.set({ ref: keyRef, value: keyValue })
       // The profile landed; saying the key did not is the only honest report,
       // and the retry above now goes straight back to this write.
       if (!stored.result.ok) return stored.result.error.message
+      setPrimaryStored(true)
+    }
+    if (authMethod === 'bearer' && autoRefresh && !refreshStored) {
+      const stored = await api.credentials.set({ ref: refreshRef, value: refreshValue })
+      if (!stored.result.ok) return stored.result.error.message
+      setRefreshStored(true)
     }
     return undefined
   }
@@ -190,7 +242,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
   return (
     <div className={styles['editor']}>
       <div className={styles['editorHeader']}>
-        <span className={styles['editorTitle']}>{t('customTitle')}</span>
+        <span className={styles['editorTitle']}>{t(bearer ? 'bearerCustomTitle' : 'customTitle')}</span>
       </div>
       <div className={styles['field']}>
         <span className={styles['fieldLabel']}>{t('customRoute')}</span>
@@ -245,15 +297,52 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
           {protocols.map(choice => <option key={choice} value={choice}>{choice}</option>)}
         </select>
       </div>
+      {bearer
+        ? (
+          <div className={styles['field']}>
+            <span className={styles['fieldLabel']}>{t('cookieImport')}</span>
+            <textarea
+              className={styles['textarea']}
+              value={cookieDraft}
+              placeholder={t('cookieImportPlaceholder')}
+              aria-label={t('cookieImport')}
+              disabled={disabled}
+              onChange={(event) => { setCookieDraft(event.target.value); setCookieFailure(undefined) }}
+            />
+            <button
+              type="button"
+              className={styles['secondaryButton']}
+              disabled={disabled || cookieDraft.trim().length === 0}
+              onClick={() => {
+                try {
+                  const imported = twinMindCredentialsFromCookieJson(cookieDraft)
+                  setKeyDraft(imported.accessToken)
+                  setRefreshDraft(imported.refreshToken)
+                  setAutoRefresh(true)
+                  setCookieDraft('')
+                  setCookieFailure(undefined)
+                } catch (error) {
+                  setCookieFailure(messageOf(error))
+                }
+              }}
+            >
+              {t('cookieImportAction')}
+            </button>
+            {cookieFailure === undefined
+              ? <p className={styles['advancedHint']}>{t('cookieImportHint')}</p>
+              : <p className={styles['error']}>{cookieFailure}</p>}
+          </div>
+        )
+        : null}
       <div className={styles['field']}>
-        <span className={styles['fieldLabel']}>{t('keyInput')}</span>
+        <span className={styles['fieldLabel']}>{t(authMethod === 'bearer' ? 'bearerInput' : 'keyInput')}</span>
         <input
           className={styles['input']}
           type="password"
           autoComplete="off"
           value={keyDraft}
-          placeholder={t('keyPlaceholder')}
-          aria-label={t('keyInput')}
+          placeholder={t(authMethod === 'bearer' ? 'bearerPlaceholder' : 'keyPlaceholder')}
+          aria-label={t(authMethod === 'bearer' ? 'bearerInput' : 'keyInput')}
           disabled={disabled}
           onChange={(event) => { setKeyDraft(event.target.value) }}
         />
@@ -261,14 +350,61 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
             what a blank field means here instead: this route may authenticate
             through the provider's own ambient discovery or OAuth. */}
         {keyFailure === undefined
-          ? null
+          ? bearerMissing ? <p className={styles['error']}>{t('bearerRequired')}</p> : null
           : <p className={styles['error']}>{t(keyFailure === 'keyBlank' ? 'keyBlankNew' : keyFailure)}</p>}
       </div>
+      {authMethod === 'bearer'
+        ? (
+          <>
+            <label className={styles['field']}>
+              <span className={styles['fieldLabel']}>{t('autoRefresh')}</span>
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                disabled={profileDisabled}
+                onChange={(event) => { setAutoRefresh(event.target.checked) }}
+              />
+            </label>
+            {autoRefresh
+              ? (
+                <>
+                  <div className={styles['field']}>
+                    <span className={styles['fieldLabel']}>{t('refreshInput')}</span>
+                    <input
+                      className={styles['input']}
+                      type="password"
+                      autoComplete="off"
+                      value={refreshDraft}
+                      placeholder={t('refreshPlaceholder')}
+                      aria-label={t('refreshInput')}
+                      disabled={disabled}
+                      onChange={(event) => { setRefreshDraft(event.target.value) }}
+                    />
+                    {refreshMissing ? <p className={styles['error']}>{t('refreshRequired')}</p> : null}
+                  </div>
+                  <div className={styles['field']}>
+                    <span className={styles['fieldLabel']}>{t('firebaseApiKey')}</span>
+                    <input
+                      className={styles['input']}
+                      type="text"
+                      value={firebaseApiKey}
+                      aria-label={t('firebaseApiKey')}
+                      disabled={profileDisabled}
+                      onChange={(event) => { setFirebaseApiKey(event.target.value) }}
+                    />
+                    {firebaseApiKeyMissing ? <p className={styles['error']}>{t('firebaseApiKeyRequired')}</p> : null}
+                  </div>
+                </>
+              )
+              : null}
+          </>
+        )
+        : null}
       <ModelListEditor
         models={models}
         onChange={setModels}
         probe={{
-          settingsNs: NS,
+          settingsNs: namespace,
           baseURL,
           api: protocol,
           ...keyValue.length === 0 ? {} : { apiKey: keyValue },
@@ -292,5 +428,23 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
         onSubmit={() => { void create() }}
       />
     </div>
+  )
+}
+
+/** Props for the separate Bearer-provider entry point. */
+export type BearerProviderCardProps = Omit<
+  CustomProviderCardProps,
+  'authorization' | 'namespace' | 'protocols'
+>
+
+/** Render the dedicated Bearer provider card owned by `llm-bearer`. */
+export function BearerProviderCard(props: BearerProviderCardProps): ReactNode {
+  return (
+    <CustomProviderCard
+      {...props}
+      authorization="bearer"
+      namespace={BEARER_NS}
+      protocols={['twinmind-chat']}
+    />
   )
 }

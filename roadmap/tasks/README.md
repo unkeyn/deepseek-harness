@@ -12,5 +12,7 @@
 | [OAUTH-001](OAUTH-001-provider-oauth.md) | OAuth account lifecycle | ROUTE-001 | planned |
 | [PROXY-001](PROXY-001-proxy-routing.md) | Account-bound proxy routing | ROUTE-001 | planned |
 | [UI-001](UI-001-management.md) | Web and CLI management | ARCH-001; incremental dependencies | planned |
+| [BEARER-001](BEARER-001-custom-provider-refresh.md) | Custom Bearer provider refresh and TwinMind chat | — | done |
+| [BEARER-002](BEARER-002-separate-provider-plugin.md) | Separate Bearer provider plugin and cookie import | BEARER-001 | done |
 
 Новая карточка создаётся из [TEMPLATE.md](TEMPLATE.md). После завершения карточка остаётся на месте со ссылкой на immutable completion record в `done/`.

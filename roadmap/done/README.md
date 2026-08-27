@@ -14,4 +14,7 @@
 - Ссылайтесь на PR, task card, Agent Note и owning documentation.
 - Не изменяйте старую запись ради нового поведения; создайте новую follow-up task и новую completion record.
 
-Пока завершённых задач нет.
+## Завершённые задачи
+
+- [BEARER-001: Custom Bearer provider refresh and TwinMind chat](2026-08-27-BEARER-001-custom-provider-refresh.md)
+- [BEARER-002: Separate Bearer provider plugin and cookie import](2026-08-27-BEARER-002-separate-provider-plugin.md)

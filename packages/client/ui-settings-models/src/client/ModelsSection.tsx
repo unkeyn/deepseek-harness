@@ -17,8 +17,8 @@ import type { ReactNode } from 'react'
 import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
 import { Button, IconPlusOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
-import { CustomProviderCard } from './CustomProviderCard.tsx'
-import { deriveKeyRef, messageOf, protocolChoices, providerUsable } from './store.ts'
+import { BearerProviderCard, CustomProviderCard } from './CustomProviderCard.tsx'
+import { deriveBearerRef, deriveKeyRef, deriveRefreshRef, messageOf, protocolChoices, providerUsable } from './store.ts'
 import type { ModelsSettingsStore, ProviderRow } from './store.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
@@ -63,6 +63,8 @@ interface EditorTarget extends ProviderIdentity {
   settingsPath: readonly string[]
   /** Writable credential identified under this page's conventional reference. */
   credentialRef?: string
+  /** Writable Bearer access/refresh references managed by this page. */
+  credentialRefs?: readonly string[]
   /** The adapter reports this route as one it does not ship (see {@link ProviderEditorProps.declared}). */
   declared?: boolean
 }
@@ -102,11 +104,17 @@ function renderProviderEditor({ target, ...props }: ProviderEditorRenderProps): 
 export async function removeProviderProfile(
   api: Pick<IApiClient, 'settings' | 'credentials'>,
   controller: ModelsSettingsStore,
-  target: { settingsNs: string; settingsPath: readonly string[]; credentialRef?: string },
+  target: {
+    settingsNs: string
+    settingsPath: readonly string[]
+    credentialRef?: string
+    credentialRefs?: readonly string[]
+  },
 ): Promise<string | undefined> {
   try {
-    if (target.credentialRef !== undefined) {
-      const credential = await api.credentials.unset({ ref: target.credentialRef })
+    const refs = target.credentialRefs ?? (target.credentialRef === undefined ? [] : [target.credentialRef])
+    for (const ref of refs) {
+      const credential = await api.credentials.unset({ ref })
       if (!credential.result.ok) return credential.result.error.message
     }
     const response = await api.settings.mutate({
@@ -140,10 +148,18 @@ export function needsSetup(row: ProviderRow, anyUsable: boolean): boolean {
 
 function targetOf(row: ProviderRow): EditorTarget {
   const managedRef = deriveKeyRef(row.entry.provider)
+  const managedBearerRefs = [deriveBearerRef(row.entry.provider), deriveRefreshRef(row.entry.provider)]
+  const rowCredentialRefs = row.credentialRefs ?? []
   const credentialRef = row.apiKeyEnv === managedRef
     && row.credential?.configured === true
     && row.credential.writable
     ? managedRef
+    : undefined
+  const credentialRefs = rowCredentialRefs.length > 0
+    && rowCredentialRefs.every(ref => managedBearerRefs.includes(ref))
+    && row.credentials?.length === rowCredentialRefs.length
+    && row.credentials.every(credential => credential.configured && credential.writable)
+    ? rowCredentialRefs
     : undefined
   return {
     provider: row.entry.provider,
@@ -151,6 +167,7 @@ function targetOf(row: ProviderRow): EditorTarget {
     settingsNs: row.entry.settingsNs,
     settingsPath: row.entry.settingsPath,
     ...credentialRef === undefined ? {} : { credentialRef },
+    ...credentialRefs === undefined ? {} : { credentialRefs },
     // Absent is not "shipped": an adapter that answers nothing leaves the
     // route-level fields only a declared route owns off the card, exactly as
     // it leaves the custom tag off the row.
@@ -194,6 +211,7 @@ function Loaded({ injected }: { injected: ModelsSectionFace }): ReactNode {
   const [deleteFailure, setDeleteFailure] = useState<string | undefined>(undefined)
   const [savedTarget, setSavedTarget] = useState<ProviderIdentity | undefined>(undefined)
   const [declaring, setDeclaring] = useState(false)
+  const [declaringBearer, setDeclaringBearer] = useState(false)
   const [dismissedSetup, setDismissedSetup] = useState<ReadonlySet<string>>(() => new Set())
 
   const announceSaved = (target: ProviderIdentity): void => {
@@ -207,6 +225,7 @@ function Loaded({ injected }: { injected: ModelsSectionFace }): ReactNode {
     setEditing(undefined)
     setAdding(false)
     setDeclaring(false)
+    setDeclaringBearer(false)
     if (changed) announceSaved(target)
   }
 
@@ -276,10 +295,10 @@ function Loaded({ injected }: { injected: ModelsSectionFace }): ReactNode {
   const addable = state.rows.filter(row => !row.configured && row.entry.settingsNs !== '')
   const addTarget = adding ? editing : undefined
   const addNamespace = addTarget === undefined ? undefined : state.namespaces.get(addTarget.settingsNs)
-  // Hand-declared routes live in the pi-ai namespace, which is also the only
-  // one whose schema names the protocols one may speak; without it mounted
-  // there is nothing to declare and the entry point stays disabled.
+  // API-key routes read pi-ai's protocol list; Bearer creation has its fixed
+  // provider-owned protocol in the separate namespace.
   const protocols = protocolChoices(state.namespaces.get('llm-pi-ai'), schema)
+  const bearerNamespace = state.namespaces.get('llm-bearer')
 
   return (
     <div className={styles['section']}>
@@ -317,10 +336,12 @@ function Loaded({ injected }: { injected: ModelsSectionFace }): ReactNode {
             )
           }
           const open = !adding && editing?.provider === row.entry.provider
-          const credentialConfigured = row.credential?.configured === true
-          const credentialMissing = !credentialConfigured
-            && row.apiKeyEnv !== undefined
-            && row.credential?.configured === false
+          const credentialStates = row.credentials ?? (row.credential === undefined ? [] : [row.credential])
+          const credentialConfigured = row.apiKeyEnv !== undefined
+            && credentialStates.length === (row.credentialRefs?.length ?? 1)
+            && credentialStates.every(credential => credential.configured)
+          const credentialMissing = row.apiKeyEnv !== undefined
+            && credentialStates.some(credential => !credential.configured)
           return (
             <li key={row.entry.provider} className={styles['rowCard']}>
               <div className={styles['rowHead']}>
@@ -363,6 +384,7 @@ function Loaded({ injected }: { injected: ModelsSectionFace }): ReactNode {
                       // the create card beside this editor, and closing either
                       // one discards the other's draft.
                       setDeclaring(false)
+                      setDeclaringBearer(false)
                       setAdding(false)
                       setEditing(open ? undefined : target)
                     }}
@@ -458,46 +480,77 @@ function Loaded({ injected }: { injected: ModelsSectionFace }): ReactNode {
                 />
               </div>
             )
-            : (
-              // One row for the two ways to gain a provider: adopt one the
-              // adapter already knows, or declare one it does not. Side by side
-              // and equal-width so they read as siblings and line up with the
-              // rows above, rather than two pills of different lengths.
-              <div className={styles['addActions']}>
-                <button
-                  type="button"
-                  className={styles['addButton']}
-                  disabled={addable.length === 0 || !state.writable}
-                  onClick={() => {
-                    const first = addable[0]
-                    /* v8 ignore next -- the button is disabled while nothing is addable */
-                    if (first === undefined) return
-                    setSavedTarget(undefined)
-                    setDeclaring(false)
-                    setAdding(true)
-                    setEditing(targetOf(first))
-                  }}
-                >
-                  {/* Same glyph as the composer's attach button. */}
-                  <IconPlusOutline16 size={14} />
-                  {t('add')}
-                </button>
-                <button
-                  type="button"
-                  className={styles['addButton']}
-                  disabled={protocols.length === 0 || !state.writable}
-                  onClick={() => {
-                    setSavedTarget(undefined)
-                    setAdding(false)
-                    setEditing(undefined)
-                    setDeclaring(true)
-                  }}
-                >
-                  <IconPlusOutline16 size={14} />
-                  {t('customAdd')}
-                </button>
-              </div>
-            )}
+            : declaringBearer && bearerNamespace !== undefined
+              ? (
+                <div className={styles['addCard']}>
+                  <BearerProviderCard
+                    taken={state.rows.map(row => row.entry.provider)}
+                    revision={bearerNamespace.revision}
+                    api={api}
+                    t={t}
+                    readOnly={!state.writable}
+                    onClose={(changed) => {
+                      setDeclaringBearer(false)
+                      if (changed) void controller.load()
+                    }}
+                  />
+                </div>
+              )
+              : (
+              // Catalog adoption, API-key creation, and Bearer creation are
+              // equal-width siblings aligned with the provider rows above.
+                <div className={styles['addActions']}>
+                  <button
+                    type="button"
+                    className={styles['addButton']}
+                    disabled={addable.length === 0 || !state.writable}
+                    onClick={() => {
+                      const first = addable[0]
+                      /* v8 ignore next -- the button is disabled while nothing is addable */
+                      if (first === undefined) return
+                      setSavedTarget(undefined)
+                      setDeclaring(false)
+                      setDeclaringBearer(false)
+                      setAdding(true)
+                      setEditing(targetOf(first))
+                    }}
+                  >
+                    {/* Same glyph as the composer's attach button. */}
+                    <IconPlusOutline16 size={14} />
+                    {t('add')}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles['addButton']}
+                    disabled={protocols.length === 0 || !state.writable}
+                    onClick={() => {
+                      setSavedTarget(undefined)
+                      setAdding(false)
+                      setEditing(undefined)
+                      setDeclaring(true)
+                      setDeclaringBearer(false)
+                    }}
+                  >
+                    <IconPlusOutline16 size={14} />
+                    {t('customAdd')}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles['addButton']}
+                    disabled={bearerNamespace === undefined || !state.writable}
+                    onClick={() => {
+                      setSavedTarget(undefined)
+                      setAdding(false)
+                      setEditing(undefined)
+                      setDeclaring(false)
+                      setDeclaringBearer(true)
+                    }}
+                  >
+                    <IconPlusOutline16 size={14} />
+                    {t('bearerAdd')}
+                  </button>
+                </div>
+              )}
       </div>
       <Modal
         open={deleteTarget !== undefined}
@@ -507,7 +560,7 @@ function Loaded({ injected }: { injected: ModelsSectionFace }): ReactNode {
         description={deleteTarget === undefined
           ? ''
           : providerCopy(
-            deleteTarget.credentialRef === undefined
+            deleteTarget.credentialRef === undefined && deleteTarget.credentialRefs === undefined
               ? t('deleteDescription')
               : t('deleteDescriptionWithCredential'),
             deleteTarget,

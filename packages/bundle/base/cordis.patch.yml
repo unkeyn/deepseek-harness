@@ -73,8 +73,8 @@
       name: '@deepseek-ai/dsh-llm-retry'
 
     # User-settings document (`$DSH_HOME/settings.yaml`, hot-reloaded): a
-    # `llm-deepseek:` or `llm-pi-ai:` section there overrides the adapter entries
-    # below without a restart, and is what the web Models page writes.
+    # `llm-deepseek:`, `llm-pi-ai:`, or `llm-bearer:` section there overrides
+    # the adapter entries below without a restart and is what Models writes.
     - id: settings
       name: '@deepseek-ai/dsh-settings-file'
 
@@ -97,6 +97,12 @@
 
     - id: llm-pi-ai
       name: '@deepseek-ai/dsh-llm-pi-ai'
+
+    # Bearer routes are a separate dormant adapter family. The Models page
+    # writes only credential references and public refresh configuration into
+    # `llm-bearer:`; access and refresh values stay in the credential store.
+    - id: llm-bearer
+      name: '@deepseek-ai/dsh-llm-bearer'
 
     - id: session-persistence-jsonl
       name: '@deepseek-ai/dsh-session-persistence-jsonl'

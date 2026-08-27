@@ -8,7 +8,7 @@
 
 打开**设置 → 模型**。DeepSeek 卡片提供一个 API 密钥字段；输入密钥并保存。
 
-![模型页：DeepSeek 卡片，以及添加提供方与添加自定义提供方两个入口](providers-models-page.zh.png)
+![模型页：DeepSeek 卡片，以及目录、自定义 API 密钥与 Bearer 提供方三个入口](providers-models-page.zh.png)
 
 密钥是只写的。保存后，页面只会收到脱敏描述符，永远不会收到明文密钥。密钥存储在 `$DSH_HOME/.credentials.yaml` 中，settings 只保留它的凭据引用。
 
@@ -20,13 +20,21 @@
 
 ## 添加自定义提供方
 
-对于公司网关、自建服务器或已安装目录中不存在的提供方，选择**添加自定义提供方**。提供小写 Provider ID、基础 URL、API 协议、凭据和至少一个模型。
+对于使用 API 密钥的公司网关、自建服务器或已安装目录中不存在的提供方，选择**添加自定义提供方**。提供小写 Provider ID、基础 URL、API 协议、凭据和至少一个模型。
 
-![自定义提供方表单：Provider ID、显示名称、API 地址、API 协议、API 密钥](providers-custom-form.zh.png)
+![API 密钥模式下的自定义提供方表单：Provider ID、显示名称、API 地址、API 协议与 API 密钥](providers-custom-form.zh.png)
 
 Provider ID 是永久的，因为请求、已保存会话、模型默认值和凭据引用都会使用它。如需重命名提供方，请添加新提供方并删除旧提供方。显示名称、基础 URL、协议、凭据和模型仍可编辑。
 
 在**模型目录**中选择**获取可用模型**，可查询表单当前显示的基础 URL 和凭据。选择候选项只会更新草稿；保存前不会存储提供方。目录提供方使用已安装目录，不发起网络请求。
+
+## 添加 Bearer 提供方
+
+对于 TwinMind 或由独立 `llm-bearer` 插件持有的其他路由，请选择自定义提供方入口旁边的**添加 Bearer 提供方**。TwinMind 表单会填入 `https://api2.twinmind.com`、`twinmind-chat`、模型 `auto`、Firebase refresh 与 TwinMind 的公开 Firebase Web API key。输入当前 Firebase ID token 及其配套 `refresh_token`。
+
+也可以把浏览器 cookie 导出粘贴到**导入 TwinMind Cookie**。解析仅在页面本地完成：只把属于 `app.twinmind.com` 的 `session` 与 `firebase_refresh_token` 值复制到两个只写凭据字段，忽略分析 cookie，并立即清空原始 JSON 输入框。页面无法自动读取这些 cookie，因为 TwinMind 把它们标为 `HttpOnly`，而且它们属于另一个源。
+
+只有当前 ID token 时，只能鉴权到它过期为止。有配套 refresh token 时，插件会在最后一分钟内刷新，让并发请求共享一次刷新，并持久化轮换值供后续进程与 session 使用。TwinMind 使用 `GET /api/v3/chat/models` 发现模型，并用 `POST /api/v3/chat` 生成回复。因此，**获取可用模型**可以加入明确模型 id，包括 TwinMind 独立的 thinking variant。TwinMind 把它们暴露为模型选择，而不是 reasoning-effort level，所以不会显示 reasoning-level selector。聊天列表、历史、memory、todo、prompt、personalization、recap、OAuth、template、notes 与 summary endpoint 都是独立产品功能。
 
 ### 图片输入
 
@@ -123,9 +131,10 @@ llm-pi-ai:
 
 ## 排错
 
-- **`MISSING_CREDENTIAL`**：通过模型页存储提供方密钥，或提供被引用的环境变量。
+- **`MISSING_CREDENTIAL`**：通过模型页存储提供方密钥或 Bearer token，或提供被引用的环境变量。
+- **`OAUTH_REAUTHENTICATE`**：Bearer JWT 在没有 refresh 配置时到期，或 Firebase 拒绝/找不到已存 refresh token。请重新登录并替换两个值。
 - **`UNKNOWN_MODEL`**：选择已配置的模型，或向自定义提供方添加缺失的模型。
-- **获取可用模型返回 401**：检查密钥。模型发现会调用 OpenAI 兼容的 `GET /models` 端点；对于不提供该端点的服务，请手动输入模型。
+- **获取可用模型返回 401**：检查凭据。API-key 模型发现调用 OpenAI 兼容的 `GET /models`；TwinMind Bearer 模型发现调用 `GET /api/v3/chat/models`。
 - **密钥与地址都正确，网关却拒绝每一个请求**：它的请求形状与 OpenAI 不同。先在路由上设 `compat.supportsDeveloperRole: false` 与 `compat.maxTokensField: max_tokens`。
 - **只有推理模型失败**：pi-ai 把它们的系统提示词以 `developer` 角色发出，而网关拒绝该角色。设 `compat.supportsDeveloperRole: false`。
 - **某个 compat 开关因没有值而被拒绝**：冒号后什么都没写。给它一个值，或删掉该键以沿用已安装 catalog 的值。
