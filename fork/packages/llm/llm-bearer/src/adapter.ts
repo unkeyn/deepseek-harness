@@ -23,6 +23,33 @@ interface BearerStreamEvent {
   error?: unknown
 }
 
+/** Capability switches understood by TwinMind's native chat endpoint. */
+export interface TwinMindCapabilities {
+  /** Allow the server-side web search capability. */
+  allow_web_search?: boolean
+  /** Allow the server-side memory/notes search capability. */
+  allow_notes_access?: boolean
+}
+
+/** The request envelope used by `/api/v3/chat`. */
+export interface TwinMindChatRequest {
+  type: 'app'
+  version: 1
+  response_version: 1
+  query: string
+  model: 'auto' | { model_name: string }
+  context: null
+  client: {
+    platform: 'web'
+    timezone: string
+    client_time: string
+    locale: string
+  }
+  mode: 'default'
+  session_id?: string
+  capabilities?: TwinMindCapabilities
+}
+
 interface BearerReplayResponse {
   kind: 'bearer-chat'
   version: 1
@@ -57,6 +84,51 @@ function latestUserQuery(options: GenerateOptions): string {
     .join('\n')
   if (query.length === 0) throw new LlmError('Bearer chat requires text in the latest user message', 'UNSUPPORTED_CONTENT')
   return query
+}
+
+/**
+ * Map the harness tool catalog to TwinMind's server-side capability flags.
+ *
+ * TwinMind does not accept arbitrary OpenAI `tools` schemas on this route.
+ * Its web client enables built-in tools by sending capability switches; the
+ * server then emits the tool progress/results itself. Local harness tools
+ * such as `read` and `write` are intentionally not advertised as TwinMind
+ * capabilities because TwinMind cannot execute them.
+ */
+export function twinMindCapabilities(options: GenerateOptions): TwinMindCapabilities | undefined {
+  const names = new Set(options.tools?.map(tool => tool.name) ?? [])
+  const capabilities: TwinMindCapabilities = {
+    ...names.has('web_search') ? { allow_web_search: true } : {},
+    ...names.has('summary_search') ? { allow_notes_access: true } : {},
+  }
+  return Object.keys(capabilities).length === 0 ? undefined : capabilities
+}
+
+/** Build the exact native TwinMind request without reading credentials. */
+export function buildTwinMindChatRequest(
+  options: GenerateOptions,
+  timezone = Intl.DateTimeFormat().resolvedOptions().timeZone,
+  clientTime = new Date().toISOString(),
+): TwinMindChatRequest {
+  const previousSessionId = replaySessionId(options)
+  const capabilities = twinMindCapabilities(options)
+  return {
+    type: 'app',
+    version: 1,
+    response_version: 1,
+    query: latestUserQuery(options),
+    model: options.model === 'auto' ? 'auto' : { model_name: options.model },
+    context: null,
+    client: {
+      platform: 'web',
+      timezone,
+      client_time: clientTime,
+      locale: 'en',
+    },
+    mode: 'default',
+    ...previousSessionId === undefined ? {} : { session_id: previousSessionId },
+    ...capabilities === undefined ? {} : { capabilities },
+  }
 }
 
 function failureMessage(event: BearerStreamEvent): string {
@@ -122,23 +194,7 @@ export class BearerAdapter extends LlmAdapter {
       throw new LlmError(`llm-bearer: unknown model "${options.model}" for provider route "${options.provider}"`, 'UNKNOWN_MODEL')
     }
     const token = await this.options.resolveToken(profile)
-    const previousSessionId = replaySessionId(options)
-    const request = {
-      type: 'app',
-      version: 1,
-      response_version: 1,
-      query: latestUserQuery(options),
-      model: options.model === 'auto' ? 'auto' : { model_name: options.model },
-      context: null,
-      client: {
-        platform: 'web',
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        client_time: new Date().toISOString(),
-        locale: 'en',
-      },
-      mode: 'default',
-      ...previousSessionId === undefined ? {} : { session_id: previousSessionId },
-    }
+    const request = buildTwinMindChatRequest(options)
     const timeout = AbortSignal.timeout(profile.timeoutMs)
     const signal = options.signal === undefined ? timeout : AbortSignal.any([options.signal, timeout])
     let response: Response
