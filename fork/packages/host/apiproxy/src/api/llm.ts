@@ -69,6 +69,7 @@ export interface LlmApi {
       settingsNs: string
       provider?: string
       baseURL?: string
+      modelsURL?: string
       api?: string
       apiKey?: string
     }>,

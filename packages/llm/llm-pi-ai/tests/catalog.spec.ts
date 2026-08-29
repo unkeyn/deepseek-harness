@@ -6,7 +6,6 @@ import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
-import ModelCatalog from '@deepseek-ai/dsh-model-catalog'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
@@ -69,30 +68,13 @@ function gateway(baseURL: string, overrides: Record<string, unknown> = {}): LlmP
   }
 }
 
-async function harness(config: LlmPiAi.Config, withCatalog = false): Promise<Context> {
+async function harness(config: LlmPiAi.Config): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(LlmRuntime)
-  if (withCatalog) await ctx.plugin(ModelCatalog)
   await ctx.plugin(LlmPiAi, config)
   return ctx
 }
 
-describe('external model capability catalog', () => {
-  it('projects reasoning and image input onto a custom route by model identity', async () => {
-    const ctx = await harness({ providers: { gateway: {
-      apiKeyEnv: KEY_ENV,
-      api: 'openai-completions',
-      baseURL: 'https://gateway.example/v1',
-      models: [{ id: 'gpt-5.6-sol' }],
-    } } }, true)
-    await expect(ctx.llm.resolveModelInfo('gateway', 'gpt-5.6-sol')).resolves.toMatchObject({
-      inputModalities: ['text', 'image'],
-      reasoning: { efforts: [
-        { id: 'low' }, { id: 'medium' }, { id: 'high' }, { id: 'xhigh' }, { id: 'max' },
-      ] },
-    })
-  })
-})
 describe('hand-declared providers', () => {
   it('serves a route pi-ai has never heard of from its own declaration', async () => {
     const server = await mockServer([{ events: textEvents }])
@@ -321,58 +303,13 @@ describe('hand-declared providers', () => {
     })).toThrow(/more than once/)
   })
 
-  it('rejects a declaration that names no endpoint', () => {
+  it('rejects a declaration that names no wire protocol or endpoint', () => {
+    expect(() => resolveProfiles({
+      'acme-gateway': { baseURL: 'https://acme.test', models: [{ id: 'm', contextWindow: 1, maxTokens: 1 }] },
+    })).toThrow(/needs an api/)
     expect(() => resolveProfiles({
       'acme-gateway': { api: 'openai-completions', models: [{ id: 'm', contextWindow: 1, maxTokens: 1 }] },
     })).toThrow(/needs a baseURL/)
-  })
-
-  it('serves a gateway id neither catalog describes as Chat Completions', () => {
-    // A hand-declared route exists to serve one OpenAI-compatible gateway, so
-    // an id newer than both catalogs resolves to the same protocol endpoint
-    // interrogation probes with — no restated route `api` required.
-    const profiles = resolveProfiles({
-      'acme-gateway': { baseURL: 'https://acme.test', models: [{ id: 'm', contextWindow: 1, maxTokens: 1 }] },
-    })
-    expect(profiles.get('acme-gateway')?.piProvider.getModels()[0]?.api).toBe('openai-completions')
-  })
-
-  it('keeps an explicit route protocol above the gateway default', () => {
-    const profiles = resolveProfiles({
-      'acme-gateway': {
-        api: 'openai-responses',
-        baseURL: 'https://acme.test',
-        models: [{ id: 'mystery', contextWindow: 1, maxTokens: 1 }],
-      },
-    })
-    expect(profiles.get('acme-gateway')?.piProvider.getModels()[0]?.api).toBe('openai-responses')
-  })
-
-  it('pins developer-role off for a gateway id no installed catalog describes', () => {
-    // pi-ai's detection answers an unrecognizable private URL as though it
-    // were OpenAI itself, sending a reasoning model's system prompt as the
-    // `developer` role — which most gateways refuse outright. An id whose
-    // protocol facts came from fallback gets the conservative answer pinned.
-    const profiles = resolveProfiles({
-      'acme-gateway': { baseURL: 'https://acme.test', models: [{ id: 'm', contextWindow: 1, maxTokens: 1 }] },
-    })
-    expect(profiles.get('acme-gateway')?.piProvider.getModels()[0]?.compat)
-      .toMatchObject({ supportsDeveloperRole: false })
-  })
-
-  it('keeps model compat above the detection default', () => {
-    const profiles = resolveProfiles({
-      'acme-gateway': {
-        baseURL: 'https://acme.test',
-        models: [
-          { id: 'a', contextWindow: 1, maxTokens: 1 },
-          { id: 'b', contextWindow: 1, maxTokens: 1, compat: { supportsDeveloperRole: true } },
-        ],
-      },
-    })
-    // Model config wins over the pinned default.
-    expect(profiles.get('acme-gateway')?.piProvider.getModels().find(model => model.id === 'b')?.compat)
-      .toMatchObject({ supportsDeveloperRole: true })
   })
 
   it.each(['bedrock-converse-stream', 'google-vertex', 'azure-openai-responses', 'openai-codex-responses'])(
@@ -588,35 +525,6 @@ describe('catalog routes with per-model configuration', () => {
     expect(models.length).toBeGreaterThan(0)
     expect(models.every(model => model.baseUrl.length > 0)).toBe(true)
     expect(resolved.get('opencode')?.piProvider.baseUrl).toBeUndefined()
-  })
-
-  it('serves an id newer than the installed catalog at the endpoint its siblings declare', () => {
-    // `opencode` states no provider-level endpoint, so an id adopted from the
-    // endpoint's live listing — newer than the installed catalog — carries no
-    // address of its own. One route serves one origin: it resolves to the
-    // shortest version-carrying endpoint the installed siblings declare, the
-    // spelling that records the mounted API.
-    const expected = getBuiltinModels('opencode')
-      .map(model => model.baseUrl)
-      .filter(url => /\/v\d+$/.test(url))
-      .reduce((shortest, url) => (url.length < shortest.length ? url : shortest))
-    const resolved = resolveProfiles({ opencode: { models: [{ id: 'newer-than-catalog' }] } })
-    const [model] = resolved.get('opencode')?.piProvider.getModels() ?? []
-    expect(model?.baseUrl).toBe(expected)
-  })
-
-  it('mounts a derived endpoint at its version segment for the verbatim-base protocols', () => {
-    // `opencode-go` records the published prefix only, while the OpenAI SDK
-    // appends `/chat/completions` to the base verbatim — so the derived base
-    // for an id the catalog does not describe is the published prefix mounted
-    // at `/v1`, the same convention the listing probe follows.
-    const shortest = getBuiltinModels('opencode-go')
-      .map(model => model.baseUrl)
-      .reduce((shortest, url) => (url.length < shortest.length ? url : shortest))
-    expect(shortest).not.toMatch(/\/v\d+$/)
-    const resolved = resolveProfiles({ 'opencode-go': { models: [{ id: 'newer-than-catalog' }] } })
-    const [model] = resolved.get('opencode-go')?.piProvider.getModels() ?? []
-    expect(model?.baseUrl).toBe(`${shortest}/v1`)
   })
 
   it('repoints a catalog route at another wire protocol without restating its endpoint', () => {
@@ -868,12 +776,8 @@ describe('compat switches', () => {
       },
     }, 'acme-gateway')
 
-    expect(models.get('dialect-default')?.compat).toEqual({ supportsDeveloperRole: false, thinkingFormat: 'deepseek' })
-    expect(models.get('dialect-odd')?.compat).toEqual({
-      supportsDeveloperRole: false,
-      thinkingFormat: 'openai',
-      supportsReasoningEffort: false,
-    })
+    expect(models.get('dialect-default')?.compat).toEqual({ thinkingFormat: 'deepseek' })
+    expect(models.get('dialect-odd')?.compat).toEqual({ thinkingFormat: 'openai', supportsReasoningEffort: false })
   })
 
   it('merges the switches over the catalog entry’s own compat instead of replacing it', () => {
@@ -1011,7 +915,6 @@ describe('compat switches', () => {
     }, 'acme-qwen')
 
     expect(models.get('qwen-local')?.compat).toEqual({
-      supportsDeveloperRole: false,
       thinkingFormat: 'qwen-chat-template',
       chatTemplateKwargs: { enable_thinking: { $var: 'thinking.enabled' } },
     })
@@ -1141,7 +1044,7 @@ describe('compat switches', () => {
     // pi-ai types azure-openai-responses and openai-codex-responses with the
     // same OpenAIResponsesCompat, so a switch settable on one is settable on all.
     for (const route of ['azure-openai-responses', 'openai-codex']) {
-      const models = modelsOf({ [route]: { baseURL: 'https://gateway.test', compat: { supportsDeveloperRole: false } } }, route)
+      const models = modelsOf({ [route]: { compat: { supportsDeveloperRole: false } } }, route)
       const [first] = [...models.values()]
       expect((first?.compat as { supportsDeveloperRole?: boolean }).supportsDeveloperRole).toBe(false)
     }

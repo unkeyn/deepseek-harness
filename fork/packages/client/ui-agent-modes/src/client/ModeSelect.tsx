@@ -4,7 +4,7 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import { IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the ui-conversation SlotMap merge (the input.left seat and
 // its InputZone owner share).
-import type {} from '@deepseek-ai/dsh-fork-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 // Type-only: pulls the `agentMode` SessionProjectionMap merge for useProjection.
 import type {} from '@deepseek-ai/dsh-fork-agent-modes/client'
 import { ModeMenu } from './ModeMenu.tsx'

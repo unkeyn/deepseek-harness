@@ -219,7 +219,7 @@ describe('LlmRuntime', () => {
     expect(ctx.llm.providerRetryPolicy('configured')).toBe(configured)
     expect(ctx.llm.providerRetryPolicy('defaulted')).toMatchObject({
       mode: 'normal',
-      maxRetries: 10,
+      maxRetries: 5,
     })
     expect(() => ctx.llm.providerRetryPolicy('missing')).toThrow(
       expect.objectContaining({ code: 'NO_ADAPTER' }),
@@ -256,37 +256,6 @@ describe('LlmRuntime', () => {
     })
     expect(prepared.retryPolicy).toBe(oldPolicy)
     expect(ctx.llm.providerRetryPolicy('route')).toBe(newPolicy)
-  })
-
-  it('projects historical images to text for a text-only model request', async () => {
-    const ctx = new Context()
-    await ctx.plugin(LlmRuntime)
-    let received: GenerateOptions | undefined
-    const adapter = new class extends LlmAdapter {
-      override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
-        return Promise.resolve({ provider, id: model, name: model, inputModalities: ['text'] })
-      }
-      override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-        received = options
-        yield * SCRIPT
-      }
-    }()
-    ctx.llm.registerAdapter(['route'], adapter)
-    const image = createMessage({
-      role: 'user',
-      source: { kind: 'user' },
-      content: [{
-        type: 'image',
-        attachment: { attachmentId: 'old-image' as never, mediaType: 'image/png', bytes: 1, width: 1, height: 1 },
-      }],
-    })
-
-    await collect(ctx.llm.stream({ provider: 'route', model: 'text-only', messages: [image] }))
-
-    expect(received?.messages[0]?.content).toEqual([
-      { type: 'text', text: '[Image omitted: selected model does not support image input.]' },
-    ])
-    expect(image.content[0]?.type).toBe('image')
   })
 
   it('normalizes an unregistered provider to a terminal failure', async () => {

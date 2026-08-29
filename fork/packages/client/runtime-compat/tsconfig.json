@@ -1,0 +1,20 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../../vendor/cordis" },
+    { "path": "../../../../packages/api/session-controller/tsconfig.client.json" },
+    { "path": "../../../../packages/api/workspace-controller/tsconfig.client.json" },
+    { "path": "../../../../packages/client/store" },
+    { "path": "../../../../packages/client/ui-chat" },
+    { "path": "../../../../packages/client/ui-conversation" },
+    { "path": "../../../../packages/client/ui-renderer" },
+    { "path": "../../../../packages/client/ui-settings" },
+    { "path": "../../../../packages/core/session" },
+    { "path": "../../../../packages/util/workspace-path" }
+  ]
+}

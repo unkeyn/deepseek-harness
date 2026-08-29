@@ -37,12 +37,6 @@ import { approvalRequestIdSchema, approvalResponsePayloadSchema } from '../src/a
 import { askUserQuestionAnswerSchema, questionResponsePayloadSchema } from '../src/api/questions.schema.ts'
 import { goalEditRequestSchema } from '../src/api/goals.schema.ts'
 import { subagentPromptRequestSchema } from '../src/api/subagents.schema.ts'
-import {
-  freebuffBeginLoginValueSchema,
-  freebuffCompleteLoginValueSchema,
-  freebuffOpenDesktopValueSchema,
-  freebuffStatusValueSchema,
-} from '../src/api/freebuff.schema.ts'
 
 describe('RpcId', () => {
   it('brands a raw string at zero runtime cost', () => {
@@ -51,24 +45,6 @@ describe('RpcId', () => {
     // No min-length: the id is an opaque echo token (see rpcIdSchema's contract).
     expect(rpcIdSchema.parse('')).toBe('')
     expect(() => rpcIdSchema.parse(42)).toThrow()
-  })
-})
-
-describe('Freebuff OAuth schemas', () => {
-  it('accept only redacted browser views', () => {
-    const status = freebuffStatusValueSchema.parse({
-      accounts: [{ accountId: 'account-1', displayName: 'User', status: 'active', authToken: 'secret' }],
-      pending: { loginUrl: 'https://freebuff.com/login/device', expiresAt: '2030-01-01T00:00:00Z', fingerprintHash: 'secret' },
-    })
-    expect(status).toEqual({
-      accounts: [{ accountId: 'account-1', displayName: 'User', status: 'active' }],
-      pending: { loginUrl: 'https://freebuff.com/login/device', expiresAt: '2030-01-01T00:00:00Z' },
-    })
-    expect(freebuffBeginLoginValueSchema.parse({ loginUrl: 'https://freebuff.com/login/device', expiresAt: '2030-01-01T00:00:00Z' })).toBeTruthy()
-    expect(freebuffCompleteLoginValueSchema.parse({ account: { accountId: 'account-1', status: 'active' } })).toBeTruthy()
-    expect(freebuffOpenDesktopValueSchema.parse({ opened: true })).toEqual({ opened: true })
-    expect(() => freebuffOpenDesktopValueSchema.parse({ opened: false })).toThrow()
-    expect(JSON.stringify(status)).not.toContain('secret')
   })
 })
 

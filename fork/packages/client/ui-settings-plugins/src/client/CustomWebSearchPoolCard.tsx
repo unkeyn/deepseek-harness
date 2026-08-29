@@ -13,11 +13,11 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import { IconPlusOutline16, IconTrashOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PoolCardFace, PoolDraftKey, PoolDraftProvider, ProviderPreset } from './custom-web-search-pool-controller.ts'
 // Type-only: the Models page panel slot this card renders in.
-import type {} from '@deepseek-ai/dsh-fork-client-ui-settings-models/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings-models/client'
 import css from './web-search-pool-card.module.css'
 
-/** Props bound by the Models page `settings.models.panel` slot. */
-export type CustomWebSearchPoolCardProps = PropsRuntime<'settings.models.panel'> & PropsLocale<'settings.plugins'> & InjectFace<PoolCardFace>
+/** Props bound by the Models page Search group panel slot. */
+export type CustomWebSearchPoolCardProps = PropsRuntime<'settings.models.panel'> & PropsLocale<'fork.search'> & InjectFace<PoolCardFace>
 
 const presetLabel: Record<ProviderPreset, 'webSearchPoolFirecrawl' | 'webSearchPoolBrave' | 'webSearchPoolExa'> = {
   firecrawl: 'webSearchPoolFirecrawl',

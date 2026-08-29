@@ -189,9 +189,6 @@ export function isTranslationScopeFile(file: string): boolean {
     || file.startsWith('.agents/notes/')
     || file.startsWith('docs/')
     || file.startsWith('python/'))
-    // The fork overlay keeps its own bilingual notes and package READMEs with
-    // their own pairing manifests; the root corpus does not enforce them.
-    && !file.startsWith('fork/')
 }
 
 /** Read the manifest exclusion list or fail before enforcement starts. */

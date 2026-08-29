@@ -8,7 +8,7 @@ This guide assumes you started the Web UI through the [root README](../../../REA
 
 Open **Settings → Models**. The DeepSeek card exposes one API-key field; enter the key and save it.
 
-![The Models page: the DeepSeek card, with catalog, custom API-key, and Bearer provider actions below it](providers-models-page.png)
+![The Models page: the DeepSeek card, with Add provider and Add a custom provider below it](providers-models-page.png)
 
 Keys are write-only. The page receives a redacted descriptor after saving, never the literal secret. The key is stored in `$DSH_HOME/.credentials.yaml`, while settings retain only its credential reference.
 
@@ -20,21 +20,13 @@ Providers with native authentication need their native credentials instead. Bedr
 
 ## Add a custom provider
 
-Choose **Add a custom provider** for a company gateway, self-hosted server, or provider absent from the installed catalog that uses an API key. Supply a lowercase Provider ID, base URL, API protocol, credential, and at least one model.
+Choose **Add a custom provider** for a company gateway, self-hosted server, or provider absent from the installed catalog. Supply a lowercase Provider ID, base URL, API protocol, credential, and at least one model.
 
-![The custom provider form in API-key mode: Provider ID, display name, base URL, API protocol, and API key](providers-custom-form.png)
+![The custom provider form: Provider ID, display name, base URL, API protocol, and API key](providers-custom-form.png)
 
 The Provider ID is permanent because requests, saved sessions, model defaults, and credential references use it. To rename a provider, add a new provider and delete the old one. The display name, base URL, protocol, credential, and models remain editable.
 
 Under **Model catalog**, choose **Fetch available models** to query the base URL and credential currently shown in the form. Selecting candidates updates the draft; the provider is not stored until you save. Catalog providers use their installed catalog without a network request.
-
-## Add a Bearer provider
-
-Choose **Add a Bearer provider** beside the custom-provider action for TwinMind or another route owned by the separate `llm-bearer` plugin. The TwinMind form supplies `https://api2.twinmind.com`, `twinmind-chat`, model `auto`, Firebase refresh, and TwinMind's public Firebase Web API key. Enter the current Firebase ID token and its matching `refresh_token`.
-
-You can instead paste a browser cookie export into **Import TwinMind cookies**. Parsing happens locally in the page: only the `session` and `firebase_refresh_token` values for `app.twinmind.com` are copied into the two write-only credential fields, analytics cookies are ignored, and the raw JSON field is cleared immediately. The page cannot read these cookies automatically because TwinMind marks them `HttpOnly` and they belong to another origin.
-
-The current ID token alone can authenticate only until expiry. With its matching refresh token, the plugin refreshes during the final minute, shares one refresh across concurrent requests, and persists rotated values for later processes and sessions. TwinMind uses `GET /api/v3/chat/models` for model discovery and `POST /api/v3/chat` for responses. **Fetch available models** can therefore add explicit model ids, including TwinMind's separate thinking variants. TwinMind exposes those as model choices, not reasoning-effort levels, so no reasoning-level selector appears. The chat-list, history, memory, todo, prompt, personalization, recap, OAuth, template, notes, and summary endpoints are separate product features.
 
 ### Image input
 
@@ -131,10 +123,9 @@ If a saved default names a provider that was deleted, the composer displays **Se
 
 ## Troubleshooting
 
-- **`MISSING_CREDENTIAL`** — Store the provider key or Bearer token through the Models page, or supply the referenced environment variable.
-- **`OAUTH_REAUTHENTICATE`** — The Bearer JWT expired without refresh settings, or Firebase rejected/missed the stored refresh token. Sign in again and replace both values.
+- **`MISSING_CREDENTIAL`** — Store the provider key through the Models page or supply the referenced environment variable.
 - **`UNKNOWN_MODEL`** — Select a configured model or add the missing model to the custom provider.
-- **Fetching available models returns 401** — Check the credential. API-key discovery calls OpenAI-compatible `GET /models`; TwinMind Bearer discovery calls `GET /api/v3/chat/models`.
+- **Fetching available models returns 401** — Check the key. Model discovery calls the OpenAI-compatible `GET /models` endpoint; enter models manually for endpoints that do not provide it.
 - **The gateway refuses every request although the key and URL are right** — Its request shape differs from OpenAI's. Start with `compat.supportsDeveloperRole: false` and `compat.maxTokensField: max_tokens` on the route.
 - **Only reasoning models fail** — pi-ai sends their system prompt as the `developer` role, which the gateway rejects. Set `compat.supportsDeveloperRole: false`.
 - **A compat switch is refused as having no value** — A key written with nothing after the colon. Give it a value, or remove the key to keep the installed catalog's.

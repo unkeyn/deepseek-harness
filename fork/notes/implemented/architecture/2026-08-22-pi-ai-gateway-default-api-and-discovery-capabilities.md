@@ -14,7 +14,6 @@ Model resolution resolves the wire protocol through a documented fallback chain 
 
 Endpoint interrogation enriches each candidate with reference-catalog facts — accepted input modalities and reasoning levels (installed pi-ai catalog first, shared identity catalog second), capacities when the listing disclosed none, and a `catalogMatched` marker. The Models page renders these as compact badges; adoption writes image capability onto the row, while reasoning stays resolution-owned because its wire spellings are adapter vocabulary. The capability fields are additive optional JSON on fork-owned types (`LlmDiscoveredModel`, the apiproxy `DiscoveredModelView`, its zod schema); official contracts are untouched.
 
-The Models page is now a segment switcher: **API providers** (the existing list) plus feature panels registered through the new `settings.models.panel` slot — Freebuff OAuth (moved from its Plugins tab) and the ready-made search-providers editor (moved from the Plugins card list, rendered expanded). Panels stay mounted once visited so editor drafts survive switching. Page styling is compacted within the existing design vocabulary.
 
 ## Alternatives considered
 

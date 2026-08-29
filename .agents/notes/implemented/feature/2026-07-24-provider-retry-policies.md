@@ -19,11 +19,12 @@ providers:
   - provider: deepseek
     retryPolicy:
       mode: normal
-      maxRetries: 10
+      maxRetries: 2
       retryableCodes: [EMPTY_RESPONSE, RATE_LIMIT, SERVER, TIMEOUT, TRANSPORT]
-      phases:
-        - { retries: 5, initialDelayMs: 2000, maxDelayMs: 2000, stepMs: 0, jitterRatio: 0.1 }
-        - { retries: 5, initialDelayMs: 10000, maxDelayMs: 30000, stepMs: 5000, jitterRatio: 0.1 }
+      backoff:
+        initialDelayMs: 500
+        maxDelayMs: 10000
+        jitterRatio: 0.1
   - provider: internal
     retryPolicy:
       mode: always
@@ -37,7 +38,7 @@ The listener reads the provider from the durable `request/header` in force when 
 
 Always mode asks downstream recovery first so a specialized policy such as context-overflow compaction can make progress. A downstream retry wins. A downstream failure decision or thrown recovery error falls back to an unbounded retry of the same provider request; the thrown error is logged. The retry listener owns and drains delegated recovery before cancellation or plugin disposal can finish, then applies the abort instead of a late downstream decision. Success, turn cancellation, and plugin disposal are the only termination paths.
 
-Normal mode may define ordered phases whose retry counts sum to `maxRetries`. Each phase grows linearly from `initialDelayMs` by `stepMs` up to `maxDelayMs`; omission uses the two-phase default, while an explicit policy with no phases retains the legacy exponential `backoff`. `jitterRatio` multiplies each target by a uniform sample in `[1 - jitterRatio, 1 + jitterRatio]`, then applies the active cap. A positive provider `Retry-After` within the cap remains exact and unjittered. An over-cap provider delay makes normal mode delegate; always mode retains its guarantee by using the configured local backoff.
+Both modes use exponential local delays from `initialDelayMs` to `maxDelayMs`. `jitterRatio` multiplies each target by a uniform sample in `[1 - jitterRatio, 1 + jitterRatio]`, then applies the cap. A positive provider `Retry-After` within the cap remains exact and unjittered. An over-cap provider delay makes normal mode delegate; always mode retains its guarantee by using the configured local backoff.
 
 Each scheduled retry appends a non-surface `llm/retry` event with the failed provider, policy mode, canonical resolved-policy key, provider-policy retry number, delay, and failure facts. Normal events carry finite `maxRetries`; always events omit it, and UIs render the limit as `∞`. The event and failed `assistant/chunk` records do not contribute surface messages, so the next request contains the same derived context as the failed request unless another recovery policy deliberately changes the surface.
 

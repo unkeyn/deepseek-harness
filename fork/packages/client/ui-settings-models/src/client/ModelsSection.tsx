@@ -12,18 +12,20 @@
  * re-renders from pushed invalidations or the post-apply reload.
  */
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
-import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
 import { Button, IconPlusOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: the SlotMap merge that declares `settings.models.panel` here.
 import type {} from './slot-contract.ts'
 import { CustomProviderCard } from './CustomProviderCard.tsx'
-import { deriveKeyRef, messageOf, protocolChoices, providerUsable } from './store.ts'
+import { BearerPanel } from './BearerPanel.tsx'
+import { deriveBearerRef, deriveKeyRef, deriveRefreshRef, messageOf, protocolChoices, providerUsable } from './store.ts'
 import type { ModelsSettingsStore, ProviderRow } from './store.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
+import type { ModelsApi } from './models-api.ts'
 import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
+import { ModelsSettingsTabs, type ModelsSettingsTab } from './ModelsGroups.tsx'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
@@ -38,7 +40,7 @@ export interface ModelsSectionInjected {
     panels: HostObservable<readonly ModelsPanelEntry[]>
   }
   /** Wire faces the editor writes through. */
-  api: Pick<IApiClient, 'settings' | 'credentials' | 'llm'>
+  api: ModelsApi
   /** Settings schema and immutable path callbacks. */
   schema: SettingsSchemaOperations
   /** Section copy. */
@@ -80,6 +82,8 @@ interface EditorTarget extends ProviderIdentity {
   settingsPath: readonly string[]
   /** Writable credential identified under this page's conventional reference. */
   credentialRef?: string
+  /** Bearer access and refresh references managed by this page. */
+  credentialRefs?: readonly string[]
   /** The adapter reports this route as one it does not ship (see {@link ProviderEditorProps.declared}). */
   declared?: boolean
 }
@@ -117,13 +121,14 @@ function renderProviderEditor({ target, ...props }: ProviderEditorRenderProps): 
  * @returns the failure message, or undefined once the write and reload landed.
  */
 export async function removeProviderProfile(
-  api: Pick<IApiClient, 'settings' | 'credentials'>,
+  api: Pick<ModelsApi, 'settings' | 'credentials'>,
   controller: ModelsSettingsStore,
-  target: { settingsNs: string; settingsPath: readonly string[]; credentialRef?: string },
+  target: { settingsNs: string; settingsPath: readonly string[]; credentialRef?: string; credentialRefs?: readonly string[] },
 ): Promise<string | undefined> {
   try {
-    if (target.credentialRef !== undefined) {
-      const credential = await api.credentials.unset({ ref: target.credentialRef })
+    const refs = target.credentialRefs ?? (target.credentialRef === undefined ? [] : [target.credentialRef])
+    for (const ref of refs) {
+      const credential = await api.credentials.unset({ ref })
       if (!credential.result.ok) return credential.result.error.message
     }
     const response = await api.settings.mutate({
@@ -157,10 +162,18 @@ export function needsSetup(row: ProviderRow, anyUsable: boolean): boolean {
 
 function targetOf(row: ProviderRow): EditorTarget {
   const managedRef = deriveKeyRef(row.entry.provider)
+  const managedBearerRefs = [deriveBearerRef(row.entry.provider), deriveRefreshRef(row.entry.provider)]
+  const rowCredentialRefs = row.credentialRefs ?? []
   const credentialRef = row.apiKeyEnv === managedRef
     && row.credential?.configured === true
     && row.credential.writable
     ? managedRef
+    : undefined
+  const credentialRefs = rowCredentialRefs.length > 0
+    && rowCredentialRefs.every(ref => managedBearerRefs.includes(ref))
+    && row.credentials?.length === rowCredentialRefs.length
+    && row.credentials.every(credential => credential.configured && credential.writable)
+    ? rowCredentialRefs
     : undefined
   return {
     provider: row.entry.provider,
@@ -168,6 +181,7 @@ function targetOf(row: ProviderRow): EditorTarget {
     settingsNs: row.entry.settingsNs,
     settingsPath: row.entry.settingsPath,
     ...credentialRef === undefined ? {} : { credentialRef },
+    ...credentialRefs === undefined ? {} : { credentialRefs },
     // Absent is not "shipped": an adapter that answers nothing leaves the
     // route-level fields only a declared route owns off the card, exactly as
     // it leaves the custom tag off the row.
@@ -207,74 +221,36 @@ export function ModelsSection(props: ModelsSectionProps): ReactNode {
 const API_PANEL_ID = 'api'
 
 /**
- * Render one Models page whose segments keep their first-mounted content
- * alive while hidden, so editor drafts survive switching between API,
- * OAuth, and search-provider views.
+ * Render one Models page whose internal navigation follows the same tab
+ * pattern as Plugins. A tab mounts its content on first selection and keeps
+ * it alive while hidden, so API drafts, OAuth attempts, and search edits
+ * survive switching between categories.
  */
 function Loaded({ injected }: { injected: ModelsSectionFace & Pick<PropsRenderSlots<'settings.models.panel'>, 'renderSlot'> }): ReactNode {
   const { t, renderSlot } = injected
   const panels = injected.usePanels(value => value)
-  const [activeId, setActiveId] = useState<string>()
-  const [visitedIds, setVisitedIds] = useState<ReadonlySet<string>>(() => new Set([API_PANEL_ID]))
-  const active = panels.some(panel => panel.id === activeId) ? activeId : API_PANEL_ID
-  useEffect(() => {
-    if (active === undefined) return
-    setVisitedIds((previous) => {
-      if (previous.has(active)) return previous
-      return new Set([...previous, active])
-    })
-  }, [active])
+  const panelIds = new Set(panels.map(panel => panel.id))
+  const knownPanelIds = new Set([API_PANEL_ID, 'bearer', 'oauth', 'search'])
+  const tabs: readonly ModelsSettingsTab[] = [
+    { id: API_PANEL_ID, title: t('groupApi'), description: t('groupApiDescription'), render: () => <ApiContent injected={injected} /> },
+    { id: 'bearer', title: t('groupBearer'), description: t('groupBearerDescription'), render: () => <BearerPanel controller={injected.controller} useSnapshot={injected.useSnapshot} api={injected.api} schema={injected.schema} t={injected.t} readOnly={!injected.controller.store.getSnapshot().writable} /> },
+    { id: 'oauth', title: t('groupOAuth'), description: t('groupOAuthDescription'), render: panelIds.has('oauth') ? () => renderSlot('settings.models.panel', {}, { only: 'oauth' }) : undefined },
+    { id: 'search', title: t('groupSearch'), description: t('groupSearchDescription'), render: panelIds.has('search') ? () => renderSlot('settings.models.panel', {}, { only: 'search' }) : undefined },
+    ...panels
+      .filter(panel => !knownPanelIds.has(panel.id))
+      .map(panel => ({ id: panel.id, title: panel.label, description: t('groupExtensionDescription'), render: () => renderSlot('settings.models.panel', {}, { only: panel.id }) })),
+  ]
 
   return (
     <div className={styles['section']}>
       <h2 className={styles['title']}>{t('title')}</h2>
       <p className={styles['intro']}>{t('intro')}</p>
-      <div className={styles['segments']} role="tablist" aria-label={t('title')}>
-        {[{ id: API_PANEL_ID, label: t('panelApi') }, ...panels].map((segment, index, all) => {
-          const selected = segment.id === active
-          return (
-            <button
-              key={segment.id}
-              type="button"
-              role="tab"
-              className={styles['segment']}
-              aria-selected={selected}
-              data-active={selected ? 'true' : undefined}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => { setActiveId(segment.id) }}
-              onKeyDown={(event) => {
-                let nextIndex: number
-                switch (event.key) {
-                  case 'ArrowRight': nextIndex = (index + 1) % all.length; break
-                  case 'ArrowLeft': nextIndex = (index - 1 + all.length) % all.length; break
-                  default: return
-                }
-                event.preventDefault()
-                setActiveId(all[nextIndex]?.id)
-              }}
-            >
-              {segment.label}
-            </button>
-          )
-        })}
-      </div>
-      {[API_PANEL_ID, ...panels.map(panel => panel.id)]
-        .filter(id => visitedIds.has(id))
-        .map((id) => {
-          const selected = id === active
-          return (
-            <div
-              key={id}
-              className={styles['panel']}
-              role="tabpanel"
-              hidden={!selected}
-            >
-              {id === API_PANEL_ID
-                ? <ApiContent injected={injected} />
-                : renderSlot('settings.models.panel', {}, { only: id })}
-            </div>
-          )
-        })}
+      <ModelsSettingsTabs
+        tabs={tabs}
+        initialActiveId={API_PANEL_ID}
+        unavailableText={t('groupUnavailable')}
+        ariaLabel={t('tabs')}
+      />
     </div>
   )
 }
@@ -367,8 +343,9 @@ function ApiContent({ injected }: { injected: ModelsSectionFace }): ReactNode {
   // One fact decides both first-run postures on this page and the onboarding
   // step: whether the user already has a provider to talk to.
   const anyUsable = state.rows.some(providerUsable)
-  const configured = state.rows.filter(row => row.configured)
-  const addable = state.rows.filter(row => !row.configured && row.entry.settingsNs !== '')
+  const apiRows = state.rows.filter(row => row.entry.settingsNs !== 'llm-bearer')
+  const configured = apiRows.filter(row => row.configured)
+  const addable = apiRows.filter(row => !row.configured && row.entry.settingsNs !== '')
   const addTarget = adding ? editing : undefined
   const addNamespace = addTarget === undefined ? undefined : state.namespaces.get(addTarget.settingsNs)
   // Hand-declared routes live in the pi-ai namespace, which is also the only
@@ -600,7 +577,7 @@ function ApiContent({ injected }: { injected: ModelsSectionFace }): ReactNode {
         description={deleteTarget === undefined
           ? ''
           : providerCopy(
-            deleteTarget.credentialRef === undefined
+                    deleteTarget.credentialRef === undefined && deleteTarget.credentialRefs === undefined
               ? t('deleteDescription')
               : t('deleteDescriptionWithCredential'),
             deleteTarget,

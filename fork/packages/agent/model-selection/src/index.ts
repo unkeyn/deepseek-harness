@@ -12,6 +12,8 @@ import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, ModelSelection, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
+// Type-only edge: the compatibility bridge reads the current API controller's
+// installed selection when the current upstream gateway is present.
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -48,7 +50,24 @@ export class AgentModelSelections extends Service {
    * (headless and non-web compositions never install it).
    */
   for(agent: Agent): ModelSelectionRef | undefined {
-    return this.refs.get(agent)
+    const published = this.refs.get(agent)
+    if (published !== undefined) return published
+
+    // Current upstream creates the selection inside its private API-agent
+    // controller during Agent setup. The old fork gateway used to call
+    // `bind()` directly, so retain that public bridge when available and use
+    // this narrow, isolated compatibility fallback for the current gateway.
+    // Keeping this adapter here means future upstream changes are confined to
+    // one fork package instead of requiring edits to upstream sources.
+    const sessionController = this.ctx.get('sessionController') as unknown as {
+      agents?: { selectionFor?: (agent: Agent) => ModelSelectionRef }
+    } | undefined
+    const current = sessionController?.agents?.selectionFor?.(agent)
+    if (current !== undefined) {
+      this.refs.set(agent, current)
+      return current
+    }
+    return undefined
   }
 
   /**

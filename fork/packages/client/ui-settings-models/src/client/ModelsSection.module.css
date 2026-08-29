@@ -31,19 +31,20 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-/* The API / OAuth / search-provider switcher. Same underline-tab vocabulary
-   as the Plugins section's tabs, so the two settings pages read as one app. */
-.segments {
+.modelTabs {
   display: flex;
   align-items: flex-end;
-  gap: 18px;
+  gap: 22px;
   border-bottom: 1px solid var(--dsw-alias-border-l2);
+  margin-top: 2px;
+  overflow-x: auto;
 }
 
-.segment {
+.modelTab {
   position: relative;
+  flex: none;
   border: 0;
-  padding: 5px 1px 7px;
+  padding: 4px 1px 6px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   font: inherit;
@@ -52,13 +53,13 @@
   cursor: pointer;
 }
 
-.segment:hover,
-.segment[data-active='true'] {
+.modelTab:hover,
+.modelTab[data-active='true'] {
   color: var(--dsw-alias-label-primary);
 }
 
-.segment[data-active='true']::after,
-.segment:focus-visible::after {
+.modelTab[data-active='true']::after,
+.modelTab:focus-visible::after {
   position: absolute;
   right: 0;
   bottom: -1px;
@@ -69,11 +70,23 @@
   content: '';
 }
 
-.segment:focus-visible {
+.modelTab:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary);
   outline-offset: 2px;
   border-radius: 2px;
   color: var(--dsw-alias-label-primary);
+}
+
+.modelTabPanel {
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.empty {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .panel {
@@ -332,6 +345,33 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+.checkboxField {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 8px;
+  min-height: 24px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.checkbox {
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--dsw-alias-brand-primary);
+}
+
+.checkbox:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .linkButton {
   box-sizing: border-box;
   display: inline-flex;
@@ -360,6 +400,16 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
+.manualCredentials {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
 .editorActions {
   display: flex;
   justify-content: flex-end;
@@ -381,17 +431,16 @@
 }
 
 .addButton {
-  /* Overrides the shared button base above: these two are not pills sitting in
-     a footer but the last slot of the provider list, so they split the row
-     evenly and repeat the row cards' corner. Dashed, like every other "nothing
-     here yet" affordance on this page, to read as a place rather than a
-     command. */
+  /* These are provider-list affordances, not footer actions: keep the equal
+     API buttons while using the compact control height shared by Bearer. */
   flex: 1 1 0;
   min-width: 180px;
   gap: 6px;
-  height: 44px;
+  height: 32px;
   border: 1px dashed var(--dsw-alias-border-l3);
-  border-radius: 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .addCard,
@@ -639,6 +688,21 @@ select.input {
   cursor: pointer;
 }
 
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 104px;
+  padding: 8px 10px;
+  resize: vertical;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .input:focus {
   outline: none;
   border-color: var(--dsw-alias-brand-primary);
@@ -706,6 +770,7 @@ select.input {
 
 .fetchDialog {
   max-width: 520px;
+  height: min(760px, calc(100vh - 32px));
 
   /* The candidate list scrolls inside this dialog, an elevated surface, so the
      scrollbar indirection is rebound here rather than on the scrolling child:
@@ -713,6 +778,19 @@ select.input {
      ui-theme styles/scrollbar.css for the contract). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.fetchDialogContent {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Modal's body is the last direct child of its content column. Let it consume
+   the added vertical space while the candidate list remains the scroll seat. */
+.fetchDialogContent > :last-child {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .candidateActions {
@@ -747,11 +825,64 @@ select.input {
   font-variant-numeric: tabular-nums;
 }
 
+.candidateFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+
+.candidateFilter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.candidateFilter:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.candidateFilter[data-state='include'] {
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-label-primary);
+}
+
+.candidateFilter[data-state='exclude'] {
+  border-color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.candidateFilterMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 12px;
+}
+
 .candidateList {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 2px;
-  max-height: 320px;
+  min-height: 0;
+  max-height: none;
   margin: 0;
   overflow-y: auto;
   padding: 0;

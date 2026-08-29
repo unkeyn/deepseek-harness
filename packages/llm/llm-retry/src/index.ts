@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto'
 import type { Context, Events } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent, RequestErrorAction } from '@deepseek-ai/dsh-agent'
-import type { LlmFailure, ResolvedRetryPhase, ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
+import type { LlmFailure, ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { RetryId } from './brand.ts'
 import type { LlmRetryEventData } from './types.ts'
@@ -55,62 +55,23 @@ async function settleDownstream(
   }
 }
 
-function phaseForRetry(phases: readonly ResolvedRetryPhase[], retry: number): { phase: ResolvedRetryPhase; index: number } | undefined {
-  let offset = 0
-  for (const [index, phase] of phases.entries()) {
-    if (retry <= offset + phase.retries) return { phase, index }
-    offset += phase.retries
-  }
-  return undefined
-}
-
 function localDelay(config: ResolvedRetryPolicy, retry: number, random: () => number): number {
-  if (config.mode === 'normal' && config.phases !== undefined) {
-    const phased = phaseForRetry(config.phases, retry)
-    if (phased !== undefined) {
-      const completed = config.phases
-        .slice(0, phased.index)
-        .reduce((sum: number, phase: ResolvedRetryPhase) => sum + phase.retries, 0)
-      const exponent = Math.min(retry - 1 - completed, 1024)
-      const local = Math.min(
-        phased.phase.initialDelayMs + phased.phase.stepMs * exponent,
-        phased.phase.maxDelayMs,
-      )
-      const jitter = 1 - phased.phase.jitterRatio + 2 * phased.phase.jitterRatio * random()
-      return Math.min(local * jitter, phased.phase.maxDelayMs)
-    }
-  }
   const exponent = Math.min(retry - 1, 1024)
   const exponential = Math.min(config.initialDelayMs * 2 ** exponent, config.maxDelayMs)
   const jitter = 1 - config.jitterRatio + 2 * config.jitterRatio * random()
   return Math.min(exponential * jitter, config.maxDelayMs)
 }
 
-function providerDelayCap(policy: ResolvedRetryPolicy): number {
-  if (policy.mode !== 'normal' || policy.phases === undefined) return policy.maxDelayMs
-  return Math.max(policy.maxDelayMs, ...policy.phases.map(phase => phase.maxDelayMs))
-}
-
 function retryPolicyKey(policy: ResolvedRetryPolicy): string {
-  if (policy.mode === 'always') {
-    return JSON.stringify([policy.mode, policy.initialDelayMs, policy.maxDelayMs, policy.jitterRatio])
-  }
-  const common = [
-    policy.mode,
-    policy.maxRetries,
-    [...policy.retryableCodes].sort(),
-  ]
-  return policy.phases === undefined
-    ? JSON.stringify([...common, policy.initialDelayMs, policy.maxDelayMs, policy.jitterRatio])
+  return policy.mode === 'always'
+    ? JSON.stringify([policy.mode, policy.initialDelayMs, policy.maxDelayMs, policy.jitterRatio])
     : JSON.stringify([
-      ...common,
-      policy.phases.map(phase => [
-        phase.retries,
-        phase.initialDelayMs,
-        phase.maxDelayMs,
-        phase.stepMs,
-        phase.jitterRatio,
-      ]),
+      policy.mode,
+      policy.maxRetries,
+      [...policy.retryableCodes].sort(),
+      policy.initialDelayMs,
+      policy.maxDelayMs,
+      policy.jitterRatio,
     ])
 }
 
@@ -229,12 +190,11 @@ export function apply(ctx: Context, config: Config = {}, internals: RetryInterna
     if (policy.mode === 'normal' && previousRetry >= policy.maxRetries) return next()
     const retry = previousRetry + 1
     const retryId = priorPolicyRetry?.data.retryId ?? RetryId(randomUUID())
-    const cap = providerDelayCap(policy)
     let delayMs: number
     if (failure.providerRetryAfterMs !== undefined
       && Number.isFinite(failure.providerRetryAfterMs)
       && failure.providerRetryAfterMs > 0) {
-      if (failure.providerRetryAfterMs > cap) {
+      if (failure.providerRetryAfterMs > policy.maxDelayMs) {
         if (policy.mode === 'normal') return next()
         delayMs = localDelay(policy, retry, random)
       } else {

@@ -6,10 +6,9 @@
     { "path": "../../../../vendor/cordis" },
     { "path": "../../../../packages/api/remotes/tsconfig.client.json" },
     { "path": "../../../../packages/client/locale" },
-    { "path": "../../../../packages/client/runtime" },
     { "path": "../../../../packages/client/ui-primitives" },
     { "path": "../../../../packages/client/ui-slots" },
-    { "path": "../ui-conversation" },
+    { "path": "../../../../packages/client/ui-conversation" },
     { "path": "../../agent/modes" },
     { "path": "../../../../packages/runtime-diagnostics/invariants" }
   ]

@@ -13,7 +13,6 @@ import * as SessionInvariant from '@deepseek-ai/dsh-session/invariant'
 import * as AgentInvariant from '@deepseek-ai/dsh-agent/invariant'
 import * as AgentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
 import { BasicCompactionEngine } from '@deepseek-ai/dsh-compaction-basic'
-import type {} from '@deepseek-ai/dsh-compaction-policy'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import * as LlmRetry from '@deepseek-ai/dsh-llm-retry'
 import { Session, SessionId, type SessionEvent, type SurfaceEvent } from '@deepseek-ai/dsh-session'
@@ -147,11 +146,7 @@ async function mountInvariants(ctx: Context): Promise<void> {
   await ctx.plugin(AgentLoopInvariant)
 }
 
-async function harness(
-  toolSteps: number,
-  thresholdRatio = 0.5,
-  overrideRatio?: number,
-): Promise<{ ctx: Context; compact: ReproCompactionEngine }> {
+async function harness(toolSteps: number): Promise<{ ctx: Context; compact: ReproCompactionEngine }> {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
   await mountInvariants(ctx)
@@ -168,11 +163,9 @@ async function harness(
   }))
   // Small window so several tool steps cross the threshold and compaction
   // fires within the runaway turn after enough history can shrink.
-  // The host-backed policy is the live override used by isolated preset engines.
-  if (overrideRatio !== undefined) ctx.provide('compactionPolicy', { thresholdRatio: () => overrideRatio })
   const compact = new ReproCompactionEngine(ctx, {
     auto: true,
-    thresholdRatio,
+    thresholdRatio: 0.5,
     retainTokens: 50,
     maxTokens: 8192,
     compactionRetries: 1,
@@ -273,27 +266,6 @@ describe('CBR-001: a real-loop checkpoint is a valid boundary on both sides', ()
       expect(precedingResult.seq).toBeLessThan(compactStart!.seq)
       expect(precedingStepEnd!.seq).toBeLessThan(compactStart!.seq)
       expect(compactStart!.seq).toBeLessThan(nextStepStart!.seq)
-    } finally {
-      await ctx.fiber.dispose()
-    }
-  })
-
-  it('uses the Host threshold override and continues the same turn after compaction', async () => {
-    const { ctx } = await harness(8, 0.95, 0.25)
-    try {
-      const agent = ctx.agentLoop.create(SessionId('host-threshold'), { provider: 'mock', model: 'mock' })
-      agent.followup(createUserMessage({ content: [{ type: 'text', text: 'use the live threshold' }], source: { kind: 'user' } }))
-      await waitForIdle(ctx, agent)
-
-      const events = [...agent.session.events]
-      const compactStart = events.find(event => event.type === 'compaction/start')
-      expect(compactStart).toBeDefined()
-      const nextStep = events.find(event => event.type === 'step/start'
-        && event.data.turn === compactStart?.data.turn
-        && event.seq > compactStart!.seq)
-      expect(nextStep).toBeDefined()
-      expect(events.filter(event => event.type === 'turn/start')).toHaveLength(1)
-      expect(events.at(-1)).toMatchObject({ type: 'turn/end', data: { reason: { kind: 'completed' } } })
     } finally {
       await ctx.fiber.dispose()
     }

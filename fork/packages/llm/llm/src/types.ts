@@ -6,7 +6,7 @@
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
-import type { CallId, ProviderRequestId, ReasoningEffortId } from './brand.ts'
+import type { ToolCallId, ProviderRequestId, ReasoningEffortId } from './brand.ts'
 import type { Message } from './message.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -78,7 +78,7 @@ export interface ImageBlock {
 export interface ToolCallBlock {
   type: 'tool-call'
   /** Provider-issued call id; correlates with the matching tool result. */
-  id: CallId
+  id: ToolCallId
   name: string
   /** Raw JSON string as produced by the model. */
   arguments: string
@@ -87,7 +87,7 @@ export interface ToolCallBlock {
 /** The result of a tool invocation, sent back to the model. */
 export interface ToolResultBlock {
   type: 'tool-result'
-  toolCallId: CallId
+  toolCallId: ToolCallId
   content: ContentBlock[]
   isError?: boolean
 }
@@ -138,6 +138,17 @@ export interface TokenUsage {
   cacheReadTokens?: number
   cacheWriteTokens?: number
   reasoningTokens?: number
+}
+
+/** Provider visual-token price plus the model-visible text for one image occurrence. */
+export interface LlmImageRequestPrice {
+  visualTokens: number
+  text: string
+}
+
+/** Synchronous provider-side request-image pricing for an exact model route. */
+export interface LlmImageRequestPricing {
+  priceImages(images: readonly ImageAttachmentRef[]): readonly LlmImageRequestPrice[]
 }
 
 /** Display metadata for one registered provider route. */
@@ -205,12 +216,23 @@ export interface LlmModelDiscoveryRequest {
    * describes needs none; a route it does not must supply one.
    */
   baseURL?: string
+  /** Exact model-list endpoint for adapters that do not derive one. */
+  modelsURL?: string
   /** Wire protocol the endpoint speaks, when the draft names one. */
   api?: string
   /** Credential for this interrogation alone; the harness never stores it. */
   apiKey?: string
   /** Caller cancellation; implementations must settle promptly after it aborts. */
   signal?: AbortSignal
+}
+
+/** JSON-only discovery request exposed by the browser-facing LLM Remote. */
+export interface LlmModelDiscoveryWireRequest {
+  provider?: string
+  baseURL?: string
+  modelsURL?: string
+  api?: string
+  apiKey?: string
 }
 
 /**
@@ -336,7 +358,7 @@ export type StreamChunk =
   | { type: 'block-start'; index: number; blockType: ContentBlockType }
   | { type: 'text-delta'; index: number; text: string }
   | { type: 'reasoning-delta'; index: number; text: string }
-  | { type: 'tool-call-delta'; index: number; id: CallId; name?: string; argumentsDelta: string }
+  | { type: 'tool-call-delta'; index: number; id: ToolCallId; name?: string; argumentsDelta: string }
   | { type: 'block-end'; index: number; block: ContentBlock }
   | { type: 'usage'; usage: TokenUsage }
   | {

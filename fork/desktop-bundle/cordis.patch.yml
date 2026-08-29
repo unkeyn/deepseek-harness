@@ -1,0 +1,104 @@
+# Desktop overlay over the latest upstream base/web-app layers.
+# Upstream composition remains intact; only the fork package rows below are
+# inserted or replaced by id. This keeps future upstream updates reviewable.
+
+# The fork LLM stack owns the same public services as the upstream adapters.
+- id: llm
+  name: '@deepseek-ai/dsh-llm'
+  disabled: true
+- id: llm-retry
+  name: '@deepseek-ai/dsh-llm-retry'
+  disabled: true
+- id: llm-pi-ai
+  name: '@deepseek-ai/dsh-llm-pi-ai'
+  disabled: true
+- id: llm-deepseek
+  name: '@deepseek-ai/dsh-llm-deepseek'
+  disabled: true
+
+# The fork web row routes search through the fork pool while retaining the
+# upstream Web UI and model-facing tool seams.
+- id: web
+  name: '@deepseek-ai/dsh-web'
+  disabled: true
+- id: web-fetch-http
+  name: '@deepseek-ai/dsh-web-fetch-http'
+  disabled: true
+
+# Web-app disables the host compaction row because standard agent presets own
+# it. The launcher supplies a generated fork-standard preset whose nested row
+# points at the fork compaction implementation.
+- id: compaction-basic
+  name: '@deepseek-ai/dsh-compaction-basic'
+  disabled: true
+- id: ui-settings-models
+  name: '@deepseek-ai/dsh-client-ui-settings-models'
+  disabled: true
+
+- insert:
+    # The current pi-ai adapter registers its provider OAuth flows through the
+    # upstream authorization service. Keep that service mounted in the desktop
+    # composition so OAuth is available to the runtime instead of being silently
+    # dropped when the optional injection is unresolved.
+    - id: authorization
+      name: '@deepseek-ai/dsh-authorization'
+    - id: authorization-controller-fork
+      name: '@deepseek-ai/dsh-fork-authorization-controller'
+    - id: llm-fork
+      name: '@deepseek-ai/dsh-fork-llm'
+    - id: llm-bearer-fork
+      name: '@deepseek-ai/dsh-fork-llm-bearer'
+    - id: llm-retry-fork
+      name: '@deepseek-ai/dsh-fork-llm-retry'
+    - id: llm-pi-ai-fork
+      name: '@deepseek-ai/dsh-fork-llm-pi-ai'
+    - id: llm-deepseek-fork
+      name: '@deepseek-ai/dsh-fork-llm-deepseek'
+
+    # Fork catalog, compaction policy, model-aware budget context, and
+    # multi-key credential failover are host services used by the adapters.
+    - id: model-catalog-fork
+      name: '@deepseek-ai/dsh-fork-model-catalog'
+    - id: compaction-policy-fork
+      name: '@deepseek-ai/dsh-fork-compaction-policy'
+    - id: budget-context-fork
+      name: '@deepseek-ai/dsh-fork-budget-context'
+    - id: key-pool-fork
+      name: '@deepseek-ai/dsh-fork-key-pool'
+
+    # Mode routing and its per-mode assignment UI. The current upstream
+    # conversation/model/settings components remain the owners of their seams.
+    - id: agent-model-selections-fork
+      name: '@deepseek-ai/dsh-fork-agent-model-selection'
+    - id: agent-modes-fork
+      name: '@deepseek-ai/dsh-fork-agent-modes'
+      config: {}
+    - id: ui-agent-modes-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-agent-modes'
+
+    # Fork web search transport and providers. custom-pool is first; an empty
+    # or exhausted pool falls through to the official DeepSeek search route.
+    - id: web-fork
+      name: '@deepseek-ai/dsh-fork-web'
+      config:
+        searchProviders: [custom-pool, brave, firecrawl, deepseek-official]
+        fetchProvider: http
+    - id: web-fetch-fork
+      name: '@deepseek-ai/dsh-fork-web-fetch-http'
+    - id: web-search-pool-fork
+      name: '@deepseek-ai/dsh-fork-web-search-pool'
+    - id: web-search-brave-fork
+      name: '@deepseek-ai/dsh-fork-web-search-brave'
+      config: {}
+    - id: web-search-firecrawl-fork
+      name: '@deepseek-ai/dsh-fork-web-search-firecrawl'
+      config: {}
+
+    # Fork browser add-ons restore the old mode panel and web-search/key-pool
+    # controls in current upstream UI locations.
+    - id: ui-settings-plugins-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-settings-plugins'
+    - id: ui-settings-models-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-settings-models'
+    - id: ui-authorization-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-authorization'

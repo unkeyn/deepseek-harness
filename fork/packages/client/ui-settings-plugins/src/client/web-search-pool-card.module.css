@@ -415,9 +415,11 @@ select.input {
   flex: 1 1 0;
   min-width: 180px;
   gap: 6px;
-  height: 44px;
+  height: 32px;
   border: 1px dashed var(--dsw-alias-border-l3);
-  border-radius: 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .addCard {

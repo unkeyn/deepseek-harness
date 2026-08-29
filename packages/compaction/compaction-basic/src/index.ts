@@ -14,8 +14,6 @@ import { CONTEXT_WINDOW_EXCEEDED_CODE, assertNever } from '@deepseek-ai/dsh-llm'
 import type { LlmCallConfig } from '@deepseek-ai/dsh-llm'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type { CommandId } from '@deepseek-ai/dsh-commands/brand'
-// Type-only: makes the host-plane policy service available to `ctx.get()`.
-import type {} from '@deepseek-ai/dsh-compaction-policy'
 // Type-only: makes the optional sibling service available to `ctx.get()`.
 import type {} from '@deepseek-ai/dsh-compaction-tool-result-pruner'
 import {
@@ -265,10 +263,6 @@ export class BasicCompactionEngine extends CompactionEngine {
     const target = routedTarget(agent.session)
     if (target === undefined) return null
     const policy = resolveTargetPolicy(this.config, target)
-    const compactionPolicy = this.ctx.get('compactionPolicy')
-    const effectivePolicy = compactionPolicy === undefined
-      ? policy
-      : { ...policy, thresholdRatio: compactionPolicy.thresholdRatio(policy.thresholdRatio) }
     const meter = this.ctx.tokenMeter
     let measurement = meter.measure(agent.session)
     switch (trigger) {
@@ -306,7 +300,7 @@ export class BasicCompactionEngine extends CompactionEngine {
         + 'configure contextWindow on that adapter model',
       )
     }
-    const spec = resolveCompactSpec(effectivePolicy, context.contextWindow)
+    const spec = resolveCompactSpec(policy, context.contextWindow)
     if (measurement.totalTokens < spec.thresholdTokens) return null
 
     // Once pressure qualifies, land the model-free pass before choosing a

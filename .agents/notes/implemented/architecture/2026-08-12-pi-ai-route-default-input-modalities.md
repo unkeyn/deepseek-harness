@@ -22,7 +22,7 @@ The assumption was justified in the source as the adapter's real capability rath
 
 **An entry's empty list means the same as an absent one; the route's is refused.** `[]` describes a model that accepts nothing and could serve no request, so it states no answer and resolution continues past it. That reading is not cosmetic: the config schema materializes `[]` for an absent array, so treating it as "accepts nothing" would silently strip images from every catalog vision model a `models` list happens to name. The route value has nothing below it to answer instead, so its empty list is refused where it is written. The route's `models` list already resolves absent-and-empty the same way for the same reason.
 
-**The configuration surface now exposes `reasoningEfforts` as a model-level preset without exposing provider-specific wire values.** The model-list editor writes only curated `off`/common-level maps or `false`; `settings.yaml` remains the escape hatch for provider-specific spellings and unknown fields remain preserved by row edits.
+**No configuration surface edits `input`.** It joins `compat`, `reasoningEfforts`, `thinkingBudgets`, and `headers` as a settings-document field, and the model-list editor stays a hand-written form over id, name, and the two capacities. This costs nothing durable because that card was already built to carry fields it does not edit: its row patch spreads the stored row before applying changes, and adoption keeps an existing row over a rediscovered candidate, so a hand-written `input` survives both.
 
 The direct DeepSeek adapter owns a separate exact-model catalog. Its supported vision entry declares image input, while its text models and unlisted pass-through ids remain text-only.
 

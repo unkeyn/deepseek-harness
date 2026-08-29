@@ -24,20 +24,20 @@ describe('OAuthLifecycle', () => {
     provider.setLoginResult(login)
     const credentials = store()
     const lifecycle = new OAuthLifecycle(provider, credentials, 'TEST_OAUTH', () => ({
-      accessRef: credentialRef('FREEBUFF_AUTH_TOKEN'),
+      accessRef: credentialRef('OAUTH_ACCESS_TOKEN'),
     }))
     const snapshot = await lifecycle.login('callback')
-    expect(snapshot.accessRef).toBe('FREEBUFF_AUTH_TOKEN')
-    expect(credentials.values.get('FREEBUFF_AUTH_TOKEN')).toBe('access-secret')
+    expect(snapshot.accessRef).toBe('OAUTH_ACCESS_TOKEN')
+    expect(credentials.values.get('OAUTH_ACCESS_TOKEN')).toBe('access-secret')
 
     const restored = new OAuthLifecycle(provider, credentials, 'TEST_OAUTH', () => ({
-      accessRef: credentialRef('FREEBUFF_AUTH_TOKEN'),
+      accessRef: credentialRef('OAUTH_ACCESS_TOKEN'),
     }))
     await expect(restored.restore({
       accountId: 'account-1',
       accessToken: 'access-secret',
       expiresAt: Number.MAX_SAFE_INTEGER,
-    })).resolves.toMatchObject({ accessRef: 'FREEBUFF_AUTH_TOKEN', status: 'active' })
+    })).resolves.toMatchObject({ accessRef: 'OAUTH_ACCESS_TOKEN', status: 'active' })
   })
 
   it('stores tokens by references and redacts values from snapshots', async () => {

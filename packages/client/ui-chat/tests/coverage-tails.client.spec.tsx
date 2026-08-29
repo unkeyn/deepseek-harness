@@ -9,7 +9,6 @@ import { zh } from '../src/client/locale.ts'
 
 const t: AssistantMarkdownProps['t'] = makeTranslate(zh, commonZh)
 const renderMessageImages: AssistantMarkdownProps['renderMessageImages'] = () => null
-const renderReasoning: AssistantMarkdownProps['renderReasoning'] = (_key, _owner, opts) => opts?.fallback ?? null
 
 afterEach(cleanup)
 
@@ -25,7 +24,6 @@ describe('tails', () => {
         ]}
         streaming
         renderMessageImages={renderMessageImages}
-        renderReasoning={renderReasoning}
       />,
     )
     expect(view.getByText('思考')).toBeTruthy()
@@ -38,7 +36,6 @@ describe('tails', () => {
         streaming={false}
         interrupted
         renderMessageImages={renderMessageImages}
-        renderReasoning={renderReasoning}
       />,
     )
     expect(stopped.getByText('已停止')).toBeTruthy()
@@ -53,15 +50,11 @@ describe('tails', () => {
         blocks={[{ kind: 'tool-call', callId: 'c', name: 'todo_write', argsRaw: '{}' }]}
         streaming={false}
         renderMessageImages={renderMessageImages}
-        renderReasoning={renderReasoning}
       />,
     )
     expect(empty.container.firstChild).toBeNull()
     const blank = render(
-      <AssistantMarkdown
-        t={t} blocks={[]} streaming={false}
-        renderMessageImages={renderMessageImages} renderReasoning={renderReasoning}
-      />,
+      <AssistantMarkdown t={t} blocks={[]} streaming={false} renderMessageImages={renderMessageImages} />,
     )
     expect(blank.container.firstChild).toBeNull()
   })

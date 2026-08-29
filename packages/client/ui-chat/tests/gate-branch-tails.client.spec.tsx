@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -26,8 +26,15 @@ import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
 
 const t: AssistantMarkdownProps['t'] = makeTranslate(zh, commonZh)
 const renderMessageImages: AssistantMarkdownProps['renderMessageImages'] = () => null
-const renderReasoning: AssistantMarkdownProps['renderReasoning'] = (_key, _owner, opts) => opts?.fallback ?? null
 
+/** jsdom has no ResizeObserver; StatsLine watches its row for ellipsis truncation through one. */
+class ResizeObserverStub {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+beforeEach(() => { vi.stubGlobal('ResizeObserver', ResizeObserverStub) })
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -80,7 +87,6 @@ describe('render branch tails', () => {
         blocks={[{ kind: 'reasoning', text: 'done thinking' }, { kind: 'text', text: 'answer' }]}
         streaming
         renderMessageImages={renderMessageImages}
-        renderReasoning={renderReasoning}
       />,
     )
     // reasoning at index 0 with a later block: running is false → ok state.
@@ -116,7 +122,6 @@ describe('render branch tails', () => {
         blocks={[{ kind: 'reasoning', text: 'still thinking' }]}
         streaming
         renderMessageImages={renderMessageImages}
-        renderReasoning={renderReasoning}
       />,
     )
     expect(view.container.querySelector('[data-state="running"]')).not.toBeNull()

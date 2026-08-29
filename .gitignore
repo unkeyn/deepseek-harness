@@ -34,15 +34,8 @@ apps/web/dist/
 .artifacts/
 .dsh-build/
 .playwright-mcp/
-.firecrawl/
 .orig
 .worktrees/
 worktrees/
 .agents/worktrees/
 .typert-*/
-
-# Fork client builds emit compiled bundles beside the TS sources; they are artifacts.
-fork/packages/client/**/src/**/*.js
-
-# Harvest plugin and its internal modules are kept local.
-fork/packages/harvest/

@@ -469,7 +469,7 @@ describe('provider profile lifecycle', () => {
     })
     expect(ctx.llm.providerRetryPolicy('anthropic')).toMatchObject({
       mode: 'normal',
-      maxRetries: 10,
+      maxRetries: 5,
     })
     await fiber.dispose()
     expect(ctx.llm.listProviders()).toEqual([])
@@ -710,10 +710,9 @@ describe('provider profile lifecycle', () => {
     }
 
     expect(await roles('acme-think')).toEqual(['system'])
-    // An id no installed catalog describes gets the same conservative answer
-    // by default — `system` is accepted everywhere `developer` is — so the
-    // explicit switch and the undetected id agree on this gateway.
-    expect(await roles('acme-guess')).toEqual(['system'])
+    // The switch is the only thing that changes it: the same route, same
+    // endpoint, same reasoning declaration still gets pi-ai's guess.
+    expect(await roles('acme-guess')).toEqual(['developer'])
   })
 
   it('sends a declared off value as the effort parameter instead of omitting it', async () => {

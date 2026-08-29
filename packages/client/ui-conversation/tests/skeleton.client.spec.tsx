@@ -255,8 +255,6 @@ function mount(
           useNotices={bindSnapshotSelector(wiring.notices)}
           useLexicon={bindSnapshotSelector(wiring.lexicon)}
           useMenuLauncher={bindSnapshotSelector(createSnapshotStore<string | null>(null))}
-          useCompactionThreshold={bindSnapshotSelector(createSnapshotStore(80))}
-          setCompactionThreshold={vi.fn()}
           stop={stop}
           command={() => Promise.resolve(true)}
           t={t}

@@ -223,6 +223,18 @@ describe('model discovery registry', () => {
       .rejects.toThrow(/no model discovery is registered/)
   })
 
+  it('accepts an exact models endpoint without requiring an unrelated base URL', async () => {
+    const ctx = await setup()
+    const discover = vi.fn(() => Promise.resolve([{ id: 'bearer-model' }]))
+    const request = { modelsURL: 'https://provider.example/v3/models' }
+
+    ctx.llm.registerModelDiscovery('llm-bearer', discover)
+
+    await expect(ctx.llm.discoverModels('llm-bearer', request))
+      .resolves.toEqual([{ id: 'bearer-model' }])
+    expect(discover).toHaveBeenCalledWith(request)
+  })
+
   it('rejects an unnamed namespace and a second registration of the same one', async () => {
     const ctx = await setup()
     const discover = (): Promise<never[]> => Promise.resolve([])
@@ -288,6 +300,8 @@ describe('model discovery registry', () => {
     await expect(ctx.llm.discoverModels('llm-example', { baseURL: '' }))
       .rejects.toMatchObject({ code: 'INVALID_DISCOVERY' })
     await expect(ctx.llm.discoverModels('llm-example', { provider: '', baseURL: '' }))
+      .rejects.toMatchObject({ code: 'INVALID_DISCOVERY' })
+    await expect(ctx.llm.discoverModels('llm-example', { modelsURL: '' }))
       .rejects.toMatchObject({ code: 'INVALID_DISCOVERY' })
     await expect(ctx.llm.discoverModels('llm-example', {}))
       .rejects.toMatchObject({ code: 'INVALID_DISCOVERY' })

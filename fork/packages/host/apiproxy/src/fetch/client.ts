@@ -62,13 +62,6 @@ import {
 } from '../api/credentials.schema.ts'
 import { llmDiscoverModelsValueSchema, llmModelsValueSchema, llmProvidersValueSchema } from '../api/llm.schema.ts'
 import {
-  freebuffBeginLoginValueSchema,
-  freebuffCompleteLoginValueSchema,
-  freebuffLogoutValueSchema,
-  freebuffOpenDesktopValueSchema,
-  freebuffStatusValueSchema,
-} from '../api/freebuff.schema.ts'
-import {
   subagentHistoryValueSchema,
   subagentInterruptValueSchema,
   subagentListValueSchema,
@@ -168,13 +161,6 @@ export interface IApiClient {
     models(payload: RequestPayload<'llm.models'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.models'>>>
     discoverModels(payload: RequestPayload<'llm.discoverModels'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.discoverModels'>>>
   }
-  freebuff: {
-    status(payload: RequestPayload<'freebuff.status'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'freebuff.status'>>>
-    beginLogin(payload: RequestPayload<'freebuff.beginLogin'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'freebuff.beginLogin'>>>
-    completeLogin(payload: RequestPayload<'freebuff.completeLogin'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'freebuff.completeLogin'>>>
-    logout(payload: RequestPayload<'freebuff.logout'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'freebuff.logout'>>>
-    openDesktop(payload: RequestPayload<'freebuff.openDesktop'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'freebuff.openDesktop'>>>
-  }
   /** client-response passthrough (rpcId is a backfill of the server-request's id — never minted here). */
   respond(message: ClientResponse, signal?: AbortSignal): Promise<RpcReceipt>
 }
@@ -236,11 +222,6 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'llm.providers': llmProvidersValueSchema,
   'llm.models': llmModelsValueSchema,
   'llm.discoverModels': llmDiscoverModelsValueSchema,
-  'freebuff.status': freebuffStatusValueSchema,
-  'freebuff.beginLogin': freebuffBeginLoginValueSchema,
-  'freebuff.completeLogin': freebuffCompleteLoginValueSchema,
-  'freebuff.logout': freebuffLogoutValueSchema,
-  'freebuff.openDesktop': freebuffOpenDesktopValueSchema,
 }
 
 /** Default timeout for bounded unary calls (rpc-compare 2026-07-19: a hung host must not leave callers pending forever). */
@@ -517,15 +498,6 @@ export abstract class AbstractApiClient implements IApiClient {
     providers: (payload, signal) => this.callUnary('llm.providers', payload, signal),
     models: (payload, signal) => this.callUnary('llm.models', payload, signal),
     discoverModels: (payload, signal) => this.callUnary('llm.discoverModels', payload, signal),
-  }
-
-  readonly freebuff: IApiClient['freebuff'] = {
-    status: (payload, signal) => this.callUnary('freebuff.status', payload, signal),
-    beginLogin: (payload, signal) => this.callUnary('freebuff.beginLogin', payload, signal),
-    // Device approval is user-paced and may outlive the ordinary unary deadline.
-    completeLogin: (payload, signal) => this.callUnary('freebuff.completeLogin', payload, signal, 'caller-signal-only'),
-    logout: (payload, signal) => this.callUnary('freebuff.logout', payload, signal),
-    openDesktop: (payload, signal) => this.callUnary('freebuff.openDesktop', payload, signal),
   }
 
   readonly events: IApiClient['events'] = {

@@ -269,12 +269,6 @@ export interface LlmModelDiscoveryError {
  * One model an endpoint reports about itself. Every field but the id is
  * optional because most provider listings disclose an id and nothing else;
  * a surface adopting one of these still owes the capacities its adapter needs.
- *
- * The capability fields after `maxTokens` never come from the endpoint's
- * listing shape — an OpenAI-compatible `/models` reply carries none of them.
- * An adapter that can answer them from a reference catalog fills them in so
- * a configuration surface can show and adopt capabilities without a second
- * lookup; absence means the adapter knows nothing beyond the listing.
  */
 export interface LlmDiscoveredModel {
   /** Model id the endpoint accepts. */
@@ -285,23 +279,6 @@ export interface LlmDiscoveredModel {
   contextWindow?: number
   /** Maximum output tokens, when disclosed. */
   maxTokens?: number
-  /**
-   * Accepted input modalities per a reference catalog. Absent means unknown:
-   * the surface should assume text-only rather than guessing images.
-   */
-  inputModalities?: readonly ModelModality[]
-  /**
-   * Reasoning effort levels the model offers per a reference catalog, in
-   * escalation order. Absent means unknown or non-reasoning; only a
-   * non-empty list states reasoning capability.
-   */
-  reasoningLevels?: readonly string[]
-  /**
-   * Whether a reference catalog described this exact id at all. A surface
-   * adopting a `false` entry knows resolution has no capability answer for
-   * it and supplies route-level facts (wire protocol) alongside the row.
-   */
-  catalogMatched?: boolean
 }
 
 /** One adapter-discovered model; catalog membership is advisory, not request validation. */

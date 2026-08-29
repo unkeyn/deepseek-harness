@@ -29,16 +29,6 @@
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
   background: var(--dsw-specific-tip);
-  /* Presence: same dock-column rise as the Todo strip, so the composer
-     context stack reads as one family. */
-  animation: goal-bar-in var(--dsw-duration-flow) var(--dsw-ease-flow);
-}
-
-@keyframes goal-bar-in {
-  from {
-    opacity: 0;
-    transform: translateY(var(--dsw-motion-rise));
-  }
 }
 
 .goalGlyph {
@@ -134,10 +124,4 @@
 .iconBtn:disabled {
   opacity: 0.4;
   cursor: default;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bar {
-    animation: none;
-  }
 }

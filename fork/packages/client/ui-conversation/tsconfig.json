@@ -24,7 +24,7 @@
       "path": "../../../../packages/client/ui-primitives"
     },
     {
-      "path": "../../../../packages/client/runtime"
+      "path": "../runtime-compat"
     },
     {
       "path": "../../../../packages/core/agent"

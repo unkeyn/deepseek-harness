@@ -52,6 +52,7 @@ export const llmDiscoverModelsRequestSchema = z.object({
   settingsNs: z.string().min(1),
   provider: z.string().min(1).optional(),
   baseURL: z.string().min(1).optional(),
+  modelsURL: z.string().min(1).optional(),
   api: z.string().min(1).optional(),
   // Write-only at the host: used for this one interrogation, never stored and
   // never returned. It does ride the client's outgoing envelope like every

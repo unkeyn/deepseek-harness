@@ -48,17 +48,6 @@ describe('reasoning schema boundary', () => {
   })
 })
 
-describe('replay mode schema boundary', () => {
-  it('accepts native and portable replay policies', () => {
-    expect(routeWith({ replayMode: 'native' })).not.toThrow()
-    expect(routeWith({ replayMode: 'portable' })).not.toThrow()
-  })
-
-  it('rejects an unknown replay policy', () => {
-    expect(routeWith({ replayMode: 'rotating' })).toThrow()
-  })
-})
-
 describe('modality schema boundary', () => {
   it('rejects a modality pi-ai does not know, at either level', () => {
     expect(configWith({ input: ['audio'] })).toThrow(/expected/)
@@ -77,12 +66,6 @@ describe('modality schema boundary', () => {
   type Materialized = {
     providers: Record<string, { defaultInput?: unknown; models?: { input?: unknown }[] }>
   }
-
-  it('preserves an explicit image-capable model declaration', () => {
-    const materialized = configWith({ input: ['text', 'image'] })() as Materialized
-    expect(materialized.providers['acme-gateway']?.models?.[0]?.input)
-      .toEqual(['text', 'image'])
-  })
 
   it('materializes an absent entry list as empty and an absent route list as text', () => {
     // The empty-list inheritance rule exists because of exactly this: an entry

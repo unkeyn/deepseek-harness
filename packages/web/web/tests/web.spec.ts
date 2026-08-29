@@ -132,50 +132,6 @@ describe('WebRuntime execution resolution', () => {
     await expect(b.web.search({ query: 'q' })).resolves.toMatchObject({ content: 'perplexity' })
   })
 
-  it('runs an explicitly configured provider chain in order after a failure', async () => {
-    const { web } = await mountWeb({ searchProviders: ['primary', 'backup'] })
-    const calls: string[] = []
-    web.registerSearchProvider(makeSearchProvider('primary', available, async () => {
-      calls.push('primary')
-      throw new Error('primary failed')
-    }))
-    web.registerSearchProvider(makeSearchProvider('backup', available, async () => {
-      calls.push('backup')
-      return searchResult('backup')
-    }))
-
-    await expect(web.search({ query: 'q' })).resolves.toMatchObject({ content: 'backup' })
-    expect(calls).toEqual(['primary', 'backup'])
-  })
-
-  it('uses a task-specific route when the request names a task', async () => {
-    const { web } = await mountWeb({
-      searchProviders: ['general'],
-      searchProvidersByTask: { code: ['code'] },
-    })
-    web.registerSearchProvider(makeSearchProvider('general', available, () => Promise.resolve(searchResult('general'))))
-    web.registerSearchProvider(makeSearchProvider('code', available, () => Promise.resolve(searchResult('code'))))
-
-    await expect(web.search({ query: 'q', task: 'code' })).resolves.toMatchObject({ content: 'code' })
-  })
-
-  it('does not fall back after cancellation', async () => {
-    const { web } = await mountWeb({ searchProviders: ['primary', 'backup'] })
-    const controller = new AbortController()
-    let backupCalls = 0
-    web.registerSearchProvider(makeSearchProvider('primary', available, async () => {
-      controller.abort('cancelled')
-      throw new WebError('cancelled', 'WEB_ABORTED')
-    }))
-    web.registerSearchProvider(makeSearchProvider('backup', available, async () => {
-      backupCalls += 1
-      return searchResult('backup')
-    }))
-
-    await expect(web.search({ query: 'q' }, controller.signal)).rejects.toThrow(expect.objectContaining({ code: 'WEB_ABORTED' }))
-    expect(backupCalls).toBe(0)
-  })
-
   it('runs the selected provider and returns its result', async () => {
     const { web } = await mountWeb()
     web.registerSearchProvider(makeSearchProvider('exa', available, () => Promise.resolve(

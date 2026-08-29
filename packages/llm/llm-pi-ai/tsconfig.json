@@ -18,10 +18,10 @@
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../../llm/llm"
+      "path": "../../../vendor/schemastery"
     },
     {
-      "path": "../../llm/model-catalog"
+      "path": "../../llm/llm"
     },
     {
       "path": "../../attachment/attachment"

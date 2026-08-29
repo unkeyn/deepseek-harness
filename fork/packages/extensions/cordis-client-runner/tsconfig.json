@@ -24,7 +24,7 @@
       "path": "../../../../packages/client/modules"
     },
     {
-      "path": "../../../../packages/client/runtime"
+      "path": "../../client/runtime-compat"
     },
     {
       "path": "../../../../packages/client/ui-slots"

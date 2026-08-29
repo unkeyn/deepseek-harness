@@ -4,7 +4,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { CustomWebSearchPoolCard } from '../src/client/CustomWebSearchPoolCard.tsx'
 import type { CustomWebSearchPoolCardProps } from '../src/client/CustomWebSearchPoolCard.tsx'
 import type { PoolCardState } from '../src/client/custom-web-search-pool-controller.ts'

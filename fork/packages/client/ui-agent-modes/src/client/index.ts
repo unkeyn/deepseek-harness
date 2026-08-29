@@ -7,10 +7,13 @@
  * `agent-mode-assignments` settings namespace. The Angel row stays a toggle.
  */
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
-import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
-import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type {} from '@deepseek-ai/dsh-client-ui-slots'
+// Type-only: pulls the renderer's Context merge (ctx.slots).
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the ui-conversation SlotMap merge (the input.left seat).
-import type {} from '@deepseek-ai/dsh-fork-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the `agentMode` SessionProjectionMap merge for useProjection.
@@ -34,8 +37,8 @@ const NS = 'agentmodes'
 /** The settings namespace the server plugin owns. */
 const ASSIGNMENTS_NAMESPACE = 'agent-mode-assignments'
 
-/** Required services: slot registry, connection (settings + catalog RPC), commands Remote, locale. */
-export const inject = ['slots', 'connection', 'remote', 'remote.commands', 'locale']
+/** Required services: slot registry, current Remote namespaces, and locale. */
+export const inject = ['slots', 'remote', 'remote.commands', 'remote.settings', 'remote.session', 'locale']
 
 /** Command failure text stays English (error-surface policy: not localized). */
 
@@ -53,15 +56,14 @@ export function apply(ctx: ClientContext): void {
     order: 10,
     locale: NS,
     inject: (sessionId: SessionId): ModeSelectInjected => {
-      const connection = ctx.get('connection') as ConnectionHandle
       const readSection = async (): Promise<{
         models: Record<string, { provider: string; model: string; reasoningEffort?: string }>
         instructions: Record<string, string>
         presets: Record<string, { models: Record<string, { provider: string; model: string; reasoningEffort?: string }>; instructions: Record<string, string> }>
       }> => {
-        const response = await connection.api.settings.describe({})
-        if (!response.result.ok) throw new Error(`${response.result.error.message} (${response.result.error.code})`)
-        const view = response.result.value.namespaces.find((entry: { ns: string }) => entry.ns === ASSIGNMENTS_NAMESPACE)
+        const response = await ctx.remote.settings.describe()
+        if (!response.ok) throw new Error(`${response.error.message} (${response.error.code})`)
+        const view = response.value.namespaces.find((entry: { ns: string }) => entry.ns === ASSIGNMENTS_NAMESPACE)
         const value = (view?.value ?? {}) as {
           models?: Record<string, { provider: string; model: string; reasoningEffort?: string }>
           instructions?: Record<string, string>
@@ -69,64 +71,71 @@ export function apply(ctx: ClientContext): void {
         }
         return { models: value.models ?? {}, instructions: value.instructions ?? {}, presets: value.presets ?? {} }
       }
-      const failure = (response: { result: { ok: false; error: { message: string; code: string } } | { ok: true } }): string | null =>
-        response.result.ok ? null : `${response.result.error.message} (${response.result.error.code})`
+      const failure = (response: { ok: false; error: { message: string; code: string } } | { ok: true }): string | null =>
+        response.ok ? null : `${response.error.message} (${response.error.code})`
       return {
         assignments: readSection,
         assignModel: async (mode, selection) => {
-          const response = await connection.api.settings.update({
-            ns: ASSIGNMENTS_NAMESPACE,
-            patch: { models: { [mode]: selection } },
-          })
+          const response = await ctx.remote.settings.update(
+            ASSIGNMENTS_NAMESPACE,
+            { models: { [mode]: selection } },
+            undefined,
+          )
           return failure(response)
         },        clearModel: async (mode) => {
-          const response = await connection.api.settings.mutate({
-            ns: ASSIGNMENTS_NAMESPACE,
-            ops: [{ op: 'unset', path: ['models', mode] }],
-          })
+          const response = await ctx.remote.settings.mutate(
+            ASSIGNMENTS_NAMESPACE,
+            [{ op: 'unset', path: ['models', mode] }],
+            undefined,
+          )
           return failure(response)
         },
         setInstruction: async (mode, text) => {
           const response = text === null
-            ? await connection.api.settings.mutate({
-                ns: ASSIGNMENTS_NAMESPACE,
-                ops: [{ op: 'unset', path: ['instructions', mode] }],
-              })
-            : await connection.api.settings.update({
-                ns: ASSIGNMENTS_NAMESPACE,
-                patch: { instructions: { [mode]: text } },
-              })
+            ? await ctx.remote.settings.mutate(
+                ASSIGNMENTS_NAMESPACE,
+                [{ op: 'unset', path: ['instructions', mode] }],
+                undefined,
+              )
+            : await ctx.remote.settings.update(
+                ASSIGNMENTS_NAMESPACE,
+                { instructions: { [mode]: text } },
+                undefined,
+              )
           return failure(response)
         },
         savePreset: async (name) => {
           const section = await readSection()
-          const response = await connection.api.settings.update({
-            ns: ASSIGNMENTS_NAMESPACE,
-            patch: { presets: { [name]: { models: section.models, instructions: section.instructions } } },
-          })
+          const response = await ctx.remote.settings.update(
+            ASSIGNMENTS_NAMESPACE,
+            { presets: { [name]: { models: section.models, instructions: section.instructions } } },
+            undefined,
+          )
           return failure(response)
         },
         applyPreset: async (name) => {
           const section = await readSection()
           const preset = section.presets[name]
           if (preset === undefined) return `preset "${name}" does not exist`
-          const response = await connection.api.settings.replace({
-            ns: ASSIGNMENTS_NAMESPACE,
-            section: { models: preset.models, instructions: preset.instructions, presets: section.presets },
-          })
+          const response = await ctx.remote.settings.replace(
+            ASSIGNMENTS_NAMESPACE,
+            { models: preset.models, instructions: preset.instructions, presets: section.presets },
+            undefined,
+          )
           return failure(response)
         },
         deletePreset: async (name) => {
-          const response = await connection.api.settings.mutate({
-            ns: ASSIGNMENTS_NAMESPACE,
-            ops: [{ op: 'unset', path: ['presets', name] }],
-          })
+          const response = await ctx.remote.settings.mutate(
+            ASSIGNMENTS_NAMESPACE,
+            [{ op: 'unset', path: ['presets', name] }],
+            undefined,
+          )
           return failure(response)
         },
         loadCatalog: async () => {
-          const response = await connection.api.sessions.models({ sessionId })
-          if (!response.result.ok) throw new Error(`${response.result.error.message} (${response.result.error.code})`)
-          return response.result.value.groups.map(group => ({
+          const response = await ctx.remote.session.modelCatalog()
+          if (!response.ok) throw new Error(`${response.error.message} (${response.error.code})`)
+          return response.value.groups.map(group => ({
             provider: group.id,
             name: group.name,
             models: group.models.map(model => ({

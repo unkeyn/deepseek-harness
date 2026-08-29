@@ -66,12 +66,15 @@ import { BrokeredLlmAdapter } from '@deepseek-ai/dsh-fork-llm-credential-broker'
 import type { ModelCatalog } from '@deepseek-ai/dsh-fork-model-catalog'
 import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { PiAiAdapter } from './adapter.ts'
+import { authContextFrom, credentialStoreFrom } from './auth.ts'
 import { catalogProviderIds, catalogProviderTakesApiKey } from './catalog.ts'
 import { assertServiceable, Config, resolveProfiles } from './config.ts'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { discoverModels } from './discovery.ts'
+import { registerPiAiFlows } from './login.ts'
 
 export { PiAiAdapter } from './adapter.ts'
+export type { PiAiAuthInjection } from './adapter.ts'
 export type { PiAiAdapterOptions } from './adapter.ts'
 export { Config } from './config.ts'
 export type {
@@ -84,6 +87,7 @@ export type {
   PiAiThinkingFormat,
   ResolvedPiAiProviderProfile,
 } from './config.ts'
+export { recordKeyFor } from './auth.ts'
 export { supportedProtocols } from './provider.ts'
 
 export const name = 'llm-pi-ai'
@@ -218,6 +222,7 @@ export function apply(ctx: Context, config: Config): void {
   const adapter = new PiAiAdapter({
     profiles,
     resolveApiKey,
+    auth: { credentials: credentialStoreFrom(ctx), authContext: authContextFrom(ctx) },
     resolveAttachments: () => ctx.get('attachments'),
     onReplayDegrade: ({ provider, model, reason }) => {
       ctx.logger.warn(
@@ -225,6 +230,12 @@ export function apply(ctx: Context, config: Config): void {
         + ` sending that message as provider-neutral content (${reason})`,
       )
     },
+  })
+  // OAuth/API-key login is optional at composition time: headless profiles can
+  // omit the authorization surface while regular desktop profiles get the
+  // same current login UI and durable records as upstream pi-ai.
+  ctx.inject(['authorization'], authorized => {
+    registerPiAiFlows(authorized, { credentials: credentialStoreFrom(ctx), authContext: authContextFrom(ctx) })
   })
   // Every route this adapter serves streams through the brokered decorator.
   // Its resolvers read the key-pool composition per call — the route comes

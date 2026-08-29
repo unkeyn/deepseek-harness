@@ -14,7 +14,6 @@
 
 import { builtinProviders, getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all'
 import type { BuiltinProvider } from '@earendil-works/pi-ai/providers/all'
-import type { ModelCatalog } from '@deepseek-ai/dsh-model-catalog'
 import type {
   AnthropicMessagesCompat,
   Api,
@@ -614,20 +613,7 @@ export interface RouteCatalogRequest {
   defaultMaxTokens: number
   /** Modalities for a model neither the entry nor the catalog declares. */
   defaultInput: Model<Api>['input']
-  /** Optional external reference catalog for custom provider routes. */
-  catalog?: ModelCatalog
 }
-
-
-/**
- * The wire protocol assumed for a model neither configuration nor any catalog
- * describes. A hand-declared route exists to serve one OpenAI-compatible
- * gateway, and every such surface this adapter interrogates is probed as Chat
- * Completions by default (`discovery.ts`), so this is the same assumption the
- * rest of the seam already makes rather than a new guess. An endpoint that
- * speaks anything else names its protocol at the route, which wins outright.
- */
-const GATEWAY_DEFAULT_API = 'openai-completions'
 
 /** Report a route the deployment cannot serve, naming the settings key at fault. */
 function invalid(provider: string, detail: string): never {
@@ -648,88 +634,6 @@ function sharedCatalogApi(defaults: ReadonlyMap<string, Model<Api>>): string | u
   return apis.size === 1 ? [...apis][0] : undefined
 }
 
-/** A URL whose path ends in an API version segment, e.g. `https://gw.example/v1`. */
-const VERSION_SUFFIX = /\/v\d+$/
-
-/**
- * The wire protocols whose client takes the request base verbatim: the OpenAI
- * SDK appends `/chat/completions` or `/responses` to `baseURL` as given, so a
- * base for these protocols must name the versioned API mount. The Anthropic
- * SDK adds its own `/v1`, so a recorded prefix for the other protocols stays
- * untouched.
- */
-const VERBATIM_BASE_APIS: ReadonlySet<string> = new Set(['openai-completions', 'openai-responses'])
-
-/**
- * The endpoint one installed catalog route serves, derived when no layer names
- * one. The catalog provider's own baseUrl wins; a provider that states none —
- * the address lives on each model — answers with the shortest endpoint its
- * models carry, preferring spellings that end in a version segment because
- * those record the mounted API rather than a published prefix. This is the
- * same derivation the model-discovery probe uses, so an id adopted from an
- * endpoint's live listing — newer than the installed catalog — resolves to the
- * endpoint it was listed at, with no restated route `baseURL`.
- * @param provider - provider route key.
- * @param installed - the route's installed catalog models.
- * @returns the route's endpoint, or `undefined` when the catalog states none.
- */
-export function routeCatalogBaseUrl(
-  provider: string,
-  installed: ReadonlyMap<string, Model<Api>>,
-): string | undefined {
-  const declared = catalogProvider(provider)?.baseUrl
-  if (declared !== undefined && declared.length > 0) return declared
-  const endpoints = [...installed.values()].map(model => model.baseUrl).filter(url => url.length > 0)
-  if (endpoints.length === 0) return undefined
-  const versioned = endpoints.filter(url => VERSION_SUFFIX.test(url))
-  const pool = versioned.length > 0 ? versioned : endpoints
-  return pool.reduce((shortest, url) => (url.length < shortest.length ? url : shortest))
-}
-
-/**
- * The request base one sibling-derived endpoint names for a resolved protocol.
- * Per-model catalog addresses record a published prefix, while a base for a
- * verbatim-base protocol must carry the version segment — gateways that
- * publish an unversioned prefix mount under `/v1`, the convention the listing
- * probe follows with its fallback candidate. A provider-declared baseUrl is an
- * upstream statement about its own API and is never rewritten here, nor is
- * explicit configuration.
- * @param endpoint - the sibling-derived catalog endpoint, when one exists.
- * @param api - the resolved wire protocol.
- * @returns the request base, or `undefined` past the endpoint.
- */
-function derivedRequestBase(endpoint: string | undefined, api: string): string | undefined {
-  if (endpoint === undefined) return undefined
-  if (!VERBATIM_BASE_APIS.has(api)) return endpoint
-  return VERSION_SUFFIX.test(endpoint) ? endpoint : `${endpoint}/v1`
-}
-
-function referenceModel(catalog: ModelCatalog | undefined, id: string): Model<Api> | undefined {
-  const reference = catalog?.resolve(id)
-  if (reference === undefined) return undefined
-  const efforts = reference.thinking === undefined
-    ? undefined
-    : reference.thinking.efforts as readonly ModelThinkingLevel[]
-  const thinkingLevelMap: ThinkingLevelMap | undefined = efforts === undefined
-    ? undefined
-    : Object.fromEntries(THINKING_LEVELS.map(level => [level, efforts.includes(level) ? level : null]))
-  return {
-    id: reference.id,
-    name: reference.name,
-    api: 'openai-completions',
-    provider: 'catalog-reference',
-    baseUrl: '',
-    reasoning: reference.reasoning,
-    input: [...reference.input] as Model<Api>['input'],
-    cost: NO_COST,
-    contextWindow: reference.contextWindow ?? 262_144,
-    maxTokens: reference.maxTokens ?? 32_768,
-    ...reference.thinking === undefined ? {} : {
-      thinking: reference.thinking,
-      thinkingLevelMap: thinkingLevelMap ?? {},
-    },
-  } as Model<Api>
-}
 /** The reasoning fields one materialized model carries. */
 interface ModelReasoning {
   /** Whether the model reasons at all; `false` makes pi-ai ignore the map. */
@@ -830,10 +734,6 @@ type ModelCompat = OpenAICompletionsCompat | OpenAIResponsesCompat | AnthropicMe
  * @param route - the route-level switches, when any.
  * @param base - the installed catalog entry of the same id, when one exists.
  * @param api - the model's resolved wire protocol.
- * @param detectionFallback - whether this id has no installed catalog entry,
- *   so its protocol came from a reference answer, sibling consensus, or the
- *   gateway default and pi-ai's own baseURL detection will decide the
- *   undetermined switches.
  * @returns a `compat` field to spread into the model, or nothing.
  */
 function resolveModelCompat(
@@ -842,7 +742,6 @@ function resolveModelCompat(
   route: PiAiCompatProfile | undefined,
   base: Model<Api> | undefined,
   api: string,
-  detectionFallback: boolean,
 ): { compat: ModelCompat } | Record<string, never> {
   const gate = compatGate(api)
   const configured: Record<string, unknown> = {}
@@ -859,6 +758,7 @@ function resolveModelCompat(
     }
     configured[field] = value
   }
+  if (Object.keys(configured).length === 0) return {}
   // The installed entry's compat matches the entry's OWN api — a route-level
   // `api` repoint (an anthropic catalog served through an OpenAI-compatible
   // gateway) leaves `base.compat` in the other protocol's shape, so it is
@@ -866,21 +766,7 @@ function resolveModelCompat(
   // model starts from pi-ai's baseURL-derived detection instead, which is
   // what a protocol change means for every other compat field too.
   const inherited = base?.api === api ? base.compat : undefined
-  // An id no installed catalog describes reaches pi-ai's detection with an
-  // unrecognizable private URL, which answers as though it were OpenAI
-  // itself: for a reasoning model the system prompt then travels as the
-  // `developer` role, and most gateways refuse that role outright. When the
-  // protocol facts came from fallback rather than an installed entry, pin
-  // the conservative answer first — `system` is accepted everywhere the
-  // `developer` variant is — leaving every other switch to detection. The
-  // installed entry, route config, and model config all win over it.
-  const detectionDefault = detectionFallback && gate?.supportsDeveloperRole === 'offer'
-    ? { supportsDeveloperRole: false }
-    : {}
-  if (Object.keys(detectionDefault).length === 0 && Object.keys(configured).length === 0 && inherited === undefined) {
-    return {}
-  }
-  return { compat: { ...detectionDefault, ...inherited, ...configured } as ModelCompat }
+  return { compat: { ...inherited, ...configured } as ModelCompat }
 }
 
 /** One route's materialized catalog, plus the request caps its profile chose. */
@@ -911,7 +797,7 @@ export interface RouteCatalog {
 export function resolveRouteModels(request: RouteCatalogRequest): RouteCatalog {
   const { provider } = request
   const defaults = catalogModels(provider)
-  const routeEndpoint = routeCatalogBaseUrl(provider, defaults)
+  const providerBaseUrl = catalogProvider(provider)?.baseUrl
   // An absent `models` key and an empty one are the same request: the config
   // schema materializes `[]` for the absent case, and an empty catalog could
   // serve no request anyway, so both mean "serve the installed catalog".
@@ -959,38 +845,17 @@ export function resolveRouteModels(request: RouteCatalogRequest): RouteCatalog {
   }
   const seen = new Set<string>()
   const configuredMaxTokens = new Map<string, number>()
-  // Each configured id's best catalog answer, computed once: an id both
-  // catalogs miss still needs a protocol, and it inherits the nearest
-  // preceding describable sibling's rather than failing the whole route.
-  const bases = new Map(entries.map(entry => [
-    entry.id,
-    defaults.get(entry.id) ?? referenceModel(request.catalog, entry.id),
-  ]))
-  const models = entries.map((entry, index) => {
+  const models = entries.map((entry) => {
     if (entry.id.length === 0) invalid(provider, 'has a model with an empty id')
     if (seen.has(entry.id)) invalid(provider, `lists model "${entry.id}" more than once`)
     seen.add(entry.id)
-    const base = bases.get(entry.id)
-    // Resolution order for the wire protocol: the route's explicit choice,
-    // this exact id's installed-catalog or identity answer, what every shipped
-    // model on the route agrees on, the nearest preceding sibling the catalogs
-    // describe, and finally the OpenAI-compatible gateway default. A gateway
-    // serves one endpoint, so an id newer than both catalogs — a provider's
-    // newest release adopted from its own listing — resolves correctly here
-    // without restating anything the siblings already imply.
-    const siblingApi = entries.slice(0, index)
-      .map(previous => bases.get(previous.id)?.api)
-      .find(candidate => candidate !== undefined)
-    const api = request.api ?? base?.api ?? routeApi ?? siblingApi ?? GATEWAY_DEFAULT_API
-    // An installed entry with no endpoint of its own defers to the route's
-    // catalog endpoint; an empty string is the reference answer's "no address"
-    // spelling and must not win the chain. Explicit configuration and the
-    // provider's declared baseUrl are taken verbatim; only an endpoint derived
-    // from per-model siblings is mounted at its version segment.
-    const entryBaseUrl = base?.baseUrl !== undefined && base.baseUrl.length > 0 ? base.baseUrl : undefined
-    const declared = catalogProvider(provider)?.baseUrl
-    const declaredBaseUrl = declared !== undefined && declared.length > 0 ? declared : undefined
-    const baseUrl = request.baseURL ?? entryBaseUrl ?? declaredBaseUrl ?? derivedRequestBase(routeEndpoint, api)
+    const base = defaults.get(entry.id)
+    const api = request.api ?? base?.api ?? routeApi
+    if (api === undefined) {
+      invalid(provider, `model "${entry.id}" needs an api; the installed catalog does not describe it, so set the`
+        + ' route\'s api to the wire protocol its endpoint speaks')
+    }
+    const baseUrl = request.baseURL ?? base?.baseUrl ?? providerBaseUrl
     if (baseUrl === undefined) {
       invalid(provider, `model "${entry.id}" needs a baseURL; the installed catalog does not describe this route`)
     }
@@ -1026,11 +891,7 @@ export function resolveRouteModels(request: RouteCatalogRequest): RouteCatalog {
       contextWindow,
       maxTokens,
       ...resolveModelReasoning(provider, entry, base),
-      // No installed entry means the protocol facts above came from a
-      // reference answer, sibling consensus, or the gateway default, so
-      // detection decides what resolution could not — see the compat
-      // function for the one switch that gets pinned there.
-      ...resolveModelCompat(provider, entry, request.compat, base, api, !defaults.has(entry.id)),
+      ...resolveModelCompat(provider, entry, request.compat, base, api),
     }
   })
   // Per field, not per block: a route may default a switch its completions

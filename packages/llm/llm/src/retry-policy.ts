@@ -11,14 +11,10 @@ import z from '@deepseek-ai/schemastery'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { EMPTY_RESPONSE_CODE } from './error.ts'
 
-const DEFAULT_MAX_RETRIES = 10
+const DEFAULT_MAX_RETRIES = 5
 const DEFAULT_INITIAL_DELAY_MS = 500
 const DEFAULT_MAX_DELAY_MS = 10_000
 const DEFAULT_JITTER_RATIO = 0.1
-const DEFAULT_PHASES = Object.freeze([
-  Object.freeze({ retries: 5, initialDelayMs: 2_000, maxDelayMs: 2_000, stepMs: 0, jitterRatio: 0.1 }),
-  Object.freeze({ retries: 5, initialDelayMs: 10_000, maxDelayMs: 30_000, stepMs: 5_000, jitterRatio: 0.1 }),
-])
 const DEFAULT_RETRYABLE_CODES = Object.freeze([
   EMPTY_RESPONSE_CODE,
   'RATE_LIMIT',
@@ -37,41 +33,16 @@ export interface BackoffConfig {
   jitterRatio?: number
 }
 
-/** One phase of a bounded normal retry schedule. */
-export interface RetryPhaseConfig {
-  /** Number of retries assigned to this phase. */
-  retries: number
-  /** Initial delay for this phase in milliseconds. */
-  initialDelayMs: number
-  /** Maximum delay for this phase in milliseconds. */
-  maxDelayMs: number
-  /** Delay increase after each retry in this phase. */
-  stepMs?: number
-  /** Symmetric random multiplier range around one. */
-  jitterRatio?: number
-}
-
-/** Resolved phase with validated timer values. */
-export interface ResolvedRetryPhase {
-  readonly retries: number
-  readonly initialDelayMs: number
-  readonly maxDelayMs: number
-  readonly stepMs: number
-  readonly jitterRatio: number
-}
-
 /** Current bounded transient retry behavior for one provider route. */
 export interface NormalRetryPolicyConfig {
   /** Retry only configured transient failure codes. */
   mode: 'normal'
-  /** Maximum eligible retries after the first request (default 10). */
+  /** Maximum eligible retries after the first request (default 5). */
   maxRetries?: number
   /** Stable failure codes eligible for this policy. */
   retryableCodes?: string[]
-  /** Local exponential-backoff and jitter configuration when no phases are configured. */
+  /** Local exponential-backoff and jitter configuration. */
   backoff?: BackoffConfig
-  /** Optional ordered phases; their retry counts must sum to maxRetries. */
-  phases?: RetryPhaseConfig[]
 }
 
 /** Unbounded retry behavior for every model-request failure on one provider route. */
@@ -97,7 +68,6 @@ export interface ResolvedNormalRetryPolicy extends ResolvedRetryBackoff {
   readonly mode: 'normal'
   readonly maxRetries: number
   readonly retryableCodes: readonly string[]
-  readonly phases?: readonly ResolvedRetryPhase[]
 }
 
 /** Fully resolved unbounded retry policy. */
@@ -114,20 +84,11 @@ const backoffSchema: z<BackoffConfig> = z.object({
   jitterRatio: z.number().min(0).max(1).default(DEFAULT_JITTER_RATIO),
 })
 
-const phaseSchema: z<RetryPhaseConfig> = z.object({
-  retries: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).required(),
-  initialDelayMs: z.number().max(MAX_TIMER_DELAY_MS).required(),
-  maxDelayMs: z.number().max(MAX_TIMER_DELAY_MS).required(),
-  stepMs: z.number().min(0).max(MAX_TIMER_DELAY_MS).default(0),
-  jitterRatio: z.number().min(0).max(1).default(DEFAULT_JITTER_RATIO),
-})
-
 const normalPolicySchema: z<NormalRetryPolicyConfig> = z.object({
   mode: z.const('normal').required(),
   maxRetries: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_MAX_RETRIES),
   retryableCodes: z.array(z.string()).default([...DEFAULT_RETRYABLE_CODES]),
   backoff: backoffSchema,
-  phases: z.array(phaseSchema),
 })
 
 const alwaysPolicySchema: z<AlwaysRetryPolicyConfig> = z.object({
@@ -142,15 +103,14 @@ export const RetryPolicySchema: z<RetryPolicyConfig> = z.union([
 ])
 
 const NORMAL_POLICY_KEYS: ReadonlySet<string> = new Set([
-  'mode', 'maxRetries', 'retryableCodes', 'backoff', 'phases',
+  'mode', 'maxRetries', 'retryableCodes', 'backoff',
 ])
 // Layered configuration can retain normal-only fields after switching modes;
 // always mode ignores those inactive values while still rejecting unknown keys.
 const ALWAYS_POLICY_KEYS: ReadonlySet<string> = new Set([
-  'mode', 'maxRetries', 'retryableCodes', 'backoff', 'phases',
+  'mode', 'maxRetries', 'retryableCodes', 'backoff',
 ])
 const BACKOFF_KEYS: ReadonlySet<string> = new Set(['initialDelayMs', 'maxDelayMs', 'jitterRatio'])
-const PHASE_KEYS: ReadonlySet<string> = new Set(['retries', 'initialDelayMs', 'maxDelayMs', 'stepMs', 'jitterRatio'])
 
 function validateKeys(value: object, allowed: ReadonlySet<string>, path: string): void {
   for (const key of Object.keys(value)) {
@@ -180,42 +140,6 @@ function resolveBackoff(config: BackoffConfig | undefined, path: string): Resolv
   return Object.freeze({ initialDelayMs, maxDelayMs, jitterRatio })
 }
 
-function resolvePhases(
-  phases: readonly RetryPhaseConfig[],
-  maxRetries: number,
-  path: string,
-): readonly ResolvedRetryPhase[] {
-  let totalRetries = 0
-  const resolved = phases.map((phase, index) => {
-    validateKeys(phase, PHASE_KEYS, `${path}[${index}]`)
-    const { retries, initialDelayMs, maxDelayMs, stepMs = 0, jitterRatio = DEFAULT_JITTER_RATIO } = phase
-    if (!Number.isSafeInteger(retries) || retries < 1) {
-      throw new Error(`${path}[${index}].retries must be a positive safe integer`)
-    }
-    if (!Number.isFinite(initialDelayMs) || initialDelayMs <= 0 || initialDelayMs > MAX_TIMER_DELAY_MS) {
-      throw new Error(`${path}[${index}].initialDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
-    }
-    if (!Number.isFinite(maxDelayMs) || maxDelayMs <= 0 || maxDelayMs > MAX_TIMER_DELAY_MS) {
-      throw new Error(`${path}[${index}].maxDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
-    }
-    if (initialDelayMs > maxDelayMs) {
-      throw new Error(`${path}[${index}].initialDelayMs must be less than or equal to maxDelayMs`)
-    }
-    if (!Number.isFinite(stepMs) || stepMs < 0 || stepMs > MAX_TIMER_DELAY_MS) {
-      throw new Error(`${path}[${index}].stepMs must be a finite number between 0 and ${MAX_TIMER_DELAY_MS}`)
-    }
-    if (!Number.isFinite(jitterRatio) || jitterRatio < 0 || jitterRatio > 1) {
-      throw new Error(`${path}[${index}].jitterRatio must be between 0 and 1`)
-    }
-    totalRetries += retries
-    return Object.freeze({ retries, initialDelayMs, maxDelayMs, stepMs, jitterRatio })
-  })
-  if (totalRetries !== maxRetries) {
-    throw new Error(`${path} retry counts must sum to maxRetries ${maxRetries}`)
-  }
-  return Object.freeze(resolved)
-}
-
 /**
  * Validate, default, and detach one provider-owned retry policy.
  * @param config - optional provider configuration; omission selects normal defaults.
@@ -231,7 +155,6 @@ export function resolveRetryPolicy(
       mode: 'normal',
       maxRetries: DEFAULT_MAX_RETRIES,
       retryableCodes: DEFAULT_RETRYABLE_CODES,
-      phases: DEFAULT_PHASES,
       ...resolveBackoff(undefined, `${path}.backoff`),
     })
   }
@@ -253,14 +176,10 @@ export function resolveRetryPolicy(
       if (new Set(retryableCodes).size !== retryableCodes.length) {
         throw new Error(`${path}.retryableCodes must not contain duplicates`)
       }
-      const phases = config.phases === undefined || config.phases.length === 0
-        ? undefined
-        : resolvePhases(config.phases, maxRetries, `${path}.phases`)
       return Object.freeze({
         mode: 'normal',
         maxRetries,
         retryableCodes: Object.freeze([...retryableCodes]),
-        ...(phases === undefined ? {} : { phases }),
         ...resolveBackoff(config.backoff, `${path}.backoff`),
       })
     }

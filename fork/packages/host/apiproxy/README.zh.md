@@ -22,11 +22,8 @@ Settings 分节中的 `reasoningEffort` 在 agent-default-model 插件配置中�
 
 分层与协议决策记录在 [GUI 分层与 RPC 协议 RFC](../../../.agents/notes/implemented/architecture/2026-07-19-gui-layering-and-rpc-protocol.md) 中；浏览器侧消费架构记录在 [Web 客户端架构 RFC](../../../.agents/notes/implemented/architecture/2026-07-19-gui-web-client-architecture.md) 中。
 
-## Freebuff OAuth 方法
 
-Fork 在同一个 API proxy 中增加 `freebuff.status`、`freebuff.beginLogin`、`freebuff.completeLogin` 和 `freebuff.logout` 方法。Host 持有 Freebuff bearer token 和 credential reference；响应只包含脱敏账户元数据、登录 URL、状态和过期时间。`freebuff.completeLogin` 使用调用方 signal 而不使用默认的一元超时，因为它需要等待浏览器授权；载体断开时仍会取消 Host 请求。
 
-Web client 使用这些方法渲染 fork 自有的 `OAuth` 标签。`freebuff.openDesktop` 从 Host 侧 credential plugin 配置中解析绝对 shortcut 路径，并通过 native path opener 打开；浏览器不能选择任意文件系统路径。官方组合不包含这些方法；缺少 Freebuff credential plugin 的 fork 部署会返回可操作的错误，而不是静默地假定 OAuth 已配置。
 
 首个回答认领待处理请求之前，系统会对照该请求校验问题响应。多选题的回答项可以同时携带 `selected` 中的请求选项标签与非空 `custom` 文本；单选题的回答项必须二选一。标签重复、标签未知、id 不匹配、批次不完整以及自定义文本为空都会以 `bad-response` 拒绝。
 

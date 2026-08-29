@@ -14,7 +14,6 @@ Status: implemented
 
 端点询问为每个候选补充参考 catalog 的事实——输入模态与思考级别（先查已安装 pi-ai catalog，再查共享身份 catalog）、列表未披露时的容量，以及回答“是否有 catalog 描述过它”的 `catalogMatched` 标记。Models 页面将其渲染为紧凑徽标；采纳会把图像能力写入该行，推理保持由解析层负责，因为其线上拼写属于适配器词汇。能力字段是 fork 自有类型上的可选附加 JSON 字段（`LlmDiscoveredModel`、apiproxy 的 `DiscoveredModelView` 及其 zod schema）；官方契约未被触碰。
 
-Models 页面现为分段切换器：**API 提供方**（既有列表）加上通过新 `settings.models.panel` 槽位注册的功能面板——Freebuff OAuth（自其 Plugins 标签迁入）与现成搜索提供方编辑器（自 Plugins 卡片列表迁入，展开渲染）。面板首次访问后保持挂载，切换不丢编辑草稿。页面样式在既有设计词汇内做了紧凑化。
 
 ## 已考虑的替代方案
 

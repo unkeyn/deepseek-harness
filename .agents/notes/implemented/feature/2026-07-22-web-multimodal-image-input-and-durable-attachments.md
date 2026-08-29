@@ -29,7 +29,7 @@ Version one supports PNG, JPEG, WebP, and GIF paste and drag-and-drop, image-onl
 - A failed send restores the complete text and image draft without clobbering text or images added while the request was in flight. Removal, successful send, session-scope disposal, rendered-history disposal, and application disposal revoke the object URLs they own.
 - Historical user and assistant images use one `MessageImage` control. Inline images preserve intrinsic aspect ratio, do not upscale, and stay within a 240-by-240-pixel box.
 - Clicking a message image opens the stored original in a viewport-bounded modal. Escape, the close control, and backdrop activation close it and restore focus.
-- The Web shell suppresses the browser context menu globally; image controls provide no product-owned context menu or explicit image-copy action.
+- Version one does not override the browser context menu and provides no explicit image-copy action.
 
 ### Storage lifecycle and ownership
 

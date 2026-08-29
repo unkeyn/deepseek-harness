@@ -159,23 +159,6 @@ describe('host.pickDirectory', () => {
   })
 })
 
-describe('freebuff.openDesktop', () => {
-  it('opens the Host-configured shortcut without accepting a browser path', async () => {
-    let opened: string | undefined
-    const harnessState = await harness(undefined, undefined, {
-      openPath: async path => { opened = path },
-    })
-    harnessState.ctx.provide('freebuffOAuth', {
-      desktopShortcutPath: () => 'C:\\Users\\unkey\\OneDrive\\Desktop\\DeepSeek Harness Desktop.lnk',
-    } as never)
-
-    const result = await harnessState.api.freebuff.openDesktop(request({}), new AbortController().signal)
-
-    expect(expectOk(result)).toEqual({ opened: true })
-    expect(opened).toBe('C:\\Users\\unkey\\OneDrive\\Desktop\\DeepSeek Harness Desktop.lnk')
-  })
-})
-
 /** Canned browse capability: one listing, one created path, typed failures on demand. */
 const BROWSE_STUB: DirectoryPickerCapability = {
   kind: 'browse',

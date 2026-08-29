@@ -6,14 +6,17 @@
  * @module @deepseek-ai/dsh-fork-llm
  */
 
-import { Context, Service } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
+import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   GenerateOptions,
   LlmConfigurableProvider,
   LlmDiscoveredModel,
   LlmFailure,
+  LlmImageRequestPricing,
   LlmModelContext,
   LlmModelDiscoveryRequest,
+  LlmModelDiscoveryWireRequest,
   LlmModelInfo,
   LlmResolvedModelInfo,
   LlmProviderInfo,
@@ -43,6 +46,7 @@ export * from './message.ts'
 export * from './retry-policy.ts'
 export { BlockAssembler } from './assembler.ts'
 export { callConfigEquals, deepFreeze, isAgentLoopRequest, markAgentLoopRequest } from './call-config.ts'
+
 export type { LlmCallConfig, LlmCallConfigAdapterDefaults } from './call-config.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -202,6 +206,14 @@ export abstract class LlmAdapter {
   }
 
   /**
+   * Price request-image occurrences for the token meter. Most adapters do
+   * not charge visual tokens and deliberately return no provider pricing.
+   */
+  imageRequestPricing(_provider: string, _model: string): LlmImageRequestPricing | undefined {
+    return undefined
+  }
+
+  /**
    * List models this adapter can currently advertise for one owned provider.
    * The result is advisory: an adapter may accept unlisted model ids, and
    * consumers must not turn absence into request rejection.
@@ -286,12 +298,12 @@ export interface DirectoryRegistrationHandle {
  * The abstract `llm` service: an adapter registry plus a streaming model-call
  * API, interceptable via the `llm/stream` waterfall.
  */
-export class LlmRuntime extends Service {
+export class LlmRuntime extends TypertRemoteService {
   private adapters = new Map<string, AdapterRegistration>()
   private directory = new Map<string, LlmConfigurableProvider>()
   private discoveries = new Map<
     string,
-    (request: LlmModelDiscoveryRequest) => Promise<readonly LlmDiscoveredModel[]>
+    (request: LlmModelDiscoveryRequest, signal?: AbortSignal) => Promise<readonly LlmDiscoveredModel[]>
   >()
 
   constructor(ctx: Context) {
@@ -421,6 +433,7 @@ export class LlmRuntime extends Service {
    * Describe provider routes with a registered adapter.
    * @returns detached provider metadata in registration order.
    */
+  @Remote
   listProviders(): LlmProviderInfo[] {
     return [...this.adapters.values()].map(({ provider }) => ({ ...provider }))
   }
@@ -492,6 +505,7 @@ export class LlmRuntime extends Service {
    * List every declared configurable provider, registered or dormant.
    * @returns detached directory entries in declaration order.
    */
+  @Remote
   listConfigurableProviders(): LlmConfigurableProvider[] {
     return [...this.directory.values()].map(entry => ({ ...entry, settingsPath: [...entry.settingsPath] }))
   }
@@ -508,7 +522,10 @@ export class LlmRuntime extends Service {
    */
   registerModelDiscovery(
     settingsNs: string,
-    discover: (request: LlmModelDiscoveryRequest) => Promise<readonly LlmDiscoveredModel[]>,
+    discover: (
+      request: LlmModelDiscoveryRequest,
+      signal?: AbortSignal,
+    ) => Promise<readonly LlmDiscoveredModel[]>,
   ): () => void {
     const dispose = this.ctx.effect(function* (this: LlmRuntime) {
       if (settingsNs.length === 0) {
@@ -537,17 +554,27 @@ export class LlmRuntime extends Service {
   async discoverModels(
     settingsNs: string,
     request: LlmModelDiscoveryRequest,
+    signal?: AbortSignal,
   ): Promise<LlmDiscoveredModel[]> {
     const discover = this.discoveries.get(settingsNs)
     if (discover === undefined) {
       throw new LlmError(`no model discovery is registered for "${settingsNs}"`, 'NO_DISCOVERY')
     }
-    // One of the two identifies what to describe: a route the adapter knows, or
-    // an endpoint to ask. Neither leaves nothing to answer about.
-    if ((request.provider ?? '').length === 0 && (request.baseURL ?? '').length === 0) {
-      throw new LlmError('model discovery needs a provider route or a baseURL', 'INVALID_DISCOVERY')
+    // A stored route, a derivable API base, or an exact listing endpoint each
+    // identifies what to describe. Bearer drafts intentionally carry only
+    // `modelsURL`, because their chat and model-list endpoints need not share a
+    // base path.
+    if (
+      (request.provider ?? '').length === 0
+      && (request.baseURL ?? '').length === 0
+      && (request.modelsURL ?? '').length === 0
+    ) {
+      throw new LlmError('model discovery needs a provider route, a baseURL, or a modelsURL', 'INVALID_DISCOVERY')
     }
-    const discovered = await discover(request)
+    const operation = signal === undefined ? request : { ...request, signal }
+    const discovered = signal === undefined
+      ? await discover(operation)
+      : await discover(operation, signal)
     const seen = new Set<string>()
     const models: LlmDiscoveredModel[] = []
     for (const model of discovered) {
@@ -572,12 +599,46 @@ export class LlmRuntime extends Service {
   }
 
   /**
+   * Remote adapter for one draft provider interrogation. Keep this wire
+   * method aligned with the current upstream LLM Remote so the unchanged
+   * Models page can consume the fork runtime without a second client API.
+   */
+  @Remote('discoverModels')
+  async remoteDiscoverModels(
+    settingsNs: string,
+    request: LlmModelDiscoveryWireRequest,
+    signal: AbortSignal,
+  ): Promise<LlmDiscoveredModel[]> {
+    try {
+      return await this.discoverModels(settingsNs, request, signal)
+    } catch (error: unknown) {
+      throw new TypertRemoteFailure({
+        code: 'model-discovery-failed',
+        message: error instanceof Error ? error.message : String(error),
+        details: {
+          settingsNs,
+          ...request.baseURL === undefined ? {} : { baseURL: request.baseURL },
+          ...request.modelsURL === undefined ? {} : { modelsURL: request.modelsURL },
+        },
+      })
+    }
+  }
+
+  /**
    * Resolve the retry policy captured when one provider route was registered.
    * @param provider - registered provider route to inspect.
    * @returns the provider-owned policy, with normal defaults already resolved.
    */
   providerRetryPolicy(provider: string): ResolvedRetryPolicy {
     return this.registration(provider).retryPolicy
+  }
+
+  /**
+   * Resolve provider-side request-image pricing without making historical
+   * routes fail when their adapter is no longer mounted.
+   */
+  imageRequestPricing(provider: string, model: string): LlmImageRequestPricing | undefined {
+    return this.adapters.get(provider)?.adapter.imageRequestPricing(provider, model)
   }
 
   /** Detach typed adapter-owned modality metadata. */

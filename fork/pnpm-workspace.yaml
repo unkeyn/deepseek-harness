@@ -1,5 +1,6 @@
 packages:
   - bundle
+  - desktop-bundle
   - packages/*/*
   - ../vendor/*
   - ../native/landlock-run
@@ -11,11 +12,14 @@ packages:
   - ../python/sdk-runtime
 
 allowBuilds:
-  '@google/genai': set this to true or false
-  esbuild: set this to true or false
-  koffi: set this to true or false
-  node-pty: set this to true or false
-  protobufjs: set this to true or false
+  # Keep the fork workspace's reviewed lifecycle policy aligned with the
+  # upstream workspace it composes over.
+  esbuild: true
+  node-pty: true
+  koffi: true
+  '@google/genai': false
+  protobufjs: false
+  node-addon-require-builtin: false
 
 linkWorkspacePackages: true
 

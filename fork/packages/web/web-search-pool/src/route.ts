@@ -14,7 +14,7 @@ import type { PoolKeyCheckResult } from './check.ts'
 /** The one endpoint this channel serves. */
 const CHECK_ENDPOINT = 'webSearchPool.check'
 
-/** Loopback guard copied from the fork's Freebuff bridge: the channel serves the local GUI only. */
+/** Loopback guard for the local GUI-only provider check channel. */
 function isLoopbackRequest(hostHeader: string | undefined, remoteAddress: string | undefined): boolean {
   const host = hostHeader?.replace(/^\[/, '').replace(/\](:\d+)?$/, '').replace(/:\d+$/, '')
   return host === '127.0.0.1' || host === 'localhost' || host === '::1'

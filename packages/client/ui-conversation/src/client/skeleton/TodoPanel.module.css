@@ -29,16 +29,6 @@
      styles/scrollbar.css for the rebinding contract). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-  /* Presence: the strip rises into the dock column when the first todo
-     arrives, instead of popping into the composer stack. */
-  animation: todo-strip-in var(--dsw-duration-flow) var(--dsw-ease-flow);
-}
-
-@keyframes todo-strip-in {
-  from {
-    opacity: 0;
-    transform: translateY(var(--dsw-motion-rise));
-  }
 }
 
 .body {
@@ -92,13 +82,6 @@
   flex: none;
   place-items: center;
   color: var(--dsw-alias-label-tertiary);
-  /* One chevron rotating to the expanded state, matching the Think row and
-     the disclosure family, instead of two swapped glyphs. */
-  transition: transform var(--dsw-duration-flow) var(--dsw-ease-flow);
-}
-
-.header[aria-expanded='true'] .chevron {
-  transform: rotate(180deg);
 }
 
 .list {
@@ -110,14 +93,6 @@
   list-style: none;
   max-height: 180px;
   overflow-y: auto;
-  animation: todo-list-in 0.18s ease;
-}
-
-@keyframes todo-list-in {
-  from {
-    opacity: 0;
-    transform: translateY(-2px);
-  }
 }
 
 .item {
@@ -163,13 +138,4 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .root,
-  .list,
-  .chevron {
-    animation: none;
-    transition: none;
-  }
 }

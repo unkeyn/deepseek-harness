@@ -28,16 +28,28 @@ export function MessageId(id: string): MessageId {
  * Correlates a model-issued tool call with its result. Provider-issued for
  * real adapters; synthesized by mocks/assembler fallbacks.
  */
-export type CallId = Branded<'CallId'>
+export type ToolCallId = Branded<'ToolCallId'>
 
 /**
  * Brand a string as a {@link CallId}.
  * @param id - the provider-issued (or synthesized) call id.
  * @returns the same string, branded; no validation is performed.
  */
-export function CallId(id: string): CallId {
-  return id as CallId
+export function ToolCallId(id: string): ToolCallId {
+  return id as ToolCallId
 }
+
+/**
+ * Backwards-compatible spelling used by the original fork sources.
+ *
+ * The upstream contract calls this identity `ToolCallId`.  Keeping the alias
+ * here lets old fork adapters/tests compile while giving the current Host and
+ * client packages exactly the same nominal type at the package boundary.
+ */
+export type CallId = ToolCallId
+
+/** @deprecated Use {@link ToolCallId}; retained for old fork adapters. */
+export const CallId = ToolCallId
 
 /** Provider-issued request identifier retained for diagnostics across package boundaries. */
 export type ProviderRequestId = Branded<'ProviderRequestId'>

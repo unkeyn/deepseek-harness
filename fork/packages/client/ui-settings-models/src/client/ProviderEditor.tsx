@@ -23,7 +23,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { CredentialView, IApiClient, SettingsNamespaceView, SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { IconPlusOutline16, IconTrashOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   DeepSeekModelsEditor, modelDrafts, validateDeepSeekModels,
@@ -31,8 +31,12 @@ import {
 import { apiKeyFailure } from './apiKey.ts'
 import { EditorFooter } from './EditorFooter.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
-import { deriveKeyRef, messageOf, protocolChoices } from './store.ts'
+import {
+  bearerCredentialsFromCookieJson, refreshImportedFirebaseCredentials,
+} from './bearerCookieImport.ts'
+import { deriveKeyRef, deriveRefreshRef, messageOf, protocolChoices } from './store.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
+import type { CredentialView, ModelsApi, SettingsPathOpView } from './models-api.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
@@ -81,7 +85,7 @@ export interface ProviderEditorProps {
   /** Path from the section root to this provider's profile. */
   settingsPath: readonly string[]
   /** Wire faces for writes and for interrogating a provider endpoint. */
-  api: Pick<IApiClient, 'settings' | 'credentials' | 'llm'>
+  api: ModelsApi
   /** Section copy. */
   t: (key: keyof typeof en) => string
   /** Disable writes (read-only settings provider). */
@@ -145,7 +149,7 @@ export function pathOps(
 /** The editor layout the owning namespace selects. */
 function layoutOf(ns: string): EditorLayout {
   if (ns === 'llm-deepseek') return 'deepseek'
-  if (ns === 'llm-pi-ai') return 'pi-ai'
+  if (ns === 'llm-pi-ai' || ns === 'llm-bearer') return 'pi-ai'
   return 'unknown'
 }
 
@@ -160,7 +164,30 @@ function refFor(
   const named = typeof profile === 'object' && profile !== null
     ? (profile as { apiKeyEnv?: unknown }).apiKeyEnv
     : undefined
-  return typeof named === 'string' && named.length > 0 ? named : deriveKeyRef(provider)
+  if (typeof named === 'string' && named.length > 0) return named
+  const auth = typeof profile === 'object' && profile !== null ? (profile as { auth?: unknown }).auth : undefined
+  const access = typeof auth === 'object' && auth !== null
+    ? (auth as { accessTokenEnv?: unknown }).accessTokenEnv
+    : undefined
+  return typeof access === 'string' && access.length > 0 ? access : deriveKeyRef(provider)
+}
+
+/** Firebase refresh reference selected by an effective Bearer profile. */
+function refreshRefFor(profile: unknown): string | undefined {
+  if (typeof profile !== 'object' || profile === null) return undefined
+  const auth = (profile as { auth?: unknown }).auth
+  if (typeof auth !== 'object' || auth === null) return undefined
+  const refresh = (auth as { refresh?: unknown }).refresh
+  if (typeof refresh !== 'object' || refresh === null) return undefined
+  const ref = (refresh as { refreshTokenEnv?: unknown }).refreshTokenEnv
+  return typeof ref === 'string' && ref.length > 0 ? ref : undefined
+}
+
+/** Whether the effective profile explicitly selected Bearer authorization. */
+function isBearerProfile(profile: unknown): boolean {
+  if (typeof profile !== 'object' || profile === null) return false
+  const auth = (profile as { auth?: unknown }).auth
+  return typeof auth === 'object' && auth !== null && (auth as { type?: unknown }).type === 'bearer'
 }
 
 /**
@@ -172,7 +199,15 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   const { namespace, schema, settingsPath, api, t } = props
   const [draft, setDraft] = useState<Record<string, unknown>>(() => draftAt(schema, namespace, settingsPath))
   const [keyDraft, setKeyDraft] = useState('')
+  const [refreshDraft, setRefreshDraft] = useState('')
+  const [cookieDraft, setCookieDraft] = useState('')
+  const [cookieFailure, setCookieFailure] = useState<string | undefined>(undefined)
+  const [manualCredentialsOpen, setManualCredentialsOpen] = useState(false)
+  const [autoRefresh, setAutoRefresh] = useState(
+    () => refreshRefFor(schema.getPath(namespace.value, settingsPath)) !== undefined,
+  )
   const [keyState, setKeyState] = useState<CredentialView | undefined>(undefined)
+  const [refreshState, setRefreshState] = useState<CredentialView | undefined>(undefined)
   const [extraKeys, setExtraKeys] = useState<ExtraKeyDraft[]>([])
   const [removedExtraRefs, setRemovedExtraRefs] = useState<string[]>([])
   const [keyPoolView, setKeyPoolView] = useState<{ revision: number; writable: boolean } | undefined>(undefined)
@@ -191,6 +226,9 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   const disabled = props.readOnly || busy
   const layout = layoutOf(namespace.ns)
   const keyRef = refFor(schema, namespace, settingsPath, props.provider)
+  const bearer = namespace.ns === 'llm-bearer' || isBearerProfile(fallback)
+  const configuredRefreshRef = refreshRefFor(fallback)
+  const refreshRef = autoRefresh ? configuredRefreshRef ?? deriveRefreshRef(props.provider) : undefined
   // The same schema read the create card makes, so the choices offered here
   // and there cannot drift apart: both come from the adapter's own `Config`.
   // Only the pi-ai layout has a per-route protocol for the read to find, and
@@ -203,19 +241,22 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   useEffect(() => {
     let stale = false
     setKeyState(undefined)
+    setRefreshState(undefined)
     // The key state is a placeholder hint, not a precondition for editing:
     // neither a business rejection nor a transport failure may reach the
     // browser as an unhandled rejection, so the card simply renders without
     // the "already configured" hint.
-    void api.credentials.describe({ refs: [keyRef] }).then(
+    const refs = refreshRef === undefined ? [keyRef] : [keyRef, refreshRef]
+    void api.credentials.describe({ refs }).then(
       (response) => {
         if (stale || !response.result.ok) return
         setKeyState(response.result.value.credentials[keyRef])
+        if (refreshRef !== undefined) setRefreshState(response.result.value.credentials[refreshRef])
       },
       () => undefined,
     )
     return () => { stale = true }
-  }, [api.credentials, keyRef])
+  }, [api.credentials, keyRef, refreshRef])
 
   // The additional keys live in the key-pool namespace, not in this profile.
   // A deployment without the key-pool plugin has no such namespace and the
@@ -254,6 +295,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     const value = schema.getPath(source, [key])
     return typeof value === 'string' && value.trim().length > 0 ? value : undefined
   }
+  const stringPathAt = (source: unknown, path: readonly string[]): string | undefined => {
+    const value = schema.getPath(source, path)
+    return typeof value === 'string' && value.trim().length > 0 ? value : undefined
+  }
   const setField = (key: string, next: string | undefined): void => {
     // A value of nothing but whitespace is cleared, not stored: `stringAt`
     // already reports it as absent, so the field would otherwise render empty
@@ -264,11 +309,37 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       ? schema.deletePath(current, [key])
       : schema.setPath(current, [key], value))
   }
+  const setNestedField = (path: readonly string[], next: string | undefined): void => {
+    const value = next === undefined || next.trim().length === 0 ? undefined : next
+    setDraft(current => value === undefined
+      ? schema.deletePath(current, path)
+      : schema.setPath(current, path, value))
+  }
+  const setRefreshEnabled = (enabled: boolean): void => {
+    setAutoRefresh(enabled)
+    setDraft(current => {
+      if (!enabled) return schema.deletePath(current, ['auth', 'refresh'])
+      const effective = schema.getPath(fallback, ['auth', 'refresh'])
+      const seed = typeof effective === 'object' && effective !== null
+        ? structuredClone(effective)
+        : { type: 'firebase', refreshTokenEnv: deriveRefreshRef(props.provider) }
+      return schema.setPath(current, ['auth', 'refresh'], seed)
+    })
+  }
 
   // The model list is validated by the same per-row checker for both families,
   // so a bad row is named by its position rather than by a blanket message.
   const modelFailure = validateDeepSeekModels(schema.getPath(draft, ['models']))
   const keyFailure = apiKeyFailure(keyDraft)
+  const refreshFailure = apiKeyFailure(refreshDraft)
+  const refreshEndpointValue = stringPathAt(draft, ['auth', 'refresh', 'endpoint'])
+    ?? stringPathAt(fallback, ['auth', 'refresh', 'endpoint'])
+  const refreshApiKeyValue = stringPathAt(draft, ['auth', 'refresh', 'apiKey'])
+    ?? stringPathAt(fallback, ['auth', 'refresh', 'apiKey'])
+  const refreshEndpointMissing = bearer && autoRefresh && refreshEndpointValue === undefined
+  const refreshApiKeyMissing = bearer && autoRefresh && refreshApiKeyValue === undefined
+  const refreshCredentialMissing = bearer && autoRefresh
+    && refreshDraft.trim().length === 0 && refreshState?.configured !== true
   // What a probe or a write must carry: the typed key with paste whitespace
   // removed. A blank field yields an empty string, which both call sites read
   // as "no key supplied" rather than as a key — that is how a card whose
@@ -283,12 +354,15 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   // an edited-but-unsaved endpoint, and a key typed but not yet stored.
   const probeApi = stringAt(draft, 'api') ?? stringAt(fallback, 'api')
   const probeBaseURL = stringAt(draft, 'baseURL') ?? stringAt(fallback, 'baseURL')
+  const probeModelsURL = stringAt(draft, 'modelsURL') ?? stringAt(fallback, 'modelsURL')
   const probe = {
     settingsNs: namespace.ns,
     // Naming the route lets an adapter that already describes it answer from
     // its own registry — better metadata, no network call, no endpoint needed.
     provider: props.provider,
-    ...probeBaseURL === undefined ? {} : { baseURL: probeBaseURL },
+    ...bearer
+      ? probeModelsURL === undefined ? {} : { modelsURL: probeModelsURL }
+      : probeBaseURL === undefined ? {} : { baseURL: probeBaseURL },
     ...probeApi === undefined ? {} : { api: probeApi },
     ...keyValue.length === 0 ? {} : { apiKey: keyValue },
   }
@@ -302,7 +376,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     const ns = namespace.ns
     // A pi-ai profile names the conventional reference only when this page is
     // about to store a key. Otherwise the provider keeps its native auth path.
-    const next = layout === 'pi-ai' && stringAt(draft, 'apiKeyEnv') === undefined
+    const next = layout === 'pi-ai' && !bearer && stringAt(draft, 'apiKeyEnv') === undefined
       && stringAt(fallback, 'apiKeyEnv') === undefined && keyValue.length > 0
       ? schema.setPath(draft, ['apiKeyEnv'], keyRef)
       : draft
@@ -346,6 +420,11 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       const stored = await api.credentials.set({ ref: keyRef, value: keyValue })
       if (!stored.result.ok) return stored.result.error.message
     }
+    const refreshValue = refreshDraft.trim()
+    if (refreshRef !== undefined && refreshValue.length > 0) {
+      const stored = await api.credentials.set({ ref: refreshRef, value: refreshValue })
+      if (!stored.result.ok) return stored.result.error.message
+    }
     // Additional keys: removed references leave the credential store first
     // (idempotent), new values store under their derived references, and the
     // pool membership is one set op over the freshly described document —
@@ -387,6 +466,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       }
     }
     setKeyDraft('')
+    setRefreshDraft('')
     setExtraKeys(current => current.map(key => ({ ...key, secret: '', configured: key.secret.trim().length > 0 || key.configured })))
     setRemovedExtraRefs([])
     return undefined
@@ -465,24 +545,160 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     }
     return (
       <>
-        <div className={styles['field']}>
-          <span className={styles['fieldLabel']}>{t('keyInput')}</span>
-          <input
-            className={styles['input']}
-            type="password"
-            autoComplete="off"
-            value={keyDraft}
-            placeholder={keyPlaceholder}
-            aria-label={t('keyInput')}
-            aria-invalid={shownKeyFailure !== undefined}
-            required={props.credentialRequired === true}
-            autoFocus={props.autoFocusCredential === true}
-            disabled={disabled || keyLocked}
-            onChange={(event) => { setKeyDraft(event.target.value) }}
-          />
-          {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
-        </div>
-        {keyPoolView === undefined || props.credentialOnly === true ? null : (
+        {bearer
+          ? (
+            <>
+              <div className={styles['field']}>
+                <span className={styles['fieldLabel']}>{t('cookieImport')}</span>
+                <textarea
+                  className={styles['textarea']}
+                  value={cookieDraft}
+                  placeholder={t('cookieImportPlaceholder')}
+                  aria-label={t('cookieImport')}
+                  disabled={disabled}
+                  onChange={(event) => { setCookieDraft(event.target.value); setCookieFailure(undefined) }}
+                />
+                <button
+                  type="button"
+                  className={styles['secondaryButton']}
+                  disabled={disabled || cookieDraft.trim().length === 0}
+                  onClick={async () => {
+                    setBusy(true)
+                    try {
+                      const imported = await refreshImportedFirebaseCredentials(
+                        bearerCredentialsFromCookieJson(cookieDraft),
+                      )
+                      setKeyDraft(imported.accessToken)
+                      if (imported.refreshToken !== undefined) {
+                        setRefreshDraft(imported.refreshToken)
+                        setRefreshEnabled(true)
+                        setManualCredentialsOpen(true)
+                      }
+                      setCookieDraft('')
+                      setCookieFailure(undefined)
+                    } catch (error) {
+                      setCookieFailure(messageOf(error))
+                    } finally {
+                      setBusy(false)
+                    }
+                  }}
+                >
+                  {t('cookieImportAction')}
+                </button>
+                {cookieFailure === undefined
+                  ? <p className={styles['advancedHint']}>{t('cookieImportHint')}</p>
+                  : <p className={styles['error']}>{cookieFailure}</p>}
+              </div>
+              <button
+                type="button"
+                className={styles['linkButton']}
+                aria-expanded={manualCredentialsOpen}
+                disabled={disabled}
+                onClick={() => { setManualCredentialsOpen(open => !open) }}
+              >
+                {t('manualCredentials')}
+              </button>
+              {manualCredentialsOpen
+                ? (
+                  <div className={styles['manualCredentials']}>
+                    <p className={styles['advancedHint']}>{t('manualCredentialsHint')}</p>
+                    <div className={styles['field']}>
+                      <span className={styles['fieldLabel']}>{t('bearerInput')}</span>
+                      <input
+                        className={styles['input']}
+                        type="password"
+                        autoComplete="off"
+                        value={keyDraft}
+                        placeholder={keyPlaceholder}
+                        aria-label={t('bearerInput')}
+                        aria-invalid={shownKeyFailure !== undefined}
+                        disabled={disabled || keyLocked}
+                        onChange={(event) => { setKeyDraft(event.target.value) }}
+                      />
+                      {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
+                    </div>
+                    <label className={styles['checkboxField']}>
+                      <input
+                        className={styles['checkbox']}
+                        type="checkbox"
+                        checked={autoRefresh}
+                        disabled={disabled}
+                        onChange={(event) => { setRefreshEnabled(event.target.checked) }}
+                      />
+                      <span>{t('autoRefresh')}</span>
+                    </label>
+                    {autoRefresh
+                      ? (
+                        <>
+                          <div className={styles['field']}>
+                            <span className={styles['fieldLabel']}>{t('refreshEndpoint')}</span>
+                            <input
+                              className={styles['input']}
+                              type="url"
+                              value={refreshEndpointValue ?? ''}
+                              placeholder={t('refreshEndpointPlaceholder')}
+                              aria-label={t('refreshEndpoint')}
+                              disabled={disabled}
+                              onChange={(event) => { setNestedField(['auth', 'refresh', 'endpoint'], event.target.value) }}
+                            />
+                            {refreshEndpointMissing ? <p className={styles['error']}>{t('refreshEndpointRequired')}</p> : null}
+                          </div>
+                          <div className={styles['field']}>
+                            <span className={styles['fieldLabel']}>{t('refreshInput')}</span>
+                            <input
+                              className={styles['input']}
+                              type="password"
+                              autoComplete="off"
+                              value={refreshDraft}
+                              placeholder={refreshState?.configured === true ? t('keyStored') : t('refreshPlaceholder')}
+                              aria-label={t('refreshInput')}
+                              disabled={disabled || refreshState?.writable === false}
+                              onChange={(event) => { setRefreshDraft(event.target.value) }}
+                            />
+                            {refreshFailure === undefined
+                              ? refreshCredentialMissing ? <p className={styles['error']}>{t('refreshRequired')}</p> : null
+                              : <p className={styles['error']}>{t(refreshFailure)}</p>}
+                          </div>
+                          <div className={styles['field']}>
+                            <span className={styles['fieldLabel']}>{t('refreshApiKey')}</span>
+                            <input
+                              className={styles['input']}
+                              type="text"
+                              value={refreshApiKeyValue ?? ''}
+                              aria-label={t('refreshApiKey')}
+                              disabled={disabled}
+                              onChange={(event) => { setNestedField(['auth', 'refresh', 'apiKey'], event.target.value) }}
+                            />
+                            {refreshApiKeyMissing ? <p className={styles['error']}>{t('refreshApiKeyRequired')}</p> : null}
+                          </div>
+                        </>
+                      )
+                      : null}
+                  </div>
+                )
+                : null}
+            </>
+          )
+          : (
+            <div className={styles['field']}>
+              <span className={styles['fieldLabel']}>{t('keyInput')}</span>
+              <input
+                className={styles['input']}
+                type="password"
+                autoComplete="off"
+                value={keyDraft}
+                placeholder={keyPlaceholder}
+                aria-label={t('keyInput')}
+                aria-invalid={shownKeyFailure !== undefined}
+                required={props.credentialRequired === true}
+                autoFocus={props.autoFocusCredential === true}
+                disabled={disabled || keyLocked}
+                onChange={(event) => { setKeyDraft(event.target.value) }}
+              />
+              {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
+            </div>
+          )}
+        {bearer || keyPoolView === undefined || props.credentialOnly === true ? null : (
           <>
             {extraKeys.map((key, index) => (
               <div className={styles['field']} key={key.id}>
@@ -569,22 +785,57 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                 </div>
               )
               : null}
-            <div className={styles['field']}>
-              <span className={styles['fieldLabel']}>{t('baseUrl')}</span>
-              <input
-                className={styles['input']}
-                type="text"
-                value={stringAt(draft, 'baseURL') ?? ''}
-                placeholder={family === 'deepseek'
-                  ? DEEPSEEK_PUBLIC_BASE_URL
-                  : stringAt(fallback, 'baseURL') ?? t('baseUrlDefault')}
-                aria-label={t('baseUrl')}
-                disabled={disabled}
-                onChange={(event) => {
-                  setField('baseURL', event.target.value === '' ? undefined : event.target.value)
-                }}
-              />
-            </div>
+            {bearer
+              ? (
+                <>
+                  <div className={styles['field']}>
+                    <span className={styles['fieldLabel']}>{t('chatEndpoint')}</span>
+                    <input
+                      className={styles['input']}
+                      type="url"
+                      value={stringAt(draft, 'chatURL') ?? stringAt(draft, 'baseURL') ?? ''}
+                      placeholder={stringAt(fallback, 'chatURL') ?? stringAt(fallback, 'baseURL') ?? t('chatEndpointPlaceholder')}
+                      aria-label={t('chatEndpoint')}
+                      disabled={disabled}
+                      onChange={(event) => {
+                        setField('chatURL', event.target.value)
+                        setDraft(current => schema.deletePath(current, ['baseURL']))
+                      }}
+                    />
+                  </div>
+                  <div className={styles['field']}>
+                    <span className={styles['fieldLabel']}>{t('modelsEndpoint')}</span>
+                    <input
+                      className={styles['input']}
+                      type="url"
+                      value={stringAt(draft, 'modelsURL') ?? ''}
+                      placeholder={stringAt(fallback, 'modelsURL') ?? t('modelsEndpointPlaceholder')}
+                      aria-label={t('modelsEndpoint')}
+                      disabled={disabled}
+                      onChange={(event) => { setField('modelsURL', event.target.value) }}
+                    />
+                    <p className={styles['advancedHint']}>{t('modelsEndpointHint')}</p>
+                  </div>
+                </>
+              )
+              : (
+                <div className={styles['field']}>
+                  <span className={styles['fieldLabel']}>{t('baseUrl')}</span>
+                  <input
+                    className={styles['input']}
+                    type="text"
+                    value={stringAt(draft, 'baseURL') ?? ''}
+                    placeholder={family === 'deepseek'
+                      ? DEEPSEEK_PUBLIC_BASE_URL
+                      : stringAt(fallback, 'baseURL') ?? t('baseUrlDefault')}
+                    aria-label={t('baseUrl')}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      setField('baseURL', event.target.value === '' ? undefined : event.target.value)
+                    }}
+                  />
+                </div>
+              )}
             {/* The protocol sits beside the endpoint it describes, as it does
                 on the create card. */}
             {ownsIdentity
@@ -659,6 +910,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
         submitDisabled={disabled || layout === 'unknown'
           || (props.credentialOnly !== true && modelFailure !== undefined)
           || shownKeyFailure !== undefined
+          || refreshFailure !== undefined
+          || refreshEndpointMissing
+          || refreshApiKeyMissing
+          || refreshCredentialMissing
           || (props.credentialRequired === true && keyValue.length === 0)}
         submitLabel={props.submitLabel ?? 'apply'}
         submitBusyLabel={props.submitBusyLabel ?? 'applying'}

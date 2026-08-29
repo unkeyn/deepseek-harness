@@ -452,48 +452,6 @@ describe('toPiContext', () => {
     expect(context.messages[0]).not.toHaveProperty('responseId')
   })
 
-  it('uses provider-neutral assistant history in portable replay mode', () => {
-    const state = toPiReplayState(assistant({
-      api: 'openai-responses',
-      provider: 'openai',
-      model: 'gpt-5',
-      responseId: 'resp_123',
-      content: [
-        { type: 'thinking', thinking: 'private reasoning', thinkingSignature: 'think-sig', redacted: true },
-        { type: 'text', text: 'calling', textSignature: 'text-sig' },
-        { type: 'toolCall', id: 'c1', name: 'f', arguments: { a: 1 }, thoughtSignature: 'tool-sig' },
-      ],
-    }))
-    const context = toPiContext({
-      provider: 'a6api',
-      model: 'gpt-5.6-sol',
-      messages: [createMessage({
-        role: 'assistant',
-        content: [
-          { type: 'reasoning', text: 'private reasoning' },
-          { type: 'text', text: 'calling' },
-          { type: 'tool-call', id: CallId('c1'), name: 'f', arguments: '{"a":1}' },
-        ],
-        source: { kind: 'model', provider: 'openai', model: 'gpt-5', replayState: state },
-      })],
-    }, undefined, undefined, 'portable')
-
-    const message = context.messages[0]
-    expect(message).toMatchObject({
-      role: 'assistant',
-      api: 'dsh-foreign',
-      content: [
-        { type: 'thinking', thinking: 'private reasoning' },
-        { type: 'text', text: 'calling' },
-        { type: 'toolCall', id: 'c1', name: 'f', arguments: { a: 1 } },
-      ],
-    })
-    expect(message).not.toHaveProperty('responseId')
-    expect(message).not.toHaveProperty('content.0.thinkingSignature')
-    expect(message).not.toHaveProperty('content.1.textSignature')
-    expect(message).not.toHaveProperty('content.2.thoughtSignature')
-  })
-
   it('degrades unsupported replay-state versions to provider-neutral history', () => {
     const onDegrade = vi.fn()
     const context = toPiContext({
@@ -850,13 +808,6 @@ describe('mapStopReason / mapUsage', () => {
     }))).toMatchObject({ kind: 'error', failure: { code: 'QUOTA' } })
     expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: 'HTTP 500: backend down' })))
       .toMatchObject({ kind: 'error', failure: { code: 'SERVER' } })
-    expect(mapStopReason(assistant({
-      stopReason: 'error',
-      errorMessage: '<!DOCTYPE HTML><html><head><title>503 Service Unavailable</title></head><body>maintenance</body></html>',
-    }))).toEqual({
-      kind: 'error',
-      failure: { message: 'Provider returned HTTP 503: Service Unavailable', code: 'SERVER' },
-    })
     expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: 'provider timed out' })))
       .toMatchObject({ kind: 'error', failure: { code: 'TIMEOUT' } })
     expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: 'ECONNRESET socket closed' })))
@@ -883,14 +834,6 @@ describe('mapStopReason / mapUsage', () => {
       stopReason: 'error',
       errorMessage: 'vector length limit exceeded',
     }))).toMatchObject({ kind: 'error', failure: { code: 'PI_AI_ERROR' } })
-  })
-
-  it.each([
-    'Our servers are currently overloaded. Please try again later.',
-    'OpenAI API error (400): {"type":"upstream_unavailable","message":"upstream unavailable"}',
-  ])('maps transient provider availability wording %j to SERVER', (errorMessage) => {
-    expect(mapStopReason(assistant({ stopReason: 'error', errorMessage })))
-      .toMatchObject({ kind: 'error', failure: { code: 'SERVER' } })
   })
 
   it.each([

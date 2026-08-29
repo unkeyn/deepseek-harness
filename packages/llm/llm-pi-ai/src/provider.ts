@@ -159,17 +159,6 @@ function reuseCatalogProvider(base: Provider, spec: ProviderSpec): Provider {
 }
 
 /**
- * The one wire protocol every model on the route resolved to, or `undefined`
- * when they disagree (or there are none).
- * @param models - the route's materialized models.
- * @returns the shared protocol, or `undefined`.
- */
-function unanimousModelApi(models: readonly Model<Api>[]): string | undefined {
-  const first = models[0]?.api
-  return first !== undefined && models.every(model => model.api === first) ? first : undefined
-}
-
-/**
  * Build the pi-ai provider for one resolved route.
  * @param spec - the resolved route facts.
  * @returns the provider to register in the adapter's `Models` collection.
@@ -182,18 +171,13 @@ export function buildProvider(spec: ProviderSpec): Provider {
   // different wire format, which only the protocol table can serve.
   if (catalog !== undefined && spec.api === undefined) return reuseCatalogProvider(catalog, spec)
 
-  // A route naming no protocol takes the single one its materialized models
-  // resolved to. Model resolution guarantees every model a concrete protocol —
-  // route choice, its own catalog answer, sibling consensus, or the gateway
-  // default — so an id both catalogs miss still builds without restating what
-  // its siblings already imply. Disagreement is refused: createProvider binds
-  // one API implementation per provider, so a mixed hand-declared route must
-  // name the protocol it means.
-  const routeApi = spec.api ?? unanimousModelApi(spec.models)
-  const factory = routeApi === undefined ? undefined : PROTOCOLS[routeApi]
+  // Every model on this path carries the route's protocol: model resolution
+  // requires one for a route the catalog cannot default, and an explicit one
+  // replaces each catalog model's own. So the route has a single API.
+  const factory = spec.api === undefined ? undefined : PROTOCOLS[spec.api]
   if (factory === undefined) {
     throw new Error(
-      `llm-pi-ai: provider "${spec.provider}" names api "${routeApi}", which this build cannot serve;`
+      `llm-pi-ai: provider "${spec.provider}" names api "${spec.api}", which this build cannot serve;`
       + ` supported protocols are ${supportedProtocols().join(', ')}`,
     )
   }

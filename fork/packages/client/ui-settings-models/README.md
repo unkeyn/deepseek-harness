@@ -14,7 +14,6 @@ Every edit lands as `settings.mutate` path ops against the stored section — a 
 
 ## Page segments
 
-The page is a segment switcher around its provider list: **API providers** (the rows and editors described here) plus feature panels registered beside it through the `settings.models.panel` slot - the Freebuff OAuth controls and the ready-made search-providers editor live there instead of their former Plugins-surface homes. A panel mounts when first selected and stays mounted while hidden, so drafts survive switching; the provider list is the built-in first segment and never moves.
 ## Model list and endpoint interrogation
 
 A model row edits identity and optional capacities only. Reasoning levels and accepted input are runtime capabilities resolved automatically by the Host model catalog and are not authored in this UI. Unknown model fields survive every row edit; context and output capacities remain behind the row's disclosure.

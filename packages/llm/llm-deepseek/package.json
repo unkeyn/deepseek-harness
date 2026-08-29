@@ -45,7 +45,6 @@
     "@deepseek-ai/dsh-settings": "workspace:^",
     "@deepseek-ai/dsh-timeout": "workspace:^",
     "@deepseek-ai/dsh-anonymous-user-id": "workspace:^",
-    "@deepseek-ai/dsh-credential-oauth": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   },
   "dependencies": {
@@ -70,7 +69,6 @@
     "@deepseek-ai/dsh-session-log-deepseek": "workspace:^",
     "@deepseek-ai/dsh-timeout": "workspace:^",
     "@deepseek-ai/dsh-anonymous-user-id": "workspace:^",
-    "@deepseek-ai/dsh-credential-oauth": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   }
 }

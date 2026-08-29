@@ -1,7 +1,7 @@
-import type { ConnectionHandle, IApiClient } from '@deepseek-ai/dsh-client-connection/client'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 
 /** Settings namespace edited by the custom web search pool card. */
 export const WEB_SEARCH_POOL_NS = 'web-search-pool'
@@ -134,6 +134,7 @@ export interface PoolCardFace {
 
 type Draft = { providers: PoolDraftProvider[]; maxAttempts: string; cooldownMs: string }
 type PoolRpc = Pick<ConnectionHandle, 'rpc'>['rpc']
+type PoolCredentials = Pick<ClientRemote['credentials'], 'describe' | 'set' | 'unset'>
 
 /** Owns editable provider drafts and write-only credential operations. */
 export class WebSearchPoolCardController {
@@ -153,7 +154,7 @@ export class WebSearchPoolCardController {
 
   constructor(
     private readonly scope: SettingsScope<PoolSettings>,
-    private readonly api: Pick<IApiClient, 'credentials'>,
+    private readonly credentials: PoolCredentials,
     rpc: PoolRpc,
   ) {
     this.rpc = rpc
@@ -300,13 +301,13 @@ export class WebSearchPoolCardController {
     this.error = null
     this.publish()
     try {
-      for (const ref of this.removedRefs) await this.api.credentials.unset({ ref })
+      for (const ref of this.removedRefs) await this.credentials.unset(ref)
       for (const provider of this.draft.providers) {
         for (const key of provider.keys) {
-          if (key.secret.length > 0) await this.api.credentials.set({ ref: key.ref, value: key.secret })
+          if (key.secret.length > 0) await this.credentials.set(key.ref, key.secret)
           if (key.ref !== key.originalRef) {
             if (key.secret.length === 0) throw new Error(`enter a new secret for ${key.id} after changing its reference`)
-            await this.api.credentials.unset({ ref: key.originalRef })
+            await this.credentials.unset(key.originalRef)
           }
         }
       }
@@ -400,12 +401,12 @@ export class WebSearchPoolCardController {
     }
   }
 
-  private async refreshCredential(ref: string): Promise<void> {
+  async refreshCredential(ref: string): Promise<void> {
     if (this.disposed || !this.draft.providers.some(provider => provider.keys.some(key => key.ref === ref))) return
     try {
-      const response = await this.api.credentials.describe({ refs: [ref] })
-      if (!response.result.ok || this.disposed) return
-      const configured = response.result.value.credentials[ref]?.configured ?? false
+      const response = await this.credentials.describe([ref])
+      if (!response.ok || this.disposed) return
+      const configured = response.value[ref]?.configured ?? false
       for (const provider of this.draft.providers) {
         for (const key of provider.keys) {
           if (key.ref === ref) key.configured = configured
@@ -419,10 +420,10 @@ export class WebSearchPoolCardController {
     const refs = this.draft.providers.flatMap(provider => provider.keys.map(key => key.ref))
     if (refs.length === 0) return
     try {
-      const response = await this.api.credentials.describe({ refs })
-      if (!response.result.ok || this.disposed || this.dirty) return
+      const response = await this.credentials.describe(refs)
+      if (!response.ok || this.disposed || this.dirty) return
       for (const provider of this.draft.providers) {
-        for (const key of provider.keys) key.configured = response.result.value.credentials[key.ref]?.configured ?? false
+        for (const key of provider.keys) key.configured = response.value[key.ref]?.configured ?? false
       }
       this.publish()
     } catch { /* unavailable credential status leaves the write-only field usable */ }

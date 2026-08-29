@@ -39,9 +39,6 @@
       "path": "../../agent/model-selection"
     },
     {
-      "path": "../../credentials/credential-freebuff-oauth"
-    },
-    {
       "path": "../../../../packages/core/agent"
     },
     {

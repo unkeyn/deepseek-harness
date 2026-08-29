@@ -180,7 +180,6 @@ export function AppFrame({
       data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-details-collapsed={cols.details === 0 || undefined}
       data-dragging={dragging || undefined}
-      onContextMenuCapture={(event) => { event.preventDefault() }}
     >
       <DocumentTitle
         productTitle={productTitle}

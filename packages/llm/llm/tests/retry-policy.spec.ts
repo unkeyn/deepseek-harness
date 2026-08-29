@@ -12,12 +12,8 @@ describe('provider retry policy', () => {
 
     expect(policy).toEqual({
       mode: 'normal',
-      maxRetries: 10,
+      maxRetries: 5,
       retryableCodes: ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TIMEOUT', 'TRANSPORT'],
-      phases: [
-        { retries: 5, initialDelayMs: 2_000, maxDelayMs: 2_000, stepMs: 0, jitterRatio: 0.1 },
-        { retries: 5, initialDelayMs: 10_000, maxDelayMs: 30_000, stepMs: 5_000, jitterRatio: 0.1 },
-      ],
       initialDelayMs: 500,
       maxDelayMs: 10_000,
       jitterRatio: 0.1,

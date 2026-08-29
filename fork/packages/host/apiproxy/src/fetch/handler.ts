@@ -64,7 +64,6 @@ import {
   credentialsDescribeRequestSchema, credentialsSetRequestSchema, credentialsUnsetRequestSchema,
 } from '../api/credentials.schema.ts'
 import { llmDiscoverModelsRequestSchema, llmModelsRequestSchema, llmProvidersRequestSchema } from '../api/llm.schema.ts'
-import { freebuffEmptyRequestSchema } from '../api/freebuff.schema.ts'
 import {
   subagentHistoryRequestSchema,
   subagentInterruptRequestSchema,
@@ -141,11 +140,6 @@ const UNARY_ROUTES: UnaryRoutes = {
   'llm.providers': { schema: llmProvidersRequestSchema, invoke: (api, r) => api.llm.providers(r) },
   'llm.models': { schema: llmModelsRequestSchema, invoke: (api, r) => api.llm.models(r) },
   'llm.discoverModels': { schema: llmDiscoverModelsRequestSchema, invoke: (api, r, signal) => api.llm.discoverModels(r, signal) },
-  'freebuff.status': { schema: freebuffEmptyRequestSchema, invoke: (api, r) => api.freebuff.status(r) },
-  'freebuff.beginLogin': { schema: freebuffEmptyRequestSchema, invoke: (api, r) => api.freebuff.beginLogin(r) },
-  'freebuff.completeLogin': { schema: freebuffEmptyRequestSchema, invoke: (api, r, signal) => api.freebuff.completeLogin(r, signal) },
-  'freebuff.logout': { schema: freebuffEmptyRequestSchema, invoke: (api, r) => api.freebuff.logout(r) },
-  'freebuff.openDesktop': { schema: freebuffEmptyRequestSchema, invoke: (api, r, signal) => api.freebuff.openDesktop(r, signal) },
 }
 
 /** Route lookup that narrows an arbitrary path segment to a map key (single cast point for the string→key refinement). */

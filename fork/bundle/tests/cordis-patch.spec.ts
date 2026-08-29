@@ -13,7 +13,7 @@ const replacements = [
   ['llm-deepseek', '@deepseek-ai/dsh-llm-deepseek', '@deepseek-ai/dsh-fork-llm-deepseek'],
   ['web', '@deepseek-ai/dsh-web', '@deepseek-ai/dsh-fork-web'],
   ['compaction-basic', '@deepseek-ai/dsh-compaction-basic', '@deepseek-ai/dsh-fork-compaction-basic'],
-  ['api-gateway', '@deepseek-ai/dsh-host-apiproxy', '@deepseek-ai/dsh-fork-host-apiproxy'],
+  ['typert-gateway', '@deepseek-ai/dsh-api-gateway', '@deepseek-ai/dsh-fork-host-apiproxy'],
   ['cordis-client-runner', '@deepseek-ai/dsh-cordis-client-runner', '@deepseek-ai/dsh-fork-cordis-client-runner'],
   ['ui-layout', '@deepseek-ai/dsh-client-ui-layout', '@deepseek-ai/dsh-fork-client-ui-layout'],
   ['ui-conversation', '@deepseek-ai/dsh-client-ui-conversation', '@deepseek-ai/dsh-fork-client-ui-conversation'],
@@ -75,19 +75,11 @@ describe('fork bundle composition', () => {
     for (const id of [
       'model-catalog-fork', 'compaction-policy-fork', 'budget-context', 'key-pool',
       'web-search-brave-fork',
-      'web-search-firecrawl-fork', 'web-search-pool', 'freebuff-rpc',
+      'web-search-firecrawl-fork', 'web-search-pool',
     ]) expect(all.some(entry => entry.id === id)).toBe(true)
     expect(all.find(entry => entry.id === 'budget-context')).toMatchObject({
       name: '@deepseek-ai/dsh-fork-budget-context',
     })
-    expect(all.find(entry => entry.id === 'credential-freebuff-oauth')).toMatchObject({
-      name: '@deepseek-ai/dsh-fork-credential-freebuff-oauth',
-    })
-    expect(all.find(entry => entry.id === 'ui-freebuff-oauth')).toMatchObject({
-      name: '@deepseek-ai/dsh-fork-client-ui-freebuff-oauth',
-    })
-    expect(all.some(entry => entry.id === 'llm-freebuff')).toBe(false)
-    expect(all.some(entry => entry.id === 'command-freebuff-login')).toBe(false)
 
     const restored = applyEntryPatches(rows, [
       { id: 'llm-fork', disabled: true },

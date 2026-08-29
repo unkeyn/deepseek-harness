@@ -5,7 +5,7 @@
  * @module @deepseek-ai/dsh-fork-web/types
  */
 
-import { HarnessError } from '@deepseek-ai/dsh-fork-llm'
+import { HarnessError } from '@deepseek-ai/dsh-llm'
 
 /**
  * What one search-capable backend is asked to search. Each request carries one

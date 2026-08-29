@@ -6,13 +6,11 @@
  * re-renders from the next describe, pushed or refetched.
  */
 
-import type {
-  ConfigurableProviderView, CredentialView, IApiClient, SettingsNamespaceView,
-} from '@deepseek-ai/dsh-api-remotes/client'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsDescribeFace } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
+import type { ConfigurableProviderView, CredentialView, ModelsApi } from './models-api.ts'
 
 /**
  * Any route key walks a dict schema to the same profile node, so the lookup
@@ -30,8 +28,12 @@ export interface ProviderRow {
   removable: boolean
   /** The credential reference the resolved profile names, when one does. */
   apiKeyEnv: string | undefined
+  /** Every credential reference owned by this profile (Bearer adds refresh). */
+  credentialRefs?: readonly string[]
   /** Credential state for {@link apiKeyEnv}, once described. */
   credential: CredentialView | undefined
+  /** Credential states in {@link credentialRefs} order. */
+  credentials?: readonly CredentialView[]
 }
 
 /** Page snapshot. */
@@ -71,6 +73,16 @@ export function deriveKeyRef(provider: string): string {
   return `${provider.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`
 }
 
+/** Derive the conventional Bearer access-token reference for a route. */
+export function deriveBearerRef(provider: string): string {
+  return provider.toUpperCase().replace(/[^A-Z0-9]+/g, '_') + '_BEARER_TOKEN'
+}
+
+/** Derive the conventional refresh-token reference for a route. */
+export function deriveRefreshRef(provider: string): string {
+  return provider.toUpperCase().replace(/[^A-Z0-9]+/g, '_') + '_REFRESH_TOKEN'
+}
+
 /**
  * The wire protocols a hand-declared route may name, read out of the owning
  * namespace's own schema. This stays a schema read rather than a wire field so
@@ -91,17 +103,25 @@ export function protocolChoices(
   return list.list.map(entry => entry.value).filter((value): value is string => typeof value === 'string')
 }
 
-/** The credential reference a resolved profile names (its `apiKeyEnv` field). */
-function apiKeyEnvOf(
+/** All credential references a resolved profile names, in stable display order. */
+function credentialRefsOf(
   namespace: SettingsNamespaceView | undefined,
   path: readonly string[],
   schema: SettingsSchemaOperations,
-): string | undefined {
-  if (namespace === undefined) return undefined
+): readonly string[] {
+  if (namespace === undefined) return []
   const profile = schema.getPath(namespace.value, path)
-  if (typeof profile !== 'object' || profile === null) return undefined
+  if (typeof profile !== 'object' || profile === null) return []
   const ref = (profile as { apiKeyEnv?: unknown }).apiKeyEnv
-  return typeof ref === 'string' && ref.length > 0 ? ref : undefined
+  if (typeof ref === 'string' && ref.length > 0) return [ref]
+  const auth = (profile as { auth?: unknown }).auth
+  if (typeof auth !== 'object' || auth === null) return []
+  const access = (auth as { accessTokenEnv?: unknown }).accessTokenEnv
+  const refresh = (auth as { refresh?: unknown }).refresh
+  const refreshRef = typeof refresh === 'object' && refresh !== null
+    ? (refresh as { refreshTokenEnv?: unknown }).refreshTokenEnv
+    : undefined
+  return [access, refreshRef].filter((value): value is string => typeof value === 'string' && value.length > 0)
 }
 
 /** The models settings page controller (one per settings surface). */
@@ -119,7 +139,7 @@ export class ModelsSettingsStore {
    * @param describeFace - the shared mirror's describe face (namespace views and writability).
    */
   constructor(
-    private readonly api: Pick<IApiClient, 'settings' | 'credentials' | 'llm'>,
+    private readonly api: ModelsApi,
     private readonly schema: SettingsSchemaOperations,
     private readonly describeFace: SettingsDescribeFace,
   ) {}
@@ -168,15 +188,17 @@ export class ModelsSettingsStore {
         && entry.settingsPath.length > 0
         && this.schema.hasPath(namespace.user, entry.settingsPath)
         && !this.schema.hasPath(namespace.base, entry.settingsPath)
+      const credentialRefs = credentialRefsOf(namespace, entry.settingsPath, this.schema)
       return {
         entry,
         configured,
         removable,
-        apiKeyEnv: apiKeyEnvOf(namespace, entry.settingsPath, this.schema),
+        apiKeyEnv: credentialRefs[0],
+        credentialRefs,
         credential: undefined,
       }
     })
-    const refs = [...new Set(rows.flatMap(row => row.apiKeyEnv === undefined ? [] : [row.apiKeyEnv]))]
+    const refs = [...new Set(rows.flatMap(row => row.credentialRefs ?? []))]
     let credentials: Record<string, CredentialView> = {}
     let credentialError: string | null = null
     if (refs.length > 0) {
@@ -199,6 +221,11 @@ export class ModelsSettingsStore {
       s.writable = writable
       s.rows = rows.map(row => ({
         ...row,
+        ...row.credentialRefs?.length === 0 || row.credentialRefs === undefined ? {} : {
+          credentials: row.credentialRefs
+            .map(ref => credentials[ref])
+            .filter((value): value is CredentialView => value !== undefined),
+        },
         ...row.apiKeyEnv !== undefined && credentials[row.apiKeyEnv] !== undefined
           ? { credential: credentials[row.apiKeyEnv] }
           : {},
@@ -221,6 +248,10 @@ export class ModelsSettingsStore {
 export function providerUsable(row: ProviderRow): boolean {
   if (!row.entry.active) return false
   if (row.apiKeyEnv === undefined) return true
+  if ((row.credentialRefs?.length ?? 0) > 1) {
+    return row.credentials?.length === row.credentialRefs?.length
+      && row.credentials?.every(credential => credential.configured) === true
+  }
   return row.credential?.configured === true
 }
 

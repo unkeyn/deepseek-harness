@@ -33,6 +33,9 @@
       "path": "../../../../packages/credentials/credentials"
     },
     {
+      "path": "../../../../packages/credentials/authorization"
+    },
+    {
       "path": "../../../../packages/settings/settings"
     },
     {

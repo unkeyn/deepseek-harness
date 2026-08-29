@@ -6,7 +6,7 @@
   "packageManager": "pnpm@11.7.0",
   "description": "Fork-only plugins and composition overlays for DeepSeek Harness",
   "scripts": {
-    "typecheck": "pnpm --dir .. exec tsc -b fork/tsconfig.host.json fork/tsconfig.client.json",
+    "typecheck": "pnpm run build:lib:host && pnpm --dir .. exec tsc -b fork/tsconfig.client.json",
     "build:lib": "pnpm run build:lib:host && pnpm run build:lib:client",
     "build:lib:host": "pnpm --dir .. exec tsc -b fork/tsconfig.host.json && pnpm --dir .. exec tsdown --config fork/tsdown.config.ts --env.DSH_BUILD_FACE host",
     "build:lib:client": "pnpm --dir .. exec tsc -b fork/tsconfig.client.json && pnpm --dir .. exec tsdown --config fork/tsdown.config.ts --env.DSH_BUILD_FACE client",

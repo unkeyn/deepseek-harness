@@ -22,12 +22,6 @@ Wire messages form a four-quadrant discriminated union — who initiates × requ
 
 The layering/protocol decisions are recorded in the [GUI layering and RPC protocol RFC](../../../.agents/notes/implemented/architecture/2026-07-19-gui-layering-and-rpc-protocol.md); the browser-side consumption architecture in the [web client architecture RFC](../../../.agents/notes/implemented/architecture/2026-07-19-gui-web-client-architecture.md).
 
-## Freebuff OAuth methods
-
-The fork adds the `freebuff.status`, `freebuff.beginLogin`, `freebuff.completeLogin`, and `freebuff.logout` methods to the same API proxy. The Host owns the Freebuff bearer token and credential reference; responses contain only redacted account metadata, login URL, status, and expiry. `freebuff.completeLogin` carries the caller signal without the default unary timeout because it waits for browser approval, while disconnecting the carrier still cancels the Host request.
-
-The Web client uses these methods for the fork-owned `OAuth` tab. `freebuff.openDesktop` resolves the absolute shortcut path from the Host-side credential plugin configuration and opens it through the native path opener; the browser cannot select an arbitrary filesystem path. The methods are absent from the official composition, and a fork deployment without the Freebuff credential plugin returns an actionable error instead of silently pretending that OAuth is configured.
-
 Question responses are validated against their pending request before the first answer claims it. A multi-select item may carry both requested option labels in `selected` and non-empty `custom` text; a single-select item must use one or the other. Duplicate labels, unknown labels, mismatched ids, incomplete batches, and empty custom text are rejected as `bad-response`.
 
 `session.history` reads an attached Session in memory or inspects a cold log through persistence without resuming or publishing an Agent, then pages on append-origin message boundaries. `maxMessages` counts `user/message` and `assistant/message` events that entered the surface by appending, so a model-only replacement copy consumes no quota. Each page stays one contiguous raw event range, which keeps a compaction's log-only `compaction/summary` record on the same page as the replacement that cites it.

@@ -18,7 +18,6 @@ Each provider may carry an optional `check` spec (account endpoint plus dot path
 
 **Fixing only the stored document:** a one-off settings write would have repaired the running entry but left every freshly added provider broken; the preset and provider are where the wrong API lived.
 
-**An apiProxy domain for the check:** the freebuff pattern (interface, schemas, rpc-map, handler, client face, bridge) buys typed surfaces for a whole feature family; one method over secrets the apiproxy never touches is a loopback route with one zod-less shape check away from the plugin that owns the data.
 
 **A pure validity ping for everyone:** Brave and Exa expose no credit endpoint, but Firecrawl's account call is free and exact — the spec carries the richer path where the provider has one and the ping stays the universal fallback.
 

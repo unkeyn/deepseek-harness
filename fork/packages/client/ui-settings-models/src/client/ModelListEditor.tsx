@@ -16,7 +16,7 @@
 
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import type { DiscoveredModelView, IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
+import type { DiscoveredModelView, ModelsApi } from './models-api.ts'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import { formatCapacity, parseCapacity } from './DeepSeekModelsEditor.tsx'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
@@ -71,6 +71,8 @@ export interface ProbeTarget {
   provider?: string
   /** Endpoint as the form currently shows it. */
   baseURL?: string
+  /** Exact model-list endpoint shown by a Bearer provider draft. */
+  modelsURL?: string
   /** Wire protocol the form names, when it names one. */
   api?: string
   /** Key typed into the form and not yet stored, when there is one. */
@@ -97,7 +99,7 @@ export interface ModelListEditorProps {
    */
   probeBlocked?: keyof typeof en | undefined
   /** Wire face the fetch action calls. */
-  api: Pick<IApiClient, 'llm'>
+  api: Pick<ModelsApi, 'llm'>
   /** Section copy. */
   t: (key: keyof typeof en) => string
   /** Disable every control (read-only deployment or a pending write). */
@@ -266,6 +268,63 @@ export function filterCandidates<C extends { id: string; name?: string }>(
   return ranked.sort((a, b) => b.score - a.score || a.at - b.at).map(entry => entry.candidate)
 }
 
+/** Categories offered directly above the fetched model list. */
+export type ModelCategory = 'free' | 'gpt' | 'claude' | 'china'
+
+/** Neutral leaves a category alone, include keeps it, exclude subtracts it. */
+export type ModelCategoryMode = 'neutral' | 'include' | 'exclude'
+
+/** Complete category-filter state. */
+export type ModelCategoryFilters = Readonly<Record<ModelCategory, ModelCategoryMode>>
+
+const MODEL_CATEGORIES: readonly ModelCategory[] = ['free', 'gpt', 'claude', 'china']
+
+/** Fresh neutral state for every newly opened picker. */
+function neutralCategoryFilters(): ModelCategoryFilters {
+  return { free: 'neutral', gpt: 'neutral', claude: 'neutral', china: 'neutral' }
+}
+
+/**
+ * Provider and model-family markers commonly used by Chinese model catalogs.
+ * These are intentionally specific: `china` must not catch an unrelated model
+ * merely because its id happens to contain a short accidental substring.
+ */
+const CHINA_MODEL_MARKERS = [
+  'deepseek', 'qwen', 'qwq', 'tongyi', 'chatglm', 'glm-', 'zhipu',
+  'minimax', 'moonshot', 'kimi', 'baichuan', 'hunyuan', 'doubao',
+  'ernie', 'wenxin', 'internlm', 'stepfun', 'step-', '01-ai', '/yi-',
+  'alibaba', 'tencent', 'baidu', 'bytedance', 'volcengine', 'siliconflow',
+] as const
+
+/** Whether a fetched id/name belongs to one quick-filter category. */
+export function matchesModelCategory(
+  candidate: { id: string; name?: string },
+  category: ModelCategory,
+): boolean {
+  const text = `${candidate.id} ${candidate.name ?? ''}`.toLowerCase()
+  if (category === 'free') return text.includes('free') || text.includes('stealth')
+  if (category === 'gpt') return text.includes('gpt')
+  if (category === 'claude') return text.includes('claude')
+  return CHINA_MODEL_MARKERS.some(marker => text.includes(marker))
+}
+
+/**
+ * Apply tri-state categories. Included categories are ORed together; excluded
+ * categories are then subtracted. With no includes the full list remains as
+ * the starting set, which makes a lone right-click useful by itself.
+ */
+export function filterCandidateCategories<C extends { id: string; name?: string }>(
+  candidates: readonly C[],
+  filters: ModelCategoryFilters,
+): readonly C[] {
+  const included = MODEL_CATEGORIES.filter(category => filters[category] === 'include')
+  const excluded = MODEL_CATEGORIES.filter(category => filters[category] === 'exclude')
+  return candidates.filter(candidate => (
+    (included.length === 0 || included.some(category => matchesModelCategory(candidate, category)))
+    && !excluded.some(category => matchesModelCategory(candidate, category))
+  ))
+}
+
 /**
  * Render the model list with its fetch action.
  * @param props - the drafted rows, probe target, wire face, and copy.
@@ -279,6 +338,9 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   // The dialog's filter text; matching is a ranked subsequence over id and name.
   const [filter, setFilter] = useState('')
+  // Left-click includes a category, while right-click excludes it. The two
+  // directions share one compact row instead of adding a second filter panel.
+  const [categoryFilters, setCategoryFilters] = useState<ModelCategoryFilters>(neutralCategoryFilters)
   // Rows carry an id and a name; capacities are the exception, so they stay
   // folded until asked for rather than crowding every row with four inputs.
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set())
@@ -350,6 +412,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
         settingsNs: probe.settingsNs,
         ...probe.provider === undefined ? {} : { provider: probe.provider },
         ...probe.baseURL === undefined || probe.baseURL.length === 0 ? {} : { baseURL: probe.baseURL },
+        ...probe.modelsURL === undefined || probe.modelsURL.length === 0 ? {} : { modelsURL: probe.modelsURL },
         ...probe.api === undefined ? {} : { api: probe.api },
         ...probe.apiKey === undefined ? {} : { apiKey: probe.apiKey },
       })
@@ -370,6 +433,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
       setCandidates(found)
       setPicked(new Set(found.filter(model => known.has(model.id)).map(model => model.id)))
       setFilter('')
+      setCategoryFilters(neutralCategoryFilters())
     } catch (error) {
       // The transport rejected rather than answering; without this the button
       // would stay busy with nothing shown.
@@ -382,6 +446,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   const closePicker = (): void => {
     setCandidates(undefined)
     setPicked(new Set())
+    setCategoryFilters(neutralCategoryFilters())
   }
 
   const adoptPicked = (): void => {
@@ -408,7 +473,10 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     })
   }
 
-  const visibleCandidates = filterCandidates(candidates ?? [], filter)
+  const visibleCandidates = filterCandidateCategories(
+    filterCandidates(candidates ?? [], filter),
+    categoryFilters,
+  )
   const allCandidatesPicked = visibleCandidates.length > 0
     && visibleCandidates.every(candidate => picked.has(candidate.id))
 
@@ -428,7 +496,9 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
 
   // A route the adapter already describes answers without an endpoint; only a
   // draft with neither has nothing to ask about.
-  const askable = probe.provider !== undefined || (probe.baseURL !== undefined && probe.baseURL.length > 0)
+  const askable = probe.provider !== undefined
+    || (probe.baseURL !== undefined && probe.baseURL.length > 0)
+    || (probe.modelsURL !== undefined && probe.modelsURL.length > 0)
   return (
     <section className={styles['modelCatalog']} aria-label={t('models')}>
       <div className={styles['modelListHead']}>
@@ -574,6 +644,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
         closeLabel={t('close')}
         description={t('fetchDescription')}
         className={styles['fetchDialog'] as string}
+        contentClassName={styles['fetchDialogContent'] as string}
         footer={(
           <>
             <Button variant="outline" onClick={closePicker}>{t('cancel')}</Button>
@@ -594,6 +665,54 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
           <Button variant="ghost" size="sm" onClick={toggleAllCandidates}>
             {t(allCandidatesPicked ? 'fetchDeselectAll' : 'fetchSelectAll')}
           </Button>
+        </div>
+        <div className={styles['candidateFilters']} aria-label={t('fetchCategoryFilters')}>
+          {MODEL_CATEGORIES.map((category) => {
+            const mode = categoryFilters[category]
+            const labelKey = category === 'free'
+              ? 'fetchFilterFree'
+              : category === 'gpt'
+                ? 'fetchFilterGpt'
+                : category === 'claude'
+                  ? 'fetchFilterClaude'
+                  : 'fetchFilterChina'
+            const label = t(labelKey)
+            const state = t(mode === 'include'
+              ? 'fetchFilterIncluded'
+              : mode === 'exclude'
+                ? 'fetchFilterExcluded'
+                : 'fetchFilterNeutral')
+            return (
+              <button
+                key={category}
+                type="button"
+                role="checkbox"
+                aria-checked={mode === 'exclude' ? 'mixed' : mode === 'include'}
+                aria-label={`${label}: ${state}`}
+                className={styles['candidateFilter']}
+                data-state={mode}
+                title={t('fetchFilterHint')}
+                onClick={() => {
+                  setCategoryFilters(current => ({
+                    ...current,
+                    [category]: current[category] === 'include' ? 'neutral' : 'include',
+                  }))
+                }}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  setCategoryFilters(current => ({
+                    ...current,
+                    [category]: current[category] === 'exclude' ? 'neutral' : 'exclude',
+                  }))
+                }}
+              >
+                <span className={styles['candidateFilterMark']} aria-hidden>
+                  {mode === 'include' ? '✓' : mode === 'exclude' ? '×' : ''}
+                </span>
+                {label}
+              </button>
+            )
+          })}
         </div>
         <ul className={styles['candidateList']}>
           {visibleCandidates.map(candidate => (

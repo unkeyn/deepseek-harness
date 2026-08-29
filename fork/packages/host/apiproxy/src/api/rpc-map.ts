@@ -15,7 +15,6 @@ import type { CredentialsApi } from './credentials.ts'
 import type { LlmApi } from './llm.ts'
 import type { SubagentsApi } from './subagents.ts'
 import type { RpcResponse } from './rpc.ts'
-import type { FreebuffApi } from './freebuff.ts'
 
 /**
  * Method name → method signature. Signatures are the single source of truth; payload/value
@@ -75,11 +74,6 @@ export interface RpcMethodMap {
   'llm.providers': LlmApi['providers']
   'llm.models': LlmApi['models']
   'llm.discoverModels': LlmApi['discoverModels']
-  'freebuff.status': FreebuffApi['status']
-  'freebuff.beginLogin': FreebuffApi['beginLogin']
-  'freebuff.completeLogin': FreebuffApi['completeLogin']
-  'freebuff.logout': FreebuffApi['logout']
-  'freebuff.openDesktop': FreebuffApi['openDesktop']
 }
 
 /** Business request payload of method K (reaches through the RpcRequest narrow form to payload). */

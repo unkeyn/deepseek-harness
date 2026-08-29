@@ -19,22 +19,6 @@
   name: '@deepseek-ai/dsh-llm-deepseek'
   disabled: true
 
-- id: model-catalog
-  name: '@deepseek-ai/dsh-model-catalog'
-  disabled: true
-
-- id: compaction-policy
-  name: '@deepseek-ai/dsh-compaction-policy'
-  disabled: true
-
-- id: web-search-brave
-  name: '@deepseek-ai/dsh-web-search-brave'
-  disabled: true
-
-- id: web-search-firecrawl
-  name: '@deepseek-ai/dsh-web-search-firecrawl'
-  disabled: true
-
 - id: web
   name: '@deepseek-ai/dsh-web'
   disabled: true
@@ -49,8 +33,8 @@
   name: '@deepseek-ai/dsh-compaction-basic'
   disabled: true
 
-- id: api-gateway
-  name: '@deepseek-ai/dsh-host-apiproxy'
+- id: typert-gateway
+  name: '@deepseek-ai/dsh-api-gateway'
   disabled: true
 
 - id: cordis-client-runner
@@ -81,6 +65,9 @@
     - id: llm-fork
       name: '@deepseek-ai/dsh-fork-llm'
 
+    - id: llm-bearer-fork
+      name: '@deepseek-ai/dsh-fork-llm-bearer'
+
     - id: llm-retry-fork
       name: '@deepseek-ai/dsh-fork-llm-retry'
 
@@ -89,15 +76,6 @@
 
     - id: llm-deepseek-fork
       name: '@deepseek-ai/dsh-fork-llm-deepseek'
-
-    # Freebuff stays panel-only: the OAuth tab, its credential service, and
-    # the RPC bridge are mounted, while the llm-freebuff provider route and
-    # the /freebuff-login command remain unmounted packages. Remount them by
-    # inserting `llm-freebuff` (@deepseek-ai/dsh-fork-llm-freebuff) and
-    # `command-freebuff-login` (@deepseek-ai/dsh-fork-command-freebuff) rows.
-    - id: credential-freebuff-oauth
-      name: '@deepseek-ai/dsh-fork-credential-freebuff-oauth'
-      config: {}
 
     # The agent-mode roster: the model routes itself between the modes
     # (select_mode) and delegates to mode subtypes (subagent_<mode>); the
@@ -136,12 +114,9 @@
     - id: compaction-basic-fork
       name: '@deepseek-ai/dsh-fork-compaction-basic'
 
-    - id: api-gateway-fork
+    - id: typert-gateway-fork
       name: '@deepseek-ai/dsh-fork-host-apiproxy'
 
-    - id: freebuff-rpc
-      name: '@deepseek-ai/dsh-fork-host-freebuff-rpc'
-      inject: [apiProxy, webServer]
 
     - id: cordis-client-runner-fork
       name: '@deepseek-ai/dsh-fork-cordis-client-runner'
@@ -163,16 +138,6 @@
 
     - id: ui-settings-plugins-fork
       name: '@deepseek-ai/dsh-fork-client-ui-settings-plugins'
-
-    - id: ui-freebuff-oauth
-      name: '@deepseek-ai/dsh-fork-client-ui-freebuff-oauth'
-
-    # Harvest-mode interface: self-gating on the session summary's
-    # agentPreset field, so its Harvest view tab (auto-opened onto the
-    # console) exists only in sessions composed from the user's `harvest`
-    # preset.
-    - id: ui-harvest
-      name: '@deepseek-ai/dsh-fork-client-ui-harvest'
 
     - id: model-catalog-fork
       name: '@deepseek-ai/dsh-fork-model-catalog'

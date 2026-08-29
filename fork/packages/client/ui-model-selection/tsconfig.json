@@ -18,7 +18,7 @@
       "path": "../../../../packages/client/locale"
     },
     {
-      "path": "../../../../packages/client/runtime"
+      "path": "../runtime-compat"
     },
     {
       "path": "../../../../packages/client/ui-commands"

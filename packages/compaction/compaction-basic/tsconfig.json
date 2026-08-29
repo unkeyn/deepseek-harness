@@ -34,12 +34,6 @@
       "path": "../compaction"
     },
     {
-      "path": "../compaction-policy"
-    },
-    {
-      "path": "../../settings/settings"
-    },
-    {
       "path": "../../runtime-diagnostics/invariants"
     },
     {

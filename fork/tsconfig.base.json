@@ -311,13 +311,13 @@
         "../packages/client/modules/src/*"
       ],
       "@deepseek-ai/dsh-client-runtime": [
-        "../packages/client/runtime/src"
+        "packages/client/runtime-compat/src"
       ],
       "@deepseek-ai/dsh-client-runtime/*": [
-        "../packages/client/runtime/src/*"
+        "packages/client/runtime-compat/src/*"
       ],
       "@deepseek-ai/dsh-client-runtime/src/*": [
-        "../packages/client/runtime/src/*"
+        "packages/client/runtime-compat/src/*"
       ],
       "@deepseek-ai/dsh-client-test-runtime": [
         "../packages/test-support/client-runtime/src"
@@ -781,6 +781,12 @@
       "@deepseek-ai/dsh-credentials": [
         "../packages/credentials/credentials/src"
       ],
+      "@deepseek-ai/dsh-authorization": [
+        "../packages/credentials/authorization/src"
+      ],
+      "@deepseek-ai/dsh-authorization/*": [
+        "../packages/credentials/authorization/src/*"
+      ],
       "@deepseek-ai/dsh-credentials-local": [
         "../packages/credentials/credentials-local/src"
       ],
@@ -867,6 +873,15 @@
       ],
       "@deepseek-ai/dsh-fork-client-ui-agent-modes/src/*": [
         "packages/client/ui-agent-modes/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-authorization": [
+        "packages/client/ui-authorization/src"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-authorization/*": [
+        "packages/client/ui-authorization/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-authorization/src/*": [
+        "packages/client/ui-authorization/src/*"
       ],
       "@deepseek-ai/dsh-fork-client-ui-conversation": [
         "packages/client/ui-conversation/src"
@@ -994,14 +1009,23 @@
       "@deepseek-ai/dsh-fork-credential-oauth/src/*": [
         "packages/credentials/credential-oauth/src/*"
       ],
-      "@deepseek-ai/dsh-fork-credential-freebuff-oauth": [
-        "packages/credentials/credential-freebuff-oauth/src"
+      "@deepseek-ai/dsh-fork-authorization-controller": [
+        "packages/host/authorization-controller/src"
       ],
-      "@deepseek-ai/dsh-fork-credential-freebuff-oauth/*": [
-        "packages/credentials/credential-freebuff-oauth/src/*"
+      "@deepseek-ai/dsh-fork-authorization-controller/*": [
+        "packages/host/authorization-controller/src/*"
       ],
-      "@deepseek-ai/dsh-fork-credential-freebuff-oauth/src/*": [
-        "packages/credentials/credential-freebuff-oauth/src/*"
+      "@deepseek-ai/dsh-fork-authorization-controller/src/*": [
+        "packages/host/authorization-controller/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-typert-protocol-compat": [
+        "packages/typert-protocol-compat/src"
+      ],
+      "@deepseek-ai/dsh-fork-typert-protocol-compat/*": [
+        "packages/typert-protocol-compat/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-typert-protocol-compat/src/*": [
+        "packages/typert-protocol-compat/src/*"
       ],
       "@deepseek-ai/dsh-fork-credential-pool-store": [
         "packages/credentials/credential-pool-store/src"
@@ -1050,15 +1074,6 @@
       ],
       "@deepseek-ai/dsh-fork-llm-deepseek/src/*": [
         "packages/llm/llm-deepseek/src/*"
-      ],
-      "@deepseek-ai/dsh-fork-llm-freebuff": [
-        "packages/llm/llm-freebuff/src"
-      ],
-      "@deepseek-ai/dsh-fork-llm-freebuff/*": [
-        "packages/llm/llm-freebuff/src/*"
-      ],
-      "@deepseek-ai/dsh-fork-llm-freebuff/src/*": [
-        "packages/llm/llm-freebuff/src/*"
       ],
       "@deepseek-ai/dsh-fork-llm-openai-compatible": [
         "packages/llm/llm-openai-compatible/src"
@@ -2309,12 +2324,21 @@
         "../packages/typert/loader/src/*"
       ],
       "@deepseek-ai/dsh-typert-protocol": [
-        "../packages/typert/protocol/src"
+        "packages/typert-protocol-compat/src"
       ],
       "@deepseek-ai/dsh-typert-protocol/*": [
-        "../packages/typert/protocol/src/*"
+        "packages/typert-protocol-compat/src/*"
       ],
       "@deepseek-ai/dsh-typert-protocol/src/*": [
+        "packages/typert-protocol-compat/src/*"
+      ],
+      "@deepseek-ai/dsh-typert-protocol-runtime": [
+        "../packages/typert/protocol/src"
+      ],
+      "@deepseek-ai/dsh-typert-protocol-runtime/*": [
+        "../packages/typert/protocol/src/*"
+      ],
+      "@deepseek-ai/dsh-typert-protocol-runtime/src/*": [
         "../packages/typert/protocol/src/*"
       ],
       "@deepseek-ai/dsh-typert-registry": [

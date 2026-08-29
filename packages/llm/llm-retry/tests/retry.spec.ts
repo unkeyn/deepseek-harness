@@ -343,41 +343,6 @@ describe('provider-routed retry policy', () => {
     })
   })
 
-  it('runs five short retries then five linearly increasing retries before exhaustion', async () => {
-    vi.useFakeTimers()
-    const adapter = new ScriptedAdapter(Array.from(
-      { length: 11 },
-      (_, index) => new LlmError(`busy ${index + 1}`, 'SERVER'),
-    ))
-    ;({ ctx: context } = await harness(adapter, {
-      mock: {
-        mode: 'normal',
-        maxRetries: 10,
-        phases: [
-          { retries: 5, initialDelayMs: 2_000, maxDelayMs: 2_000, stepMs: 0, jitterRatio: 0 },
-          { retries: 5, initialDelayMs: 10_000, maxDelayMs: 30_000, stepMs: 5_000, jitterRatio: 0 },
-        ],
-      },
-    }))
-    const agent = context.agentLoop.create(SessionId('retry-phased-exhaustion'), {
-      provider: 'mock',
-      model: 'mock',
-    })
-    const idle = waitForIdle(context, agent)
-
-    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
-    await vi.runAllTimersAsync()
-    await idle
-
-    expect(adapter.requests).toHaveLength(11)
-    expect(agent.session.events.filter(event => event.type === 'llm/retry').map(event => event.data.delayMs))
-      .toEqual([2_000, 2_000, 2_000, 2_000, 2_000, 10_000, 15_000, 20_000, 25_000, 30_000])
-    expect(agent.session.events.at(-1)).toMatchObject({
-      type: 'turn/end',
-      data: { reason: { kind: 'error', error: { message: 'busy 11', code: 'SERVER' } } },
-    })
-  })
-
   it('accepts the zero-delay lower jitter bound', async () => {
     vi.useFakeTimers()
     const adapter = new ScriptedAdapter([
@@ -396,34 +361,6 @@ describe('provider-routed retry policy', () => {
     const idle = waitForIdle(context, agent)
     await vi.runAllTimersAsync()
     await idle
-    expect(adapter.requests).toHaveLength(2)
-  })
-
-  it('accepts Retry-After up to the largest phased cap', async () => {
-    vi.useFakeTimers()
-    const adapter = new ScriptedAdapter([
-      new LlmError('wait', 'RATE_LIMIT', { providerRetryAfterMs: 5_000 }),
-      textResponse('done'),
-    ])
-    ;({ ctx: context } = await harness(adapter, {
-      mock: {
-        mode: 'normal',
-        maxRetries: 2,
-        phases: [
-          { retries: 1, initialDelayMs: 2_000, maxDelayMs: 2_000, stepMs: 0 },
-          { retries: 1, initialDelayMs: 10_000, maxDelayMs: 30_000, stepMs: 0 },
-        ],
-      },
-    }))
-    const agent = context.agentLoop.create(SessionId('retry-after-phased-cap'), { provider: 'mock', model: 'mock' })
-    const scheduled = waitForRetry(context, agent, 1)
-
-    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
-    expect((await scheduled).data.delayMs).toBe(5_000)
-    const idle = waitForIdle(context, agent)
-    await vi.advanceTimersByTimeAsync(5_000)
-    await idle
-
     expect(adapter.requests).toHaveLength(2)
   })
 

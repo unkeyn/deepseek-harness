@@ -78,7 +78,6 @@ import type {} from '@deepseek-ai/dsh-commands'
 // rebuild the api-remotes cycle this direction exists to avoid.
 import type {} from '@deepseek-ai/dsh-cordis-host-runner/types'
 import type {} from '@deepseek-ai/dsh-skill'
-import type { FreebuffAccountStatus, FreebuffOAuthService } from '@deepseek-ai/dsh-fork-credential-freebuff-oauth'
 // The settings/credentials seams: brand guards run at this wire boundary; the
 // service reads stay optional (`ctx.get`) so a composition without either
 // provider still serves every other domain.
@@ -1872,20 +1871,6 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     return { code: 'internal', message: 'credentials service is absent: this deployment does not mount a credential provider (e.g. @deepseek-ai/dsh-credentials-local) in its composition', details: {} }
   }
 
-  /** Missing-service report for the optional Freebuff OAuth overlay. */
-  function freebuffAbsent(): RpcError {
-    return { code: 'internal', message: 'Freebuff OAuth is not enabled in this deployment', details: {} }
-  }
-
-  /** Project the OAuth service's redacted account metadata onto the wire view. */
-  function freebuffAccountView(account: FreebuffAccountStatus) {
-    return {
-      accountId: account.accountId,
-      ...account.displayName === undefined ? {} : { displayName: account.displayName },
-      status: account.status,
-    }
-  }
-
   /** Map one redacted settings descriptor to its wire view. */
   function namespaceView(descriptor: SettingsDescriptor): SettingsNamespaceView {
     return {
@@ -3332,11 +3317,12 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       },
 
       async discoverModels(request, signal) {
-        const { settingsNs, provider, baseURL, api, apiKey } = request.payload
+        const { settingsNs, provider, baseURL, modelsURL, api, apiKey } = request.payload
         try {
           const models = await ctx.llm.discoverModels(settingsNs, {
             ...provider === undefined ? {} : { provider },
             ...baseURL === undefined ? {} : { baseURL },
+            ...modelsURL === undefined ? {} : { modelsURL },
             ...api === undefined ? {} : { api },
             ...apiKey === undefined ? {} : { apiKey },
             ...signal === undefined ? {} : { signal },
@@ -3353,67 +3339,6 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             details: { settingsNs, ...baseURL === undefined ? {} : { baseURL } },
           })
         }
-      },
-    },
-
-    freebuff: {
-      async status(request) {
-        const service = ctx.get('freebuffOAuth') as FreebuffOAuthService | undefined
-        if (service === undefined) return err(request, freebuffAbsent())
-        try {
-          const state = await service.status()
-          return ok(request, {
-            accounts: state.accounts.map(freebuffAccountView),
-            ...state.pending === undefined ? {} : {
-              pending: {
-                loginUrl: state.pending.loginUrl,
-                expiresAt: state.pending.expiresAt,
-              },
-            },
-          })
-        } catch {
-          return err(request, { code: 'internal', message: 'Freebuff OAuth status is unavailable', details: {} })
-        }
-      },
-
-      async beginLogin(request) {
-        const service = ctx.get('freebuffOAuth') as FreebuffOAuthService | undefined
-        if (service === undefined) return err(request, freebuffAbsent())
-        try {
-          const challenge = await service.beginLogin()
-          return ok(request, { loginUrl: challenge.loginUrl, expiresAt: challenge.expiresAt })
-        } catch {
-          return err(request, { code: 'internal', message: 'Freebuff OAuth login could not be started', details: {} })
-        }
-      },
-
-      async completeLogin(request, signal) {
-        const service = ctx.get('freebuffOAuth') as FreebuffOAuthService | undefined
-        if (service === undefined) return err(request, freebuffAbsent())
-        try {
-          const result = await service.completePendingLogin({ signal })
-          return ok(request, { account: freebuffAccountView(result.account) })
-        } catch {
-          if (signal.aborted) return err(request, { code: 'cancelled', message: 'Freebuff OAuth login was cancelled', details: {} })
-          return err(request, { code: 'internal', message: 'Freebuff OAuth login did not complete', details: {} })
-        }
-      },
-
-      async logout(request) {
-        const service = ctx.get('freebuffOAuth') as FreebuffOAuthService | undefined
-        if (service === undefined) return err(request, freebuffAbsent())
-        try {
-          await service.logout()
-          return ok(request, {})
-        } catch {
-          return err(request, { code: 'internal', message: 'Freebuff OAuth logout failed', details: {} })
-        }
-      },
-
-      async openDesktop(request, signal) {
-        const service = ctx.get('freebuffOAuth') as FreebuffOAuthService | undefined
-        if (service === undefined) return err(request, freebuffAbsent())
-        return openPath(request, service.desktopShortcutPath(), signal)
       },
     },
 

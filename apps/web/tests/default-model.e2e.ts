@@ -93,16 +93,6 @@ describe('web e2e: the composer model switch is the default for later sessions',
     await scaffold?.close()
   })
 
-  it('suppresses native browser context menus inside the application frame', async () => {
-    const result = await page.locator('[class*="frame"]').evaluate((element) => {
-      const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
-      const dispatched = element.dispatchEvent(event)
-      return { dispatched, defaultPrevented: event.defaultPrevented }
-    })
-    expect(result.dispatched).toBe(false)
-    expect(result.defaultPrevented).toBe(true)
-  })
-
   it('writes the switched model as the default and leaves a logged session alone', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-default-model'))
     // A session that has already run a turn, spelled as the fact a turn

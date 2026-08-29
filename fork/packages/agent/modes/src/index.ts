@@ -305,11 +305,14 @@ export class AgentModeController extends Service {
     ctx.inject(['tools', 'subagents'], (toolCtx) => { this.registerDelegationTools(toolCtx) })
     ctx.inject(['commands'], (commandCtx) => { this.registerCommands(commandCtx) })
     ctx.inject(['sessionProjections'], (projectionCtx) => {
-      projectionCtx.sessionProjections.register<'agentMode', AgentModeUnitState>({
+      // Keep the old direct `view()` spelling on the local definition as a
+      // harmless compatibility aid for fork consumers; current upstream
+      // reads the nested `wire.view()` contract below.
+      const definition = {
         key: 'agentMode',
-        schema: agentModeProjectionSchema,
-        init: () => ({ selected: 'default', angel: false }),
-        apply: (state, event) => {
+        stateSchema: agentModeProjectionSchema,
+        init: (): AgentModeUnitState => ({ selected: 'default', angel: false }),
+        apply: (state: AgentModeUnitState, event: SessionEvent) => {
           if (event.type === 'agent-mode/selected') {
             return event.data.mode === state.selected ? state : { ...state, selected: event.data.mode }
           }
@@ -318,9 +321,11 @@ export class AgentModeController extends Service {
           }
           return state
         },
-        view: (state) => state,
+        wire: { viewSchema: agentModeProjectionSchema, view: (state: AgentModeUnitState) => state },
         stateVersion: 1,
-      })
+        view: (state: AgentModeUnitState) => state,
+      } as const
+      projectionCtx.sessionProjections.register<'agentMode', AgentModeUnitState>(definition)
     })
   }
 

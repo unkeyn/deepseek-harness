@@ -15,7 +15,10 @@
       "path": "../../../../vendor/cordis"
     },
     {
-      "path": "../../../../packages/client/runtime"
+      "path": "../../../../packages/client/store"
+    },
+    {
+      "path": "../../../../packages/client/ui-renderer"
     },
     {
       "path": "../../../../packages/test-support/client-runtime"
@@ -32,7 +35,7 @@
     {
       "path": "../../../../packages/client/ui-slots"
     },
-    { "path": "../ui-settings-models" },
+    { "path": "../../../../packages/client/ui-settings-models" },
     {
       "path": "../../../../packages/runtime-diagnostics/invariants"
     }

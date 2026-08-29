@@ -45,7 +45,6 @@ function classifyPiAiError(message: string): string {
   // A rejected request body (gateway or provider size cap): resending the
   // same request cannot succeed, so it is invalid, not transient.
   if (/\b413\b|failed to buffer the request body:\s*length limit exceeded|payload too large|request body too large/i.test(message)) return 'INVALID_REQUEST'
-  if (/\bupstream_unavailable\b|\bservers? (?:are|is) currently overloaded\b/i.test(message)) return 'SERVER'
   if (/\b400\b|invalid.?request/i.test(message)) return 'INVALID_REQUEST'
   if (/\b5\d\d\b/.test(message)) return 'SERVER'
   if (/\btime(?:d)?\s*out\b|timeout/i.test(message)) return 'TIMEOUT'
@@ -65,17 +64,6 @@ function classifyPiAiError(message: string): string {
     return 'TRANSPORT'
   }
   return 'PI_AI_ERROR'
-}
-
-function displayPiAiError(message: string): string {
-  if (!/^\s*(?:<!doctype\s+html|<html\b)/i.test(message)) return message
-  const status = message.match(/\b([45]\d\d)\b/)?.[1]
-  const title = message.match(/<title[^>]*>\s*([^<]+?)\s*<\/title>/i)?.[1]
-    ?? message.match(/<h1[^>]*>\s*([^<]+?)\s*<\/h1>/i)?.[1]
-  const detail = title?.replace(/^\s*[45]\d\d\s*[:|-]?\s*/i, '').replace(/\s+/g, ' ').trim()
-  return status === undefined
-    ? 'Provider returned an HTML error response'
-    : `Provider returned HTTP ${status}${detail === undefined || detail.length === 0 ? '' : `: ${detail}`}`
 }
 
 /**
@@ -133,10 +121,7 @@ export function mapStopReason(message: AssistantMessage, contextWindow?: number)
     }
     case 'error': {
       const text = message.errorMessage ?? 'pi-ai stream error'
-      return {
-        kind: 'error',
-        failure: { message: displayPiAiError(text), code: classifyPiAiError(text) },
-      }
+      return { kind: 'error', failure: { message: text, code: classifyPiAiError(text) } }
     }
   }
 }

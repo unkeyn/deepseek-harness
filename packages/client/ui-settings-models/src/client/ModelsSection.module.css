@@ -304,7 +304,7 @@
   gap: 12px;
 }
 
-/* The ways to gain a provider, as equal siblings spanning the same width
+/* The two ways to gain a provider, as equal siblings spanning the same width
    as the rows above. Wraps rather than shrinking below a legible label. */
 .addActions {
   display: flex;
@@ -452,22 +452,14 @@
 .modelEntry {
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
-  padding: 3px;
+  padding: 6px;
 }
 
 .modelRow {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 4px;
-}
-
-.modelRow .input {
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 6px;
-  font-size: 13px;
-  line-height: 18px;
+  gap: 6px;
 }
 
 /* Square, label-free affordances: the row's own inputs carry the meaning, so
@@ -477,8 +469,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -569,21 +561,6 @@
 select.input {
   max-width: 240px;
   cursor: pointer;
-}
-
-.textarea {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 104px;
-  padding: 8px 10px;
-  resize: vertical;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
-  font-size: 12px;
-  line-height: 18px;
 }
 
 .input:focus {
@@ -681,16 +658,7 @@ select.input {
 }
 
 .candidate {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-right: 6px;
   border-radius: 6px;
-}
-
-.candidate > .candidateLabel {
-  flex: 1 1 auto;
-  min-width: 0;
 }
 
 .candidateLabel {
@@ -706,23 +674,4 @@ select.input {
   font-family: var(--ds-font-family-code);
   font-size: 13px;
   overflow-wrap: anywhere;
-}
-
-/* Reference-catalog capability chips beside a candidate row: caption size,
-   the row-tag vocabulary, so they annotate without competing with the id. */
-.candidateBadges {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-}
-
-.candidateBadge {
-  padding: 1px 6px;
-  border: 1px solid var(--dsw-alias-border-l3);
-  border-radius: 4px;
-  font-size: 11px;
-  line-height: 16px;
-  color: var(--dsw-alias-label-secondary);
-  white-space: nowrap;
 }

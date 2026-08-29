@@ -1,7 +1,0 @@
-# TEMP repro overlay: this worktree's base bundle mounts web-search rows whose
-# packages the bundle manifest does not declare, which breaks the e2e scaffold
-# boot. Disable them for this scenario only.
-- id: web-search-brave
-  disabled: true
-- id: web-search-firecrawl
-  disabled: true
