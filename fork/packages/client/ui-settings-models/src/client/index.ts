@@ -26,14 +26,14 @@ import { decodeWelcomeSection, WelcomeNoticeStore } from './welcome-store.ts'
 import { ModelsSettingsStore } from './store.ts'
 import { createModelsApi } from './models-api.ts'
 import { createSettingsSchemaOperations } from './schema-operations.ts'
-import type { SettingsModelsPanelOwnerProps } from './slot-contract.ts'
+import type { ModelsFooterOwnerProps, SettingsModelsPanelOwnerProps } from './slot-contract.ts'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { en, zh, type ModelsKey } from './locales.ts'
 import { WELCOME_NOTICE_SETTINGS_NAMESPACE } from '../onboarding-copy.ts'
 
 export type { ModelsSectionInjected, ModelsSectionProps, ModelsPanelEntry } from './ModelsSection.tsx'
 export type { ModelsKey } from './locales.ts'
-export type { SettingsModelsPanelOwnerProps } from './slot-contract.ts'
+export type { ModelsFooterOwnerProps, SettingsModelsPanelOwnerProps } from './slot-contract.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -49,6 +49,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * sees the slot's type without a second import.
      */
     'settings.models.panel': { kind: 'list'; scope: 'root'; owner: SettingsModelsPanelOwnerProps }
+    /**
+     * Ordered extension area below the page's segment switcher: a page-wide
+     * action that is not a provider row. Without a registrant the area
+     * renders nothing.
+     */
+    'settings.models.footer': { kind: 'list'; scope: 'root'; owner: ModelsFooterOwnerProps }
   }
 }
 
@@ -179,9 +185,14 @@ export function apply(ctx: ClientContext): void {
     order: 10,
     label: () => t('nav'),
     inject: injected,
-    // The feature panels (OAuth, search providers) that render behind the
-    // page's segment switcher.
-    children: { 'settings.models.panel': { kind: 'list', scope: 'root' } },
+    children: {
+      // The feature panels (OAuth, search providers) that render behind the
+      // page's segment switcher.
+      'settings.models.panel': { kind: 'list', scope: 'root' },
+      // The page-wide area below the switcher: an action that belongs to the
+      // Models page rather than to one tab of it.
+      'settings.models.footer': { kind: 'list', scope: 'root' },
+    },
   }, ModelsSection))
   ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
     name: 'settings.onboarding',

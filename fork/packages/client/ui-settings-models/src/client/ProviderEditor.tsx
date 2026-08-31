@@ -10,7 +10,8 @@
  * both families, DeepSeek's id/name/context-window model catalog, and the
  * display name and wire protocol of a pi-ai route the adapter does not ship —
  * the two fields the create card asked that route for, editable here for the
- * same reason).
+ * same reason). Bearer's opt-in MCP bridge stays outside that area because it
+ * controls whether an additional tool connection is mounted at all.
  * Reasoning effort is deliberately absent: it is a per-MODEL capability, and
  * the models under one provider disagree about it, so a provider-scoped
  * control can only be set to a value some of them reject. The composer's
@@ -315,6 +316,23 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       ? schema.deletePath(current, path)
       : schema.setPath(current, path, value))
   }
+  const setNestedValue = (path: readonly string[], next: unknown | undefined): void => {
+    setDraft(current => next === undefined
+      ? schema.deletePath(current, path)
+      : schema.setPath(current, path, next))
+  }
+  const setMcpBridgeEnabled = (enabled: boolean): void => {
+    setDraft(current => {
+      let next = schema.setPath(current, ['mcpBridge', 'enabled'], enabled)
+      if (enabled && schema.getPath(next, ['mcpBridge', 'endpoint']) === undefined) {
+        const chatEndpoint = stringAt(draft, 'chatURL') ?? stringAt(fallback, 'chatURL') ?? stringAt(fallback, 'baseURL')
+        if (chatEndpoint?.toLowerCase().includes('twinmind') === true) {
+          next = schema.setPath(next, ['mcpBridge', 'endpoint'], 'https://api.twinmind.com/mcp/v1')
+        }
+      }
+      return next
+    })
+  }
   const setRefreshEnabled = (enabled: boolean): void => {
     setAutoRefresh(enabled)
     setDraft(current => {
@@ -336,6 +354,18 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     ?? stringPathAt(fallback, ['auth', 'refresh', 'endpoint'])
   const refreshApiKeyValue = stringPathAt(draft, ['auth', 'refresh', 'apiKey'])
     ?? stringPathAt(fallback, ['auth', 'refresh', 'apiKey'])
+  const bridgeFlag = schema.getPath(draft, ['mcpBridge', 'enabled'])
+  const mcpBridgeEnabled = typeof bridgeFlag === 'boolean'
+    ? bridgeFlag
+    : schema.getPath(fallback, ['mcpBridge', 'enabled']) === true
+  const mcpBridgeEndpointValue = stringPathAt(draft, ['mcpBridge', 'endpoint'])
+    ?? stringPathAt(fallback, ['mcpBridge', 'endpoint'])
+  const mcpBridgeTokenRefValue = stringPathAt(draft, ['mcpBridge', 'tokenEnv'])
+    ?? stringPathAt(fallback, ['mcpBridge', 'tokenEnv'])
+  const mcpBridgeTokenExchangeValue = schema.getPath(draft, ['mcpBridge', 'tokenExchange'])
+    ?? schema.getPath(fallback, ['mcpBridge', 'tokenExchange'])
+    ?? true
+  const mcpBridgeEndpointMissing = bearer && mcpBridgeEnabled && mcpBridgeEndpointValue === undefined
   const refreshEndpointMissing = bearer && autoRefresh && refreshEndpointValue === undefined
   const refreshApiKeyMissing = bearer && autoRefresh && refreshApiKeyValue === undefined
   const refreshCredentialMissing = bearer && autoRefresh
@@ -755,6 +785,68 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
             </button>
           </>
         )}
+        {bearer && !props.credentialOnly
+          ? (
+            <div className={styles['manualCredentials']}>
+              <label className={styles['checkboxField']}>
+                <input
+                  className={styles['checkbox']}
+                  type="checkbox"
+                  checked={mcpBridgeEnabled}
+                  disabled={disabled}
+                  onChange={(event) => { setMcpBridgeEnabled(event.target.checked) }}
+                />
+                <span>{t('mcpBridge')}</span>
+              </label>
+              <p className={styles['advancedHint']}>{t('mcpBridgeHint')}</p>
+              {mcpBridgeEnabled
+                ? (
+                  <>
+                    <div className={styles['field']}>
+                      <span className={styles['fieldLabel']}>{t('mcpBridgeEndpoint')}</span>
+                      <input
+                        className={styles['input']}
+                        type="url"
+                        value={mcpBridgeEndpointValue ?? ''}
+                        placeholder={t('mcpBridgeEndpointPlaceholder')}
+                        aria-label={t('mcpBridgeEndpoint')}
+                        disabled={disabled}
+                        onChange={(event) => { setNestedField(['mcpBridge', 'endpoint'], event.target.value) }}
+                      />
+                      {mcpBridgeEndpointMissing
+                        ? <p className={styles['error']}>{t('mcpBridgeEndpointRequired')}</p>
+                        : null}
+                    </div>
+                    <div className={styles['field']}>
+                      <span className={styles['fieldLabel']}>{t('mcpBridgeTokenRef')}</span>
+                      <input
+                        className={styles['input']}
+                        type="text"
+                        autoComplete="off"
+                        value={mcpBridgeTokenRefValue ?? ''}
+                        placeholder={t('mcpBridgeTokenRefPlaceholder')}
+                        aria-label={t('mcpBridgeTokenRef')}
+                        disabled={disabled}
+                        onChange={(event) => { setNestedField(['mcpBridge', 'tokenEnv'], event.target.value) }}
+                      />
+                      <p className={styles['advancedHint']}>{t('mcpBridgeTokenRefHint')}</p>
+                    </div>
+                    <label className={styles['checkboxField']}>
+                      <input
+                        className={styles['checkbox']}
+                        type="checkbox"
+                        checked={mcpBridgeTokenExchangeValue !== false}
+                        disabled={disabled}
+                        onChange={(event) => { setNestedValue(['mcpBridge', 'tokenExchange'], event.target.checked) }}
+                      />
+                      <span>{t('mcpBridgeTokenExchange')}</span>
+                    </label>
+                  </>
+                )
+                : null}
+            </div>
+          )
+          : null}
         {props.credentialOnly === true ? null : <details className={styles['customized']}>
           <summary className={styles['customizedSummary']}>{t('customized')}</summary>
           <div className={styles['customizedBody']}>
@@ -911,6 +1003,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
           || (props.credentialOnly !== true && modelFailure !== undefined)
           || shownKeyFailure !== undefined
           || refreshFailure !== undefined
+          || mcpBridgeEndpointMissing
           || refreshEndpointMissing
           || refreshApiKeyMissing
           || refreshCredentialMissing

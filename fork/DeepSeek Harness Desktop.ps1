@@ -76,28 +76,156 @@ function Assert-LaunchArtifacts {
   }
 }
 
-function Ensure-ForkAgentPreset {
+function Test-PythonCandidate {
+  param([string]$Path)
+
+  if (-not $Path) { return $false }
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+
+  # Prove the candidate instead of judging it by its directory: it must run
+  # AND import what the engine needs. Probing the two lazily-imported modules
+  # also rejects an interpreter that would start but silently degrade.
+  try {
+    & $Path -c 'import aiohttp, aiohttp_socks, python_socks' 2>$null | Out-Null
+    return $LASTEXITCODE -eq 0
+  } catch {
+    return $false
+  }
+}
+
+function Resolve-PythonExecutable {
+  $storePrefix = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps'
+  $candidates = [System.Collections.Generic.List[string]]::new()
+
+  foreach ($name in @('python.exe', 'python3.exe')) {
+    foreach ($cmd in @(Get-Command $name -CommandType Application -ErrorAction SilentlyContinue)) {
+      if ($cmd.Source) { $candidates.Add($cmd.Source) }
+    }
+  }
+
+  # PATH alone is not enough. Windows ships a Microsoft Store stub that
+  # answers to `python` on a machine with no interpreter — it opens the Store
+  # instead of running anything, so it is the ONLY thing on PATH here while a
+  # perfectly good interpreter sits in an install root PATH never lists.
+  # Scanning the usual roots is what keeps the engine from inheriting that
+  # stub as its default.
+  foreach ($pattern in @(
+      (Join-Path $env:LOCALAPPDATA 'Programs\Python\*\python.exe'),
+      (Join-Path $env:USERPROFILE '.workbuddy-ai\binaries\python\versions\*\python.exe'),
+      'C:\Python*\python.exe'
+  )) {
+    if (-not $pattern) { continue }
+    foreach ($path in @(Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)) {
+      $candidates.Add($path)
+    }
+  }
+
+  foreach ($path in $candidates) {
+    # The Store stub is refused on sight: probing it hangs the launch on a
+    # Store window rather than returning a nonzero exit.
+    if ($storePrefix -and $path.StartsWith($storePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+      continue
+    }
+    if (Test-PythonCandidate $path) { return $path }
+  }
+  return $null
+}
+
+function Ensure-HarvestAgentPreset {
   $source = Join-Path $root 'packages\preset\agent-presets\presets\standard\agent.cordis.yml'
   if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
     throw "The upstream standard agent preset is missing: $source"
   }
 
-  $presetRoot = Join-Path $dshHome '.agent-presets\fork-standard'
+  # Harvest replaced `fork-standard` outright, so the generated preset no
+  # longer has a sibling to fall back to: drop the stale directory rather
+  # than leave a second, unmaintained roster row in the mode picker.
+  $legacyRoot = Join-Path $dshHome '.agent-presets\fork-standard'
+  if (Test-Path -LiteralPath $legacyRoot) {
+    [System.IO.Directory]::Delete($legacyRoot, $true)
+  }
+
+  $presetRoot = Join-Path $dshHome '.agent-presets\harvest'
   [System.IO.Directory]::CreateDirectory($presetRoot) | Out-Null
   $presetPath = Join-Path $presetRoot 'agent.cordis.yml'
+
   $sourceText = [System.IO.File]::ReadAllText($source)
   $forkText = $sourceText.Replace(
     '@deepseek-ai/dsh-compaction-basic',
     '@deepseek-ai/dsh-fork-compaction-basic'
   )
+
+  # Same agent, reframed. The engine appends its own operations manual as a
+  # prompt section, so this only has to say what the operator is and that the
+  # Python sources under the engine root are ordinary editable code.
+  $codingPersona = 'You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.'
+  $harvestPersona = 'You are a coding agent powered by the {{model}} model, running DeepSeek Harness in Harvest mode: an OSINT console that discovers and validates third-party API keys. Your working directory is {{cwd}}. The harvest_* tools drive the Python engine; the console shows runs, confirmed hits and logs. The engine''s Python sources under the engine root are ordinary repository code you may read and extend.'
+  if (-not $forkText.Contains($codingPersona)) {
+    Write-Warning 'Upstream persona text changed; the harvest preset keeps the upstream persona.'
+  }
+  $forkText = $forkText.Replace($codingPersona, $harvestPersona)
+
+  # Resolve the interpreter at launch instead of trusting whatever `python`
+  # means inside the spawned host process.
+  $pythonExecutable = Resolve-PythonExecutable
+  if ($pythonExecutable) {
+    $engineConfig = @"
+      config:
+        pythonExecutable: '$pythonExecutable'
+"@
+  } else {
+    $engineConfig = ''
+    Write-Warning 'No python.exe on PATH; the harvest engine falls back to its built-in default.'
+  }
+
+  # A service row in an agent preset MUST sit inside a group carrying an
+  # `isolate` realm, or it publishes into the root realm and `dsh-agent-presets`
+  # rejects the mount. The engine injects `jobs`, `agents`, `systemPrompt`,
+  # `tools` and `webServer` — all host-plane rows that resolve by scope
+  # parentage — so `harvestEngine` is the only name this realm has to own.
+  $harvestBlock = @'
+
+# ── harvest mode ────────────────────────────────────────────────────────────
+
+- id: harvest
+  name: cordis:group
+  group: true
+  isolate:
+    harvestEngine: true
+  config:
+    - id: harvest-engine
+      name: '@deepseek-ai/dsh-fork-harvest-engine'
+'@
+
   $header = @"
 # Generated by DeepSeek Harness Desktop from the current upstream standard preset.
 # The source is copied at launch so upstream preset changes remain inherited.
+# The `harvest` group below is launcher-owned: it mounts the OSINT engine that
+# makes this preset Harvest mode.
 
 "@
+
+  $presetText = $header + $forkText.TrimEnd() + "`n`n" + $harvestBlock.TrimStart("`n") + "`n"
+  if ($engineConfig -ne '') {
+    # TrimEnd/run through to a single trailing newline: the here-string carries
+    # its own, and stacking them leaves the file ending mid-config line.
+    $presetText = $presetText.TrimEnd() + "`n" + $engineConfig.TrimEnd() + "`n"
+  }
   [System.IO.File]::WriteAllText(
     $presetPath,
-    $header + $forkText,
+    $presetText,
+    [System.Text.UTF8Encoding]::new($false)
+  )
+
+  # Display text for the mode picker. Without it the picker shows the bare id.
+  $metadata = @'
+name: Harvest
+description: OSINT console — harvest_* tools discover and validate third-party API keys.
+order: 10
+'@
+  [System.IO.File]::WriteAllText(
+    (Join-Path $presetRoot 'preset.yml'),
+    $metadata,
     [System.Text.UTF8Encoding]::new($false)
   )
 }
@@ -117,37 +245,52 @@ function Ensure-DesktopShortcut {
   }
 }
 
+function Ensure-PackageJunction([string]$linkPath, [string]$targetRoot) {
+  if (Test-Path -LiteralPath $linkPath) {
+    $item = Get-Item -LiteralPath $linkPath -Force
+    $target = @($item.Target) | Select-Object -First 1
+    if (-not $target -or
+        -not [System.IO.Path]::GetFullPath($target).Equals(
+          [System.IO.Path]::GetFullPath($targetRoot),
+          [System.StringComparison]::OrdinalIgnoreCase
+        )) {
+      [System.IO.Directory]::Delete($linkPath)
+    }
+  }
+  if (-not (Test-Path -LiteralPath $linkPath)) {
+    New-Item -ItemType Junction -Path $linkPath -Target $targetRoot | Out-Null
+  }
+}
+
 function Ensure-DesktopProfile {
   $profileRoot = Join-Path $dshHome "profiles\$profileName"
-  $bundleRoot = Join-Path $root 'fork\desktop-bundle'
   $scopeRoot = Join-Path $profileRoot 'node_modules\@deepseek-ai'
-  $bundleLink = Join-Path $scopeRoot 'dsh-fork-desktop-bundle'
 
   [System.IO.Directory]::CreateDirectory($profileRoot) | Out-Null
   [System.IO.Directory]::CreateDirectory($scopeRoot) | Out-Null
 
-  if (Test-Path -LiteralPath $bundleLink) {
-    $item = Get-Item -LiteralPath $bundleLink -Force
-    $target = @($item.Target) | Select-Object -First 1
-    if (-not $target -or
-        -not [System.IO.Path]::GetFullPath($target).Equals(
-          [System.IO.Path]::GetFullPath($bundleRoot),
-          [System.StringComparison]::OrdinalIgnoreCase
-        )) {
-      [System.IO.Directory]::Delete($bundleLink)
-    }
-  }
-  if (-not (Test-Path -LiteralPath $bundleLink)) {
-    New-Item -ItemType Junction -Path $bundleLink -Target $bundleRoot | Out-Null
+  # A profile resolves packages from its own node_modules. The two Harvest
+  # packages need junctions the bundle does not give them: the engine is
+  # mounted BY THE PRESET rather than by any bundle row, and the console's
+  # bundle row is only linked by the healer after a real `pnpm install`.
+  # Pinning both here keeps the composition resolvable without one.
+  $links = [ordered]@{
+    'dsh-fork-desktop-bundle' = (Join-Path $root 'fork\desktop-bundle')
+    'dsh-fork-harvest-engine' = (Join-Path $root 'fork\packages\harvest\engine')
+    'dsh-fork-client-ui-harvest' = (Join-Path $root 'fork\packages\harvest\ui-harvest')
   }
 
-  $linkSpec = 'link:' + ($bundleRoot -replace '\\', '/')
+  $dependencies = [ordered]@{}
+  foreach ($package in $links.Keys) {
+    $target = $links[$package]
+    Ensure-PackageJunction (Join-Path $scopeRoot $package) $target
+    $dependencies['@deepseek-ai/' + $package] = 'link:' + ($target -replace '\\', '/')
+  }
+
   $manifest = [ordered]@{
     name = 'dsh-profile-desktop'
     private = $true
-    dependencies = [ordered]@{
-      '@deepseek-ai/dsh-fork-desktop-bundle' = $linkSpec
-    }
+    dependencies = $dependencies
     dsh = [ordered]@{
       profile = [ordered]@{
         bundles = @(
@@ -171,12 +314,15 @@ function Ensure-DesktopProfile {
 
   # This profile patch is launcher-owned: it selects the generated preset
   # without touching the upstream preset file or requiring a rebuild.
+  # `harvest` is the launcher's only generated preset — Harvest mode replaced
+  # `fork-standard`, whose composition was the same standard roster minus the
+  # OSINT engine.
   $profilePatch = @"
 # Managed by DeepSeek Harness Desktop.
 - id: agent-presets
   name: '@deepseek-ai/dsh-agent-presets'
   config:
-    default: fork-standard
+    default: harvest
 "@
   [System.IO.File]::WriteAllText(
     (Join-Path $profileRoot 'cordis.patch.yml'),
@@ -336,7 +482,7 @@ function Start-HarnessHost([string]$node) {
 
 try {
 Assert-LaunchArtifacts
-Ensure-ForkAgentPreset
+Ensure-HarvestAgentPreset
 Ensure-DesktopProfile
 Ensure-DesktopShortcut
 

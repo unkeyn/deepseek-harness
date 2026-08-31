@@ -147,4 +147,32 @@ describe('Bearer provider form', () => {
     expect(screen.getByLabelText<HTMLInputElement>(en.refreshInput).value).toBe('rotated-refresh-token')
     expect(globalThis.fetch).toHaveBeenCalledOnce()
   })
+
+  it('stores the provider-neutral MCP bridge opt-in and its endpoint', async () => {
+    const { mutate, onClose } = mountBearerCard()
+
+    fireEvent.change(screen.getByLabelText(en.customRoute), { target: { value: 'twinmind' } })
+    fireEvent.change(screen.getByLabelText(en.chatEndpoint), { target: { value: 'https://api2.twinmind.com/api/v3/chat' } })
+    fireEvent.click(screen.getByLabelText(en.mcpBridge))
+
+    expect(screen.getByLabelText<HTMLInputElement>(en.mcpBridgeEndpoint).value)
+      .toBe('https://api.twinmind.com/mcp/v1')
+    fireEvent.change(screen.getByLabelText(en.cookieImport), {
+      target: { value: JSON.stringify([{ name: 'access_token', value: 'bridge-access' }]) },
+    })
+    fireEvent.click(screen.getByRole('button', { name: en.cookieImportAction }))
+    await waitFor(() => expect(screen.getByText(en.create)).toBeTruthy())
+    fireEvent.click(screen.getByText(en.create))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith(true))
+    expect(mutate).toHaveBeenCalledWith(expect.objectContaining({
+      ops: [{ op: 'set', path: ['providers', 'twinmind'], value: expect.objectContaining({
+        mcpBridge: {
+          enabled: true,
+          endpoint: 'https://api.twinmind.com/mcp/v1',
+          tokenExchange: true,
+        },
+      }) }],
+    }))
+  })
 })

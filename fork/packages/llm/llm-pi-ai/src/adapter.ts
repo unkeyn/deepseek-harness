@@ -52,6 +52,7 @@ import type { AuthContext, CredentialStore } from '@earendil-works/pi-ai'
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { toPiContext } from './context.ts'
+import { normalizeOpenAiSseFetch } from './sse.ts'
 import { toStreamChunks } from './stream.ts'
 
 /** One resolution's frozen view: the profiles and the collection built from them. */
@@ -95,6 +96,7 @@ export interface PiAiAuthInjection {
 /** Copy profile stream knobs into pi-ai's common option vocabulary. */
 function profileOptions(
   profile: ResolvedPiAiProviderProfile,
+  model: Model<Api>,
   reasoning: ModelThinkingLevel | undefined,
   apiKey: string | undefined,
 ): SimpleStreamOptions {
@@ -107,6 +109,10 @@ function profileOptions(
     ...profile.transport === undefined ? {} : { transport: profile.transport },
     ...profile.timeoutMs === undefined ? {} : { timeoutMs: profile.timeoutMs },
     ...profile.websocketConnectTimeoutMs === undefined ? {} : { websocketConnectTimeoutMs: profile.websocketConnectTimeoutMs },
+    // APInex and a few other OpenAI-compatible gateways omit the blank SSE
+    // line between `data:` events. Keep the repair at the transport seam so
+    // pi-ai still owns parsing, retries, tool calls, and finish reasons.
+    ...model.api === 'openai-completions' ? { fetch: normalizeOpenAiSseFetch } : {},
     // The agent recovery layer owns visible attempts; one adapter call is one SDK attempt.
     maxRetries: 0,
   }
@@ -357,6 +363,20 @@ export class PiAiAdapter extends LlmAdapter {
     using watchdog = idleWatchdog(upstream, streamIdleTimeoutMs, 'LLM_STREAM_IDLE_TIMEOUT')
 
     try {
+      // pi-ai 0.84 reports a pre-aborted request as an ordinary provider error
+      // event. Short-circuit before constructing its lazy stream so the
+      // adapter keeps the Harness abort contract and never performs I/O after
+      // the caller has already cancelled.
+      if (options.signal?.aborted) {
+        yield {
+          type: 'finish',
+          reason: {
+            kind: 'aborted',
+            failure: { message: 'pi-ai request aborted by caller', code: 'ABORTED' },
+          },
+        }
+        return
+      }
       const containsImage = options.messages.some(message => contentHasImage(message.content))
       if (containsImage && !model.input.includes('image')) {
         throw new LlmError(`pi-ai model "${model.id}" does not support image input`, 'UNSUPPORTED_CONTENT')
@@ -378,7 +398,7 @@ export class PiAiAdapter extends LlmAdapter {
           profile.maxRequestImageBytes,
         )
       const events = snapshot.models.streamSimple(model, context, {
-        ...profileOptions(profile, reasoning, apiKey),
+        ...profileOptions(profile, model, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
         ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },

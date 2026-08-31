@@ -48,12 +48,19 @@
       name: '@deepseek-ai/dsh-fork-llm'
     - id: llm-bearer-fork
       name: '@deepseek-ai/dsh-fork-llm-bearer'
+    - id: llm-bearer-mcp-bridge-fork
+      name: '@deepseek-ai/dsh-fork-llm-bearer-mcp-bridge'
     - id: llm-retry-fork
       name: '@deepseek-ai/dsh-fork-llm-retry'
     - id: llm-pi-ai-fork
       name: '@deepseek-ai/dsh-fork-llm-pi-ai'
     - id: llm-deepseek-fork
       name: '@deepseek-ai/dsh-fork-llm-deepseek'
+    # Paste-a-batch API key check: the host half owns the provider directory
+    # and the probe, so the browser never names a URL.
+    - id: llm-key-check-fork
+      name: '@deepseek-ai/dsh-fork-llm-key-check'
+      config: {}
 
     # Fork catalog, compaction policy, model-aware budget context, and
     # multi-key credential failover are host services used by the adapters.
@@ -100,5 +107,19 @@
       name: '@deepseek-ai/dsh-fork-client-ui-settings-plugins'
     - id: ui-settings-models-fork
       name: '@deepseek-ai/dsh-fork-client-ui-settings-models'
+    # Registers into the Models page's footer seat, which this row's own
+    # registration declares, so the CHECK button sits under the provider rows.
+    - id: ui-key-check-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-key-check'
     - id: ui-authorization-fork
       name: '@deepseek-ai/dsh-fork-client-ui-authorization'
+    - id: ui-oauth-grid-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-oauth-grid'
+      disabled: true
+
+    # Harvest-mode console: the browser half of the OSINT dashboard. It gates
+    # itself on the session's agentPreset === 'harvest', so it renders nothing
+    # outside a harvest session. The engine half is mounted by the preset
+    # (see the launcher's generated harvest agent preset), not here.
+    - id: ui-harvest-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-harvest'

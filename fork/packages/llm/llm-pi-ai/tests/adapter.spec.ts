@@ -11,6 +11,7 @@ import LlmRuntime, { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, 
 import * as LlmPiAi from '@deepseek-ai/dsh-fork-llm-pi-ai'
 import { PiAiAdapter } from '@deepseek-ai/dsh-fork-llm-pi-ai'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import { DEFAULT_MAX_REQUEST_IMAGE_BYTES, resolveProfiles } from '../src/config.ts'
 import { assemble } from './assemble.ts'
@@ -104,7 +105,7 @@ describe('PiAiAdapter provider routing', () => {
     expect(server.requests[0]).toMatchObject({
       model: 'deepseek-v4-flash',
       temperature: 0.2,
-      max_completion_tokens: 77,
+      max_tokens: 77,
       thinking: { type: 'enabled' },
       reasoning_effort: 'max',
     })
@@ -419,14 +420,15 @@ describe('provider profile lifecycle', () => {
       providers: { deepseek: {}, openai: {} },
     })
 
+    const deepseekModel = getBuiltinModels('deepseek').find(model => model.id === 'deepseek-v4-flash')
+    if (deepseekModel === undefined) throw new Error('the installed catalog ships no deepseek-v4-flash model')
     await expect(ctx.llm.resolveModelInfo('deepseek', 'deepseek-v4-flash'))
       .resolves.toMatchObject({
         reasoning: {
-          efforts: [
-            { id: ReasoningEffortId('off'), name: 'Off' },
-            { id: ReasoningEffortId('high'), name: 'High' },
-            { id: ReasoningEffortId('max'), name: 'Max' },
-          ],
+          efforts: getSupportedThinkingLevels(deepseekModel).map(level => ({
+            id: ReasoningEffortId(level),
+            name: `${level.charAt(0).toUpperCase()}${level.slice(1)}`,
+          })),
         },
       })
     const extended = await ctx.llm.resolveModelInfo('openai', 'gpt-5.6-sol')

@@ -23,7 +23,9 @@ interface Breadcrumb {
   readonly subagent: boolean
 }
 
-const DEFAULT_VIEW_ID = 'chat'
+/** Fallback view id when a session has not chosen one; published so a plugin's
+ * election outranks it (see {@link ConversationSession} and {@link ConversationSessionHeader}). */
+export const DEFAULT_VIEW_ID = 'chat'
 
 /** Resolve a persisted selection, then registered Chat, without choosing another View. */
 function resolveActiveView(tabs: readonly ViewTab[], selectedId: string | null): ViewTab | undefined {
@@ -74,14 +76,20 @@ export function ConversationSessionHeader({
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
   const session = useSession(s => s)
   const conversation = useConversation(s => s)
-  const hideChrome = session.blank && conversationPhase(session, conversation) === 'blank'
+  // Hero chrome stays in charge while the session is truly blank AND no plugin
+  // has elected a non-default view (e.g. harvest-mode session that needs its
+  // console above the hero from the first byte). When active is something
+  // else, the tab strip and view-area take over even on a blank session.
+  const heroBlank = session.blank
+    && conversationPhase(session, conversation) === 'blank'
+    && (active === undefined || active.id === DEFAULT_VIEW_ID)
 
   return (
     <header
-      className={clsx(css.header, hideChrome && css.headerHidden)}
-      aria-hidden={hideChrome || undefined}
+      className={clsx(css.header, heroBlank && css.headerHidden)}
+      aria-hidden={heroBlank || undefined}
     >
-      {!hideChrome && (
+      {!heroBlank && (
         <>
           <div className={css.titleRow}>
             <div className={css.titleCluster}>
@@ -191,7 +199,13 @@ export function ConversationSession({
     // the machine mirror, not this seed effect.
   }, [inputActions])
 
-  if (session.blank && conversationPhase(session, conversation) === 'blank') return null
+  // Hero chrome stays in charge while the session is truly blank AND no plugin
+  // has elected a non-default view (e.g. harvest-mode session that needs its
+  // console above the hero from the first byte). When active is something
+  // else, the tab strip and view-area take over even on a blank session.
+  if (session.blank
+    && conversationPhase(session, conversation) === 'blank'
+    && (active === undefined || active.id === DEFAULT_VIEW_ID)) return null
   return (
     <div className={css.viewArea}>
       {active !== undefined && renderSlot('conversation.view', {

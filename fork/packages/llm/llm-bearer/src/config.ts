@@ -16,6 +16,8 @@ export const DEFAULT_REQUEST_TIMEOUT_MS = 300_000
 export const DEFAULT_CONTEXT_WINDOW = 262_144
 /** Output capability used for a model whose profile omits one. */
 export const DEFAULT_MAX_TOKENS = 32_768
+/** Default timeout for one call made through an enabled Bearer MCP bridge. */
+export const DEFAULT_MCP_BRIDGE_TIMEOUT_MS = 60_000
 
 /** Firebase Secure Token refresh settings for one Bearer route. */
 export interface FirebaseBearerRefresh {
@@ -51,6 +53,20 @@ export interface BearerModelProfile {
   maxTokens?: number
 }
 
+/** Optional MCP bridge mounted on one Bearer provider route. */
+export interface BearerMcpBridgeProfile {
+  /** Mount the provider's MCP endpoint as native Harness tools. */
+  enabled?: boolean
+  /** Exact Streamable HTTP MCP endpoint. */
+  endpoint?: string
+  /** Optional credential reference for a token different from the Bearer token. */
+  tokenEnv?: string
+  /** Automatically exchange Firebase access tokens when the server advertises it. */
+  tokenExchange?: boolean
+  /** Per-tool-call timeout for the mounted MCP server. */
+  toolCallTimeoutMs?: number
+}
+
 /** One Bearer provider route; the containing dict key is its route id. */
 export interface BearerProviderProfile {
   /** Selector label; defaults to the route id. */
@@ -71,6 +87,8 @@ export interface BearerProviderProfile {
   timeoutMs?: number
   /** Provider-owned recovery policy. */
   retryPolicy?: RetryPolicyConfig
+  /** Optional provider-specific MCP tool bridge. */
+  mcpBridge?: BearerMcpBridgeProfile
 }
 
 /** Plugin configuration. */
@@ -103,9 +121,18 @@ export interface ResolvedBearerModelProfile extends BearerModelProfile {
   maxTokens: number
 }
 
+/** Validated MCP bridge settings exposed to the Bearer bridge plugin. */
+export interface ResolvedBearerMcpBridgeProfile {
+  enabled: true
+  endpoint: string
+  tokenEnv?: CredentialRef
+  tokenExchange: boolean
+  toolCallTimeoutMs: number
+}
+
 /** Fully resolved route facts read once per operation. */
 export interface ResolvedBearerProviderProfile
-  extends Omit<BearerProviderProfile, 'displayName' | 'auth' | 'models' | 'timeoutMs' | 'retryPolicy' | 'chatURL' | 'baseURL'> {
+  extends Omit<BearerProviderProfile, 'displayName' | 'auth' | 'models' | 'timeoutMs' | 'retryPolicy' | 'chatURL' | 'baseURL' | 'mcpBridge'> {
   /** Route id selected by `GenerateOptions.provider`. */
   provider: string
   /** Selector label after defaulting. */
@@ -120,6 +147,8 @@ export interface ResolvedBearerProviderProfile
   timeoutMs: number
   /** Resolved provider recovery policy. */
   retryPolicy: ResolvedRetryPolicy
+  /** Enabled MCP bridge, if this route opted into it. */
+  mcpBridge?: ResolvedBearerMcpBridgeProfile
 }
 
 const firebaseRefresh: z<FirebaseBearerRefresh> = z.object({
@@ -142,6 +171,14 @@ const model: z<BearerModelProfile> = z.object({
   maxTokens: z.number().step(1).min(1).default(DEFAULT_MAX_TOKENS),
 })
 
+const mcpBridge: z<BearerMcpBridgeProfile> = z.object({
+  enabled: z.boolean().default(false),
+  endpoint: z.string(),
+  tokenEnv: z.string().role('credential-ref'),
+  tokenExchange: z.boolean().default(true),
+  toolCallTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_MCP_BRIDGE_TIMEOUT_MS),
+})
+
 const profile: z<BearerProviderProfile> = z.object({
   displayName: z.string(),
   auth: bearerAuth.required(),
@@ -152,6 +189,7 @@ const profile: z<BearerProviderProfile> = z.object({
   models: z.array(model).required(),
   timeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_REQUEST_TIMEOUT_MS),
   retryPolicy: RetryPolicySchema,
+  mcpBridge,
 })
 
 /** Runtime schema for {@link Config}. */
@@ -218,6 +256,26 @@ export function resolveProfiles(
     if (refresh !== undefined && refresh.apiKey.trim().length === 0) {
       throw new Error(`llm-bearer: provider "${provider}" Firebase apiKey must be non-empty`)
     }
+    const bridgeSource = source.mcpBridge?.enabled === true ? source.mcpBridge : undefined
+    let bridge: ResolvedBearerMcpBridgeProfile | undefined
+    if (bridgeSource !== undefined) {
+      if (bridgeSource.endpoint === undefined || bridgeSource.endpoint.trim().length === 0) {
+        throw new Error(`llm-bearer: provider "${provider}" MCP bridge endpoint must be non-empty`)
+      }
+      const toolCallTimeoutMs = bridgeSource.toolCallTimeoutMs ?? DEFAULT_MCP_BRIDGE_TIMEOUT_MS
+      if (!Number.isFinite(toolCallTimeoutMs) || toolCallTimeoutMs <= 0 || toolCallTimeoutMs > MAX_TIMER_DELAY_MS) {
+        throw new Error(`llm-bearer: provider "${provider}" MCP bridge toolCallTimeoutMs must be a positive timer delay`)
+      }
+      bridge = {
+        enabled: true,
+        endpoint: httpEndpoint(bridgeSource.endpoint.trim(), provider, 'MCP bridge endpoint'),
+        ...bridgeSource.tokenEnv === undefined || bridgeSource.tokenEnv.trim().length === 0
+          ? {}
+          : { tokenEnv: credentialRef(bridgeSource.tokenEnv) },
+        tokenExchange: bridgeSource.tokenExchange ?? true,
+        toolCallTimeoutMs,
+      }
+    }
     const timeoutMs = source.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_TIMER_DELAY_MS) {
       throw new Error(`llm-bearer: provider "${provider}" timeoutMs must be a positive timer delay`)
@@ -243,6 +301,7 @@ export function resolveProfiles(
       models,
       timeoutMs,
       retryPolicy: resolveRetryPolicy(source.retryPolicy, `llm-bearer: provider "${provider}" retryPolicy`),
+      ...bridge === undefined ? {} : { mcpBridge: bridge },
     })
   }
   return result

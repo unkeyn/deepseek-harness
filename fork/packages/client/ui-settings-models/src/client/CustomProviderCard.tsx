@@ -95,6 +95,10 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
   const [baseURL, setBaseURL] = useState('')
   const [chatURL, setChatURL] = useState('')
   const [modelsURL, setModelsURL] = useState('')
+  const [mcpBridgeEnabled, setMcpBridgeEnabled] = useState(false)
+  const [mcpBridgeEndpoint, setMcpBridgeEndpoint] = useState('')
+  const [mcpBridgeTokenRef, setMcpBridgeTokenRef] = useState('')
+  const [mcpBridgeTokenExchange, setMcpBridgeTokenExchange] = useState(true)
   const [protocol, setProtocol] = useState(protocols[0] ?? '')
   const [keyDraft, setKeyDraft] = useState('')
   const [autoRefresh, setAutoRefresh] = useState(false)
@@ -138,6 +142,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
   const chatEndpointValue = chatURL.trim()
   const ready = route.length > 0 && !routeInvalid && !routeTaken
     && (bearer ? chatEndpointValue.length > 0 : baseURL.length > 0)
+    && (!mcpBridgeEnabled || mcpBridgeEndpoint.trim().length > 0)
     && models.length > 0 && modelFailure === undefined
     && keyFailure === undefined && !bearerMissing && !refreshMissing && !refreshEndpointMissing && !firebaseApiKeyMissing
   // The one blocked gate worth a line under the form. A satisfied card says
@@ -199,6 +204,16 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
           ? {
               chatURL: chatEndpointValue,
               ...modelsURL.trim().length === 0 ? {} : { modelsURL: modelsURL.trim() },
+              ...mcpBridgeEnabled
+                ? {
+                    mcpBridge: {
+                      enabled: true,
+                      endpoint: mcpBridgeEndpoint.trim(),
+                      ...mcpBridgeTokenRef.trim().length === 0 ? {} : { tokenEnv: mcpBridgeTokenRef.trim() },
+                      tokenExchange: mcpBridgeTokenExchange,
+                    },
+                  }
+                : {},
             }
           : { baseURL },
         models: models.map(model => ({ ...model })),
@@ -313,6 +328,70 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
                 onChange={(event) => { setModelsURL(event.target.value) }}
               />
               <p className={styles['advancedHint']}>{t('modelsEndpointHint')}</p>
+            </div>
+            <div className={styles['manualCredentials']}>
+              <label className={styles['checkboxField']}>
+                <input
+                  className={styles['checkbox']}
+                  type="checkbox"
+                  checked={mcpBridgeEnabled}
+                  disabled={profileDisabled}
+                  onChange={(event) => {
+                    const enabled = event.target.checked
+                    setMcpBridgeEnabled(enabled)
+                    if (enabled && mcpBridgeEndpoint.trim().length === 0 && chatEndpointValue.toLowerCase().includes('twinmind')) {
+                      setMcpBridgeEndpoint('https://api.twinmind.com/mcp/v1')
+                    }
+                  }}
+                />
+                <span>{t('mcpBridge')}</span>
+              </label>
+              <p className={styles['advancedHint']}>{t('mcpBridgeHint')}</p>
+              {mcpBridgeEnabled
+                ? (
+                  <>
+                    <div className={styles['field']}>
+                      <span className={styles['fieldLabel']}>{t('mcpBridgeEndpoint')}</span>
+                      <input
+                        className={styles['input']}
+                        type="url"
+                        value={mcpBridgeEndpoint}
+                        placeholder={t('mcpBridgeEndpointPlaceholder')}
+                        aria-label={t('mcpBridgeEndpoint')}
+                        disabled={profileDisabled}
+                        onChange={(event) => { setMcpBridgeEndpoint(event.target.value) }}
+                      />
+                      {mcpBridgeEndpoint.trim().length === 0
+                        ? <p className={styles['error']}>{t('mcpBridgeEndpointRequired')}</p>
+                        : null}
+                    </div>
+                    <div className={styles['field']}>
+                      <span className={styles['fieldLabel']}>{t('mcpBridgeTokenRef')}</span>
+                      <input
+                        className={styles['input']}
+                        type="text"
+                        autoComplete="off"
+                        value={mcpBridgeTokenRef}
+                        placeholder={t('mcpBridgeTokenRefPlaceholder')}
+                        aria-label={t('mcpBridgeTokenRef')}
+                        disabled={profileDisabled}
+                        onChange={(event) => { setMcpBridgeTokenRef(event.target.value) }}
+                      />
+                      <p className={styles['advancedHint']}>{t('mcpBridgeTokenRefHint')}</p>
+                    </div>
+                    <label className={styles['checkboxField']}>
+                      <input
+                        className={styles['checkbox']}
+                        type="checkbox"
+                        checked={mcpBridgeTokenExchange}
+                        disabled={profileDisabled}
+                        onChange={(event) => { setMcpBridgeTokenExchange(event.target.checked) }}
+                      />
+                      <span>{t('mcpBridgeTokenExchange')}</span>
+                    </label>
+                  </>
+                )
+                : null}
             </div>
           </>
         )

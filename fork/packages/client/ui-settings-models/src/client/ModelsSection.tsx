@@ -61,12 +61,15 @@ export interface ModelsPanelEntry {
  * Props delivered by the slot outlet: the inject face spread flat (the
  * renderer erases the share boundary at the render call).
  */
+/** The child slots this section declares and dispatches (see ./slot-contract.ts). */
+type ModelsChildSlots = 'settings.models.panel' | 'settings.models.footer'
+
 export type ModelsSectionProps = Partial<
   InjectFace<ModelsSectionInjected>
-  & PropsRenderSlots<'settings.models.panel'>
+  & PropsRenderSlots<ModelsChildSlots>
 >
 
-type ModelsSectionFace = InjectFace<ModelsSectionInjected> & PropsRenderSlots<'settings.models.panel'>
+type ModelsSectionFace = InjectFace<ModelsSectionInjected> & PropsRenderSlots<ModelsChildSlots>
 
 /** Provider identity shared by row actions and confirmation copy. */
 export interface ProviderIdentity {
@@ -226,7 +229,7 @@ const API_PANEL_ID = 'api'
  * it alive while hidden, so API drafts, OAuth attempts, and search edits
  * survive switching between categories.
  */
-function Loaded({ injected }: { injected: ModelsSectionFace & Pick<PropsRenderSlots<'settings.models.panel'>, 'renderSlot'> }): ReactNode {
+function Loaded({ injected }: { injected: ModelsSectionFace & Pick<PropsRenderSlots<ModelsChildSlots>, 'renderSlot'> }): ReactNode {
   const { t, renderSlot } = injected
   const panels = injected.usePanels(value => value)
   const panelIds = new Set(panels.map(panel => panel.id))
@@ -251,6 +254,7 @@ function Loaded({ injected }: { injected: ModelsSectionFace & Pick<PropsRenderSl
         unavailableText={t('groupUnavailable')}
         ariaLabel={t('tabs')}
       />
+      {renderSlot('settings.models.footer', {})}
     </div>
   )
 }

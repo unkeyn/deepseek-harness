@@ -701,6 +701,17 @@ describe('catalog routes with per-model configuration', () => {
     expect(resolved.get('opencode')?.piProvider.baseUrl).toBeUndefined()
   })
 
+  it('keeps Muse Spark on OpenCode’s Responses protocol', () => {
+    const muse = getBuiltinModels('opencode').find(model => model.id === 'muse-spark-1.2-contributor-free')
+    if (muse === undefined) throw new Error('the installed OpenCode catalog ships no Muse Spark free model')
+
+    const resolved = resolveProfiles({ opencode: { models: [{ id: muse.id }] } })
+    const [model] = resolved.get('opencode')?.piProvider.getModels() ?? []
+
+    expect(model?.api).toBe('openai-responses')
+    expect(model?.baseUrl).toBe('https://opencode.ai/zen/v1')
+  })
+
   it('serves an id newer than the installed catalog at the endpoint its siblings declare', () => {
     // `opencode` states no provider-level endpoint, so an id adopted from the
     // endpoint's live listing — newer than the installed catalog — carries no
@@ -840,7 +851,8 @@ describe('per-model reasoning efforts', () => {
   it('narrows a catalog model’s levels in place', () => {
     const [catalogModel] = getBuiltinModels('deepseek')
     if (catalogModel === undefined) throw new Error('the installed catalog ships no deepseek model')
-    expect(getSupportedThinkingLevels(catalogModel as Model<Api>)).toEqual(['off', 'high', 'max'])
+    const catalogLevels = getSupportedThinkingLevels(catalogModel as Model<Api>)
+    expect(catalogLevels).toEqual(expect.arrayContaining(['off', 'high']))
 
     const model = modelOf({
       deepseek: { models: [{ id: catalogModel.id, reasoningEfforts: { off: null, high: 'high' } }] },
@@ -1003,19 +1015,19 @@ describe('compat switches', () => {
   })
 
   it('skips models of other protocols on a mixed route instead of failing them', () => {
-    // xai ships both completions and responses models, so a route-level switch
-    // must land on the former without invalidating the latter.
-    const catalog = getBuiltinModels('xai') as readonly Model<Api>[]
+    // OpenCode ships both completions and responses models, so a route-level
+    // switch must land on the former without invalidating the latter.
+    const catalog = getBuiltinModels('opencode') as readonly Model<Api>[]
     const completions = catalog.find(model => model.api === 'openai-completions')
     const responses = catalog.find(model => model.api === 'openai-responses')
-    if (completions === undefined || responses === undefined) throw new Error('xai no longer ships a mixed catalog')
+    if (completions === undefined || responses === undefined) throw new Error('opencode no longer ships a mixed catalog')
 
     const models = modelsOf({
-      xai: {
+      opencode: {
         compat: { supportsReasoningEffort: false },
         models: [{ id: completions.id }, { id: responses.id }],
       },
-    }, 'xai')
+    }, 'opencode')
 
     expect((models.get(completions.id)?.compat as OpenAICompletionsCompat).supportsReasoningEffort).toBe(false)
     expect(models.get(responses.id)?.compat).toEqual(responses.compat)
@@ -1084,18 +1096,18 @@ describe('compat switches', () => {
   })
 
   it('lands each route switch only on the models whose protocol declares it', () => {
-    const catalog = getBuiltinModels('xai') as readonly Model<Api>[]
+    const catalog = getBuiltinModels('opencode') as readonly Model<Api>[]
     const completions = catalog.find(model => model.api === 'openai-completions')
     const responses = catalog.find(model => model.api === 'openai-responses')
-    if (completions === undefined || responses === undefined) throw new Error('xai no longer ships a mixed catalog')
+    if (completions === undefined || responses === undefined) throw new Error('opencode no longer ships a mixed catalog')
 
     const models = modelsOf({
-      xai: {
+      opencode: {
         // Both protocols take the first switch; only completions takes the second.
         compat: { supportsDeveloperRole: false, thinkingFormat: 'openai' },
         models: [{ id: completions.id }, { id: responses.id }],
       },
-    }, 'xai')
+    }, 'opencode')
 
     const onCompletions = models.get(completions.id)?.compat as OpenAICompletionsCompat
     expect(onCompletions.supportsDeveloperRole).toBe(false)

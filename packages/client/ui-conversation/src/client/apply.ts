@@ -218,10 +218,13 @@ export function apply(ctx: Context): void {
       'conversation.view': { kind: 'list', scope: 'session' },
     },
     store: conversationStore,
-    inject: (sessionId: SessionId, _actions: BoundActions<typeof conversationStore>): ConversationSessionInjected => ({
-      hooks: { conversationViews },
-      bindDraftMirror: write => inputHub.shell(sessionId).bindMirror(write),
-    }),
+    inject: (sessionId: SessionId, actions: BoundActions<typeof conversationStore>): ConversationSessionInjected => {
+      concreteConversation(ctx).attachViewActions(sessionId, actions)
+      return {
+        hooks: { conversationViews },
+        bindDraftMirror: write => inputHub.shell(sessionId).bindMirror(write),
+      }
+    },
   }, ConversationSession)
 
   const registerConversationHeader = () => slots.register({
@@ -330,7 +333,7 @@ export function apply(ctx: Context): void {
     yield registerComposerBar()
   })
 
-  ctx.plugin(ConversationController, { input: inputHub, blocks: composerBlocks })
+  ctx.plugin(ConversationController, { input: inputHub, blocks: composerBlocks, store: conversationStore })
   ctx.plugin(todoDockEntry)
   ctx.plugin(queueDockEntry)
 }

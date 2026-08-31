@@ -51,4 +51,44 @@ describe('Bearer provider configuration', () => {
       auth: { ...profile.auth, refresh: { ...profile.auth.refresh, endpoint: '' } },
     } })).toThrow(/refresh endpoint must be non-empty/)
   })
+
+  it('resolves an enabled MCP bridge without changing the provider chat route', () => {
+    const resolved = resolveProfiles({ example: {
+      auth: { type: 'bearer', accessTokenEnv: 'EXAMPLE_BEARER_TOKEN' },
+      api: 'bearer-chat',
+      chatURL: 'https://chat.example/v3/stream/',
+      models: [{ id: 'auto' }],
+      mcpBridge: {
+        enabled: true,
+        endpoint: 'https://tools.example/mcp/v1',
+        tokenEnv: 'EXAMPLE_MCP_TOKEN',
+      },
+    } }).get('example')
+
+    expect(resolved).toMatchObject({
+      chatURL: 'https://chat.example/v3/stream/',
+      mcpBridge: {
+        enabled: true,
+        endpoint: 'https://tools.example/mcp/v1',
+        tokenEnv: 'EXAMPLE_MCP_TOKEN',
+        tokenExchange: true,
+        toolCallTimeoutMs: 60_000,
+      },
+    })
+  })
+
+  it('rejects an enabled MCP bridge without an exact HTTP endpoint', () => {
+    const profile = {
+      auth: { type: 'bearer' as const, accessTokenEnv: 'EXAMPLE_BEARER_TOKEN' },
+      api: 'bearer-chat',
+      chatURL: 'https://chat.example/stream',
+      models: [{ id: 'auto' }],
+      mcpBridge: { enabled: true, endpoint: 'file:///tools' },
+    }
+    expect(() => resolveProfiles({ example: profile })).toThrow(/MCP bridge endpoint must use http or https/)
+    expect(() => resolveProfiles({ example: {
+      ...profile,
+      mcpBridge: { enabled: true, endpoint: '' },
+    } })).toThrow(/MCP bridge endpoint must be non-empty/)
+  })
 })

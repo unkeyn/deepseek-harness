@@ -892,6 +892,33 @@
       "@deepseek-ai/dsh-fork-client-ui-conversation/src/*": [
         "packages/client/ui-conversation/src/*"
       ],
+      "@deepseek-ai/dsh-fork-client-ui-harvest": [
+        "packages/harvest/ui-harvest/src"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-harvest/*": [
+        "packages/harvest/ui-harvest/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-harvest/src/*": [
+        "packages/harvest/ui-harvest/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-oauth-grid": [
+        "packages/client/ui-oauth-grid/src"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-oauth-grid/*": [
+        "packages/client/ui-oauth-grid/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-oauth-grid/src/*": [
+        "packages/client/ui-oauth-grid/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-key-check": [
+        "packages/client/ui-key-check/src"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-key-check/*": [
+        "packages/client/ui-key-check/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-client-ui-key-check/src/*": [
+        "packages/client/ui-key-check/src/*"
+      ],
       "@deepseek-ai/dsh-fork-client-ui-layout": [
         "packages/client/ui-layout/src"
       ],
@@ -1036,6 +1063,15 @@
       "@deepseek-ai/dsh-fork-credential-pool-store/src/*": [
         "packages/credentials/credential-pool-store/src/*"
       ],
+      "@deepseek-ai/dsh-fork-harvest-engine": [
+        "packages/harvest/engine/src"
+      ],
+      "@deepseek-ai/dsh-fork-harvest-engine/*": [
+        "packages/harvest/engine/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-harvest-engine/src/*": [
+        "packages/harvest/engine/src/*"
+      ],
       "@deepseek-ai/dsh-fork-key-pool": [
         "packages/credentials/key-pool/src"
       ],
@@ -1057,6 +1093,24 @@
       "@deepseek-ai/dsh-fork-llm": [
         "packages/llm/llm/src"
       ],
+      "@deepseek-ai/dsh-fork-llm-bearer": [
+        "packages/llm/llm-bearer/src"
+      ],
+      "@deepseek-ai/dsh-fork-llm-bearer/*": [
+        "packages/llm/llm-bearer/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-llm-bearer/src/*": [
+        "packages/llm/llm-bearer/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-llm-bearer-mcp-bridge": [
+        "packages/llm/llm-bearer-mcp-bridge/src"
+      ],
+      "@deepseek-ai/dsh-fork-llm-bearer-mcp-bridge/*": [
+        "packages/llm/llm-bearer-mcp-bridge/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-llm-bearer-mcp-bridge/src/*": [
+        "packages/llm/llm-bearer-mcp-bridge/src/*"
+      ],
       "@deepseek-ai/dsh-fork-llm-credential-broker": [
         "packages/llm/llm-credential-broker/src"
       ],
@@ -1074,6 +1128,15 @@
       ],
       "@deepseek-ai/dsh-fork-llm-deepseek/src/*": [
         "packages/llm/llm-deepseek/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-llm-key-check": [
+        "packages/llm/llm-key-check/src"
+      ],
+      "@deepseek-ai/dsh-fork-llm-key-check/*": [
+        "packages/llm/llm-key-check/src/*"
+      ],
+      "@deepseek-ai/dsh-fork-llm-key-check/src/*": [
+        "packages/llm/llm-key-check/src/*"
       ],
       "@deepseek-ai/dsh-fork-llm-openai-compatible": [
         "packages/llm/llm-openai-compatible/src"

@@ -85,6 +85,10 @@ export default defineConfig({
       'packages/client/ui-settings-plugins/tests/fields.client.spec.tsx',
       'packages/client/ui-settings-plugins/tests/invariant.client.spec.ts',
       'packages/client/ui-settings-plugins/tests/pool-card.client.spec.tsx',
+      'packages/client/ui-key-check/tests/**/*.spec.ts',
+      'packages/client/ui-key-check/tests/**/*.spec.tsx',
+      'packages/client/ui-oauth-grid/tests/**/*.spec.ts',
+      'packages/client/ui-oauth-grid/tests/**/*.spec.tsx',
       'packages/client/ui-settings-models/tests/groups.client.spec.tsx',
       'packages/client/ui-settings-models/tests/bearer-cookie-import.client.spec.ts',
       'packages/client/ui-settings-models/tests/bearer-provider-form.client.spec.tsx',
@@ -102,8 +106,10 @@ export default defineConfig({
       'packages/credentials/key-pool/tests/**/*.spec.ts',
       'packages/llm/llm/tests/**/*.spec.ts',
       'packages/llm/llm-bearer/tests/**/*.spec.ts',
+      'packages/llm/llm-bearer-mcp-bridge/tests/**/*.spec.ts',
       'packages/llm/llm-credential-broker/tests/**/*.spec.ts',
       'packages/llm/llm-deepseek/tests/**/*.spec.ts',
+      'packages/llm/llm-key-check/tests/**/*.spec.ts',
       'packages/llm/llm-pi-ai/tests/**/*.spec.ts',
       'packages/llm/llm-retry/tests/**/*.spec.ts',
       'packages/llm/model-catalog/tests/**/*.spec.ts',
@@ -112,6 +118,12 @@ export default defineConfig({
       'packages/web/web-search-brave/tests/**/*.spec.ts',
       'packages/web/web-search-firecrawl/tests/**/*.spec.ts',
       'packages/web/web-search-pool/tests/**/*.spec.ts',
+      // Harvest: the engine's argv/artifact readers and the console's preset
+      // gate. Listed explicitly like every other package — an unlisted test
+      // directory is a test suite that silently never runs.
+      'packages/harvest/engine/tests/**/*.spec.ts',
+      'packages/harvest/ui-harvest/tests/**/*.spec.ts',
+      'packages/harvest/ui-harvest/tests/**/*.spec.tsx',
     ],
   },
 })

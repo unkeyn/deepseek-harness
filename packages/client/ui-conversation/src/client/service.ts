@@ -10,6 +10,7 @@
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
+import type { BoundActions } from '@deepseek-ai/dsh-client-store'
 // Type-only imports: a plugin-to-plugin value import is a bundle purity
 // error, so scope resolution goes through the sessions service (scopeOf
 // method) instead of the standalone helper.
@@ -18,7 +19,7 @@ import type {
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ImageMediaType } from '@deepseek-ai/dsh-attachment'
-import type { ComposerAttachment } from './contract/slots.ts'
+import type { ComposerAttachment, ConversationStore } from './contract/slots.ts'
 import type { QueueAction, QueueItemId } from './contract/queue.ts'
 import type { ComposerBlocks } from './contract/composer-blocks.ts'
 import type {
@@ -62,6 +63,23 @@ export interface IConversation {
    * @returns completion of the page pull.
    */
   loadOlder(): Promise<void>
+  /**
+   * The session's elected conversation view (the active center-tab id), null
+   * while the session never chose one. Reads the session's committed chat
+   * state, so the value survives reloads and session switches.
+   * @param sessionId - the session to read.
+   * @returns the elected view id, or null for an unchosen session.
+   */
+  viewOf(sessionId: SessionId): string | null
+  /**
+   * Elect one conversation view for a session — the programmatic form of a
+   * tab-strip click. Applies immediately when the session's chrome is live;
+   * otherwise it applies at the chrome's next mount, so a caller reacting to
+   * a session-list change never races the render.
+   * @param sessionId - the session whose view to elect.
+   * @param viewId - a `conversation.view` entry id.
+   */
+  openView(sessionId: SessionId, viewId: string): void
 }
 
 /** Create one browser-only draft descriptor; only its id enters input state. */
@@ -149,25 +167,67 @@ export class ConversationController extends Service implements IConversation {
   readonly input: SessionInputResolver
   /** The per-session composer-block registry. */
   readonly blocks: ComposerBlocks
+  /** Shared conversation-store handle, owned by the plugin apply. */
+  private readonly store: ConversationStore
   private readonly draftAttachments = new Map<DraftAttachmentId, ComposerAttachment>()
+  /** Per-session live view-election actions captured by the session-body inject. */
+  private readonly liveViews = new Map<SessionId, BoundActions<ConversationStore>>()
+  /** View elections for sessions whose chrome has not mounted yet. */
+  private readonly pendingViews = new Map<SessionId, string>()
 
   /**
    * @param ctx - owning root context (the plugin apply context; the service
    * registers itself and follows that fiber's lifetime).
-   * @param config - carries the SessionInputResolver and composer-block registry
-   * constructed by the plugin apply (the same instances the slot inject
-   * factories close over).
+   * @param config - carries the SessionInputResolver, composer-block registry,
+   * and the shared conversation-store handle constructed by the plugin apply
+   * (the same instance the slot inject factories close over).
    */
-  constructor(ctx: Context, config: { input: SessionInputResolver; blocks: ComposerBlocks }) {
+  constructor(ctx: Context, config: { input: SessionInputResolver; blocks: ComposerBlocks; store: ConversationStore }) {
     super(ctx, 'conversation')
     this.input = config.input
     this.blocks = config.blocks
+    this.store = config.store
     ctx.effect(() => () => {
       for (const attachment of this.draftAttachments.values()) {
         revokePreview(attachment.previewUrl)
       }
       this.draftAttachments.clear()
-    }, 'conversation draft attachments')
+      this.liveViews.clear()
+      this.pendingViews.clear()
+    }, 'conversation draft attachments and view elections')
+  }
+
+  /**
+   * Package-internal wiring (the session-body inject): capture a rendered
+   * session's view-election actions and flush any election that arrived
+   * before the chrome mounted.
+   * @param sessionId - the session whose body mounted.
+   * @param actions - the framework-bound view-election actions of its live instance.
+   */
+  attachViewActions(sessionId: SessionId, actions: BoundActions<ConversationStore>): void {
+    this.liveViews.set(sessionId, actions)
+    const pending = this.pendingViews.get(sessionId)
+    if (pending !== undefined) {
+      this.pendingViews.delete(sessionId)
+      actions.setView(pending)
+    }
+  }
+
+  /** {@link IConversation.viewOf} */
+  viewOf(sessionId: SessionId): string | null {
+    // A throwaway instance rehydrates the session's committed chat state; the
+    // framework caches its own live instances, so this read aliases nothing.
+    return this.store.create(sessionId).getSnapshot().view
+  }
+
+  /** {@link IConversation.openView} */
+  openView(sessionId: SessionId, viewId: string): void {
+    const actions = this.liveViews.get(sessionId)
+    if (actions !== undefined) {
+      actions.setView(viewId)
+      return
+    }
+    this.pendingViews.set(sessionId, viewId)
   }
 
   /**

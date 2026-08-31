@@ -9,6 +9,9 @@
     { "path": "./packages/client/ui-authorization" },
     { "path": "./packages/client/ui-agent-modes" },
     { "path": "./packages/client/ui-settings-models" },
-    { "path": "./packages/client/ui-settings-plugins" }
+    { "path": "./packages/client/ui-settings-plugins" },
+    { "path": "./packages/client/ui-key-check" },
+    { "path": "./packages/client/ui-oauth-grid" },
+    { "path": "./packages/harvest/ui-harvest" }
   ]
 }

@@ -1,0 +1,39 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../../../vendor/cordis"
+    },
+    {
+      "path": "../../../../packages/client/connection/tsconfig.client.json"
+    },
+    {
+      "path": "../../../../packages/client/locale"
+    },
+    {
+      "path": "../../../../packages/client/store"
+    },
+    {
+      "path": "../../../../packages/client/ui-renderer"
+    },
+    {
+      "path": "../../../../packages/client/ui-settings-models"
+    },
+    {
+      "path": "../../../../packages/client/ui-slots"
+    },
+    {
+      "path": "../../../../packages/test-support/client-runtime"
+    },
+    {
+      "path": "../../../../packages/runtime-diagnostics/invariants"
+    }
+  ]
+}

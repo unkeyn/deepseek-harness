@@ -107,6 +107,7 @@ const THINKING_FORMAT_GATE: Record<PiAiThinkingFormat, true> = {
   'qwen-chat-template': true,
   'string-thinking': true,
   'ant-ling': true,
+  'baseten': true,
 }
 
 /** Reasoning-dispatch wire formats a profile may name, most-reached first. */
@@ -142,6 +143,7 @@ export type PiAiChatTemplateVar = Extract<ChatTemplateKwargValue, { $var: string
 const CHAT_TEMPLATE_VAR_GATE: Record<PiAiChatTemplateVar, true> = {
   'thinking.enabled': true,
   'thinking.effort': true,
+  'thinking.budget': true,
 }
 
 /** The request-state placeholders a profile may name. */
@@ -238,6 +240,7 @@ const COMPLETIONS_COMPAT_GATE = {
   supportsDeveloperRole: 'offer',
   supportsReasoningEffort: 'offer',
   supportsUsageInStreaming: 'offer',
+  supportsFinishReason: 'withhold',
   maxTokensField: 'offer',
   requiresToolResultName: 'offer',
   requiresAssistantAfterToolResult: 'offer',
@@ -245,6 +248,7 @@ const COMPLETIONS_COMPAT_GATE = {
   requiresReasoningContentOnAssistantMessages: 'offer',
   thinkingFormat: 'offer',
   chatTemplateKwargs: 'offer',
+  chatTemplateArgs: 'withhold',
   supportsStrictMode: 'offer',
   cacheControlFormat: 'offer',
   supportsLongCacheRetention: 'offer',
@@ -254,6 +258,8 @@ const COMPLETIONS_COMPAT_GATE = {
   supportsOpenAIGrammarTools: 'withhold',
   sendSessionAffinityHeaders: 'withhold',
   deferredToolsMode: 'withhold',
+  thinkingTokenBudgetField: 'withhold',
+  supportsThinkingTokenBudget: 'withhold',
   sessionAffinityFormat: 'withhold',
 } as const satisfies Record<keyof OpenAICompletionsCompat, CompatDisposition>
 
@@ -266,6 +272,7 @@ const RESPONSES_COMPAT_GATE = {
   supportsOpenAIGrammarTools: 'withhold',
   supportsToolSearch: 'withhold',
   supportsExplicitPromptCacheMode: 'withhold',
+  supportsAdditionalTools: 'withhold',
 } as const satisfies Record<keyof OpenAIResponsesCompat, CompatDisposition>
 
 /** Disposition of every `AnthropicMessagesCompat` field; a drift gate like the one above. */
@@ -279,6 +286,7 @@ const ANTHROPIC_COMPAT_GATE = {
   supportsStrictTools: 'offer',
   sendSessionAffinityHeaders: 'withhold',
   supportsToolReferences: 'withhold',
+  allowedFallbackModels: 'withhold',
 } as const satisfies Record<keyof AnthropicMessagesCompat, CompatDisposition>
 
 /** Disposition of every `BedrockCompat` field; a drift gate like the one above. */
@@ -689,6 +697,55 @@ export function routeCatalogBaseUrl(
   const versioned = endpoints.filter(url => VERSION_SUFFIX.test(url))
   const pool = versioned.length > 0 ? versioned : endpoints
   return pool.reduce((shortest, url) => (url.length < shortest.length ? url : shortest))
+}
+
+/** The wire address one catalog route serves, read from the installed catalog alone. */
+export interface CatalogRouteEndpoint {
+  /** The protocol every shipped model on the route agrees on, or the gateway default. */
+  readonly api: string
+  /** The route's request base: the provider's declared baseUrl, or its models' endpoint. */
+  readonly baseUrl: string
+  /** One model id the route ships, for a request that must name a model. */
+  readonly probeModel?: string | undefined
+}
+
+/**
+ * One model id a route ships, for a caller that has to name a model to ask the
+ * route anything authenticated. The pick is the first model speaking the
+ * route's own protocol: a route's address and protocol are already shared
+ * across its models, so any of them addresses the same endpoint, and the first
+ * is the most stable choice over catalog updates that append new models.
+ * @param installed - the route's installed catalog models.
+ * @param api - the protocol the route resolves to.
+ * @returns a model id, or `undefined` when the route ships none speaking it.
+ */
+function catalogProbeModel(installed: ReadonlyMap<string, Model<Api>>, api: string): string | undefined {
+  for (const [id, model] of installed) {
+    if (model.api === api) return id
+  }
+  return undefined
+}
+
+/**
+ * The wire address one catalog route serves, resolved exactly as this adapter
+ * resolves a route that names no protocol and no endpoint of its own: the
+ * protocol its shipped models agree on — the OpenAI-compatible gateway default
+ * when they state none — and the route's catalog endpoint.
+ *
+ * A consumer outside this adapter asks for the address a route would use
+ * rather than for the catalog data it was built from, so no pi-ai type crosses
+ * the package boundary.
+ * @param provider - provider route key.
+ * @returns the address, or `undefined` for a route pi-ai does not ship or
+ *   whose catalog states no endpoint at all.
+ */
+export function catalogRouteEndpoint(provider: string): CatalogRouteEndpoint | undefined {
+  const models = catalogModels(provider)
+  if (models.size === 0) return undefined
+  const baseUrl = routeCatalogBaseUrl(provider, models)
+  if (baseUrl === undefined) return undefined
+  const api = sharedCatalogApi(models) ?? GATEWAY_DEFAULT_API
+  return { api, baseUrl, probeModel: catalogProbeModel(models, api) }
 }
 
 /**

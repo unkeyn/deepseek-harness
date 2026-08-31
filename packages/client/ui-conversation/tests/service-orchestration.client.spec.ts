@@ -11,6 +11,7 @@ import { ComposerBlockRegistry } from '../src/client/input/blocks.ts'
 import { InputHub } from '../src/client/input/hub.ts'
 import { ConversationController, UnsupportedImageMediaTypeError } from '../src/client/service.ts'
 import { zh } from '../src/client/locales.ts'
+import { createConversationStore } from '../src/client/stores.ts'
 
 async function bench() {
   const runtime = await SlotTestRuntime.create()
@@ -25,9 +26,11 @@ async function bench() {
   // config.input is required (the apply shares its hub with the inject
   // factories); the bench passes its own instance explicitly.
   const hub = new InputHub(runtime.ctx, makeTranslate(zh, {}))
+  const store = createConversationStore()
   const fiber = runtime.ctx.plugin(ConversationController, {
     input: hub,
     blocks: new ComposerBlockRegistry(),
+    store,
   })
   await fiber.await()
   const root = runtime.ctx.get('conversation') as ConversationController
@@ -147,6 +150,7 @@ describe('ConversationController', () => {
     await bare.plugin(ConversationController, {
       input: new InputHub(bare, makeTranslate(zh, {})),
       blocks: new ComposerBlockRegistry(),
+      store: createConversationStore(),
     }).await()
     const orphan = bare.get('conversation') as ConversationController
     await expect(orphan.send('x')).rejects.toThrow(/sessions service unavailable/)

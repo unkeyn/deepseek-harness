@@ -384,6 +384,19 @@
   overflow: hidden;
 }
 
+/* A view that fits its own box marks itself `data-conversation-view-fit`:
+   workbench-style views (dense dashboards) own every scrollport inside
+   themselves, and letting this column scroll instead pushes their lower half
+   under the composer and off-screen. The marker restores the bounded view
+   area that `.root[data-phase='active']` gives up — see the rule above —
+   without electing a composer overlay, so the real composer stays below.
+   Specificity (0,4,0) outranks the phase rule's (0,3,0) at any source order. */
+.scrollBody:has([data-conversation-view-fit]) > :global([data-slot='conversation.session']) > .viewArea {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .scrollBody:has([data-conversation-composer-overlay]) > .composerSeat {
   position: absolute;
   /* Chat's seat rides this box's content box, which its own scrolling shortens

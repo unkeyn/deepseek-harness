@@ -6,6 +6,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import type { AdapterRegistrationHandle, DirectoryRegistrationHandle, LlmConfigurableProvider } from '@deepseek-ai/dsh-fork-llm'
 import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
@@ -14,6 +15,8 @@ import { BearerTokenResolver } from './bearer.ts'
 import { assertServiceable, Config, resolveProfiles } from './config.ts'
 import type { ResolvedBearerProviderProfile } from './config.ts'
 import { discoverBearerModels } from './discovery.ts'
+import { bridgeEntry } from './directory.ts'
+import type { BearerProviderDirectory } from './directory.ts'
 
 export { BearerAdapter } from './adapter.ts'
 export type { BearerAdapterOptions } from './adapter.ts'
@@ -22,9 +25,11 @@ export type { BearerCredentialStore } from './bearer.ts'
 export { Config, resolveProfiles } from './config.ts'
 export type {
   BearerAuth, BearerModelProfile, BearerProviderProfile, FirebaseBearerRefresh,
+  BearerMcpBridgeProfile,
   ResolvedBearerAuth, ResolvedBearerModelProfile, ResolvedBearerProviderProfile,
-  ResolvedFirebaseBearerRefresh,
+  ResolvedBearerMcpBridgeProfile, ResolvedFirebaseBearerRefresh,
 } from './config.ts'
+export type { BearerProviderBridgeEntry, BearerProviderDirectory } from './directory.ts'
 export { discoverBearerModels } from './discovery.ts'
 
 /** Cordis plugin name. */
@@ -84,6 +89,26 @@ export function apply(ctx: Context, config: Config): void {
       await credentials.set(ref, value)
     },
   })
+  const resolveCredential = async (ref: CredentialRef): Promise<string | undefined> => {
+    const credentials = ctx.get('credentials')
+    return credentials === undefined
+      ? launchEnvironmentOf(ctx).get(ref)?.value
+      : (await credentials.resolve(ref))?.value
+  }
+  const listeners = new Set<() => void>()
+  const providerDirectory: BearerProviderDirectory = {
+    list: () => [...profiles().values()].map(profile => bridgeEntry(
+      profile,
+      ref => ref === undefined
+        ? tokens.resolve(profile.provider, profile.auth)
+        : resolveCredential(ref),
+    )),
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => { listeners.delete(listener) }
+    },
+  }
+  ctx.provide('bearerProviders', providerDirectory)
   const adapter = new BearerAdapter({
     profiles,
     resolveToken: profile => tokens.resolve(profile.provider, profile.auth),
@@ -126,6 +151,7 @@ export function apply(ctx: Context, config: Config): void {
     onChange: () => {
       try {
         ensureRegistrations()
+        for (const listener of listeners) listener()
       } catch (error) {
         ctx.logger.error('llm-bearer: keeping the previous routes after a refused update')
         ctx.logger.error(error)

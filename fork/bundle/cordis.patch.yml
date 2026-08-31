@@ -68,6 +68,9 @@
     - id: llm-bearer-fork
       name: '@deepseek-ai/dsh-fork-llm-bearer'
 
+    - id: llm-bearer-mcp-bridge-fork
+      name: '@deepseek-ai/dsh-fork-llm-bearer-mcp-bridge'
+
     - id: llm-retry-fork
       name: '@deepseek-ai/dsh-fork-llm-retry'
 
@@ -76,6 +79,12 @@
 
     - id: llm-deepseek-fork
       name: '@deepseek-ai/dsh-fork-llm-deepseek'
+
+    # Paste-a-batch API key check: the host half owns the provider directory
+    # and the probe, so the browser never names a URL.
+    - id: llm-key-check-fork
+      name: '@deepseek-ai/dsh-fork-llm-key-check'
+      config: {}
 
     # The agent-mode roster: the model routes itself between the modes
     # (select_mode) and delegates to mode subtypes (subagent_<mode>); the
@@ -136,8 +145,20 @@
     - id: ui-settings-models-fork
       name: '@deepseek-ai/dsh-fork-client-ui-settings-models'
 
+    # Registers into the Models page's footer seat, which this row's own
+    # registration declares, so the CHECK button sits under the provider rows.
+    - id: ui-key-check-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-key-check'
+
     - id: ui-settings-plugins-fork
       name: '@deepseek-ai/dsh-fork-client-ui-settings-plugins'
+
+    # Harvest-mode console: the browser half of the OSINT dashboard. It gates
+    # itself on the session's agentPreset === 'harvest', so it renders nothing
+    # outside a harvest session. The engine half is mounted by the preset
+    # (see the launcher's generated harvest agent preset), not here.
+    - id: ui-harvest-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-harvest'
 
     - id: model-catalog-fork
       name: '@deepseek-ai/dsh-fork-model-catalog'

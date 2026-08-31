@@ -1,0 +1,511 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  color: var(--dsw-alias-label-primary);
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+}
+
+.description,
+.rankingHint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rankingHint {
+  font-style: italic;
+}
+
+/* ───── 3-column provider grid ───── */
+
+.gridShell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-module-platform);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+
+.card:hover {
+  border-color: var(--dsw-alias-border-l3);
+}
+
+.card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dsw-alias-border-l3);
+  border-radius: 12px;
+}
+
+.card[aria-expanded='true'] {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.identity {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+}
+
+.identityText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.key {
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ───── status dots ───── */
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+}
+
+.dotIdle { background: var(--dsw-alias-label-dimmed); }
+.dotWaiting { background: var(--dsw-alias-state-warn-primary); }
+.dotSuccess { background: var(--dsw-alias-state-success-primary); }
+.dotError { background: var(--dsw-alias-state-error-primary); }
+
+/* ───── per-provider meta line ───── */
+
+.meta {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.metaIdle { background: var(--dsw-alias-fill-secondary); color: var(--dsw-alias-label-tertiary); }
+.metaHealthy { background: var(--dsw-alias-fill-secondary); color: var(--dsw-alias-state-success-primary); }
+.metaHot { background: rgba(255, 152, 0, .15); color: var(--dsw-alias-state-warn-primary); }
+.metaExhausted { background: rgba(244, 67, 54, .12); color: var(--dsw-alias-state-error-primary); }
+
+/* ───── horizontal drawer (when a provider is opened) ───── */
+
+.drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-module-platform);
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.drawerHeading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.drawerTitle {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+}
+
+.drawerRoute {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.signInRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.methodValue {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 22px;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.input:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+.signInRow .input {
+  flex: 1 1 auto;
+  min-width: 160px;
+}
+
+.primaryButton,
+.secondaryButton,
+.tertiaryButton {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.primaryButton {
+  background: var(--dsw-alias-button-primary-fill);
+  color: var(--dsw-alias-label-primary-foreground);
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--dsw-alias-button-primary-hover);
+}
+
+.secondaryButton {
+  background: transparent;
+  border-color: var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-primary);
+}
+
+.tertiaryButton {
+  background: transparent;
+  border-color: transparent;
+  color: var(--dsw-alias-label-secondary);
+  text-decoration: underline;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.tertiaryButton:disabled {
+  opacity: .4;
+  cursor: default;
+}
+
+/* ───── horizontal account row ───── */
+
+.accountRow {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.cardTile {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+  min-width: 0;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cardIdent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cardName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.cardStatus {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+  text-transform: lowercase;
+}
+
+.cardEmail {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardActions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.cardOk { border-color: var(--dsw-alias-state-success-primary); }
+.cardHot { border-color: var(--dsw-alias-state-warn-primary); }
+.cardExhausted { border-color: var(--dsw-alias-state-error-primary); }
+
+/* ───── inline usage strip ───── */
+
+.usageList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.usageRow {
+  display: grid;
+  grid-template-columns: minmax(80px, 1.3fr) minmax(60px, 2fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.usageLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-primary);
+}
+
+.usageBar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--dsw-alias-fill-secondary);
+  overflow: hidden;
+}
+
+.usageFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 200ms ease;
+}
+
+.fillOk { background: var(--dsw-alias-state-success-primary); }
+.fillWarning { background: var(--dsw-alias-state-warn-primary); }
+.fillExhausted { background: var(--dsw-alias-state-error-primary); }
+.fillUnknown { background: var(--dsw-alias-label-dimmed); }
+
+.usagePct {
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-secondary);
+  text-align: right;
+  min-width: 36px;
+}
+
+.usageTag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--dsw-alias-fill-secondary);
+  font-size: 10px;
+  line-height: 14px;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.usageTag.fillOk { background: rgba(76, 175, 80, .15); color: var(--dsw-alias-state-success-primary); }
+.usageTag.fillWarning { background: rgba(255, 152, 0, .15); color: var(--dsw-alias-state-warn-primary); }
+.usageTag.fillExhausted { background: rgba(244, 67, 54, .15); color: var(--dsw-alias-state-error-primary); }
+.usageTag.fillUnknown { background: var(--dsw-alias-fill-secondary); color: var(--dsw-alias-label-tertiary); }
+
+.usageReset {
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--dsw-alias-label-tertiary);
+  text-align: right;
+}
+
+.usageEmpty {
+  margin: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* ───── notices, prompts, errors, footer ───── */
+
+.notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--dsw-alias-fill-secondary);
+}
+
+.notice p,
+.notice a,
+.notice code {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.notice a {
+  color: var(--dsw-alias-brand-primary);
+}
+
+.notice code {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--dsw-alias-fill-primary);
+}
+
+.prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.promptLabel {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.promptActions {
+  display: flex;
+  gap: 8px;
+}
+
+.error { color: var(--dsw-alias-state-error-primary); margin: 0; font-size: 12px; line-height: 18px; }
+.errorMuted { color: var(--dsw-alias-state-error-primary); opacity: .7; margin: 0; font-size: 11px; line-height: 16px; }
+.success { color: var(--dsw-alias-state-success-primary); margin: 0; font-size: 12px; line-height: 18px; }
+.muted { color: var(--dsw-alias-label-tertiary); margin: 0; font-size: 12px; line-height: 18px; }
+
+.drawerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+@media (max-width: 900px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .signInRow { align-items: stretch; flex-direction: column; }
+  .signInRow .input,
+  .signInRow .primaryButton,
+  .signInRow .secondaryButton { width: 100%; }
+  .cardTile { flex: 0 0 240px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .usageFill { transition: none; }
+}

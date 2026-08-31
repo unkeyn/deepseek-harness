@@ -39,3 +39,28 @@ apps/web/dist/
 worktrees/
 .agents/worktrees/
 .typert-*/
+
+# WorkBuddy AI session/memory data
+.workbuddy-ai/
+
+# Harvest runtime artifacts (logs, keys, run output — never commit)
+fork/packages/harvest/
+harvest-runlogs/
+fork/packages/harvest/engine/python/*.log
+fork/packages/harvest/engine/python/*.jsonl
+fork/packages/harvest/engine/python/*.json
+fork/packages/harvest/engine/python/*.txt
+!fork/packages/harvest/engine/python/requirements.txt
+fork/packages/harvest/engine/python/run-*/
+fork/packages/harvest/engine/python/config/shodan_keys.json
+fork/packages/harvest/engine/python/tests/*.json
+fork/packages/harvest/engine/python/tests/*.jsonl
+fork/packages/harvest/engine/python/kill*.txt
+fork/packages/harvest/engine/python/proxies.txt
+fork/packages/harvest/engine/python/proc.txt
+fork/packages/harvest/engine/python/ps.txt
+fork/packages/harvest/engine/python/_install.log
+fork/_install.log
+
+# Temp reading/materials
+tempread/

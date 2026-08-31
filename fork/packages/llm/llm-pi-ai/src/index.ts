@@ -76,6 +76,8 @@ import { registerPiAiFlows } from './login.ts'
 export { PiAiAdapter } from './adapter.ts'
 export type { PiAiAuthInjection } from './adapter.ts'
 export type { PiAiAdapterOptions } from './adapter.ts'
+export { catalogProviderIds, catalogProviderTakesApiKey, catalogRouteEndpoint } from './catalog.ts'
+export type { CatalogRouteEndpoint } from './catalog.ts'
 export { Config } from './config.ts'
 export type {
   PiAiCompatProfile,
