@@ -25,6 +25,24 @@
   name: '@deepseek-ai/dsh-web-fetch-http'
   disabled: true
 
+# The stock DeepSeek search route is dead in this deployment and is disabled
+# rather than repaired. Two reasons, both structural:
+#   1. `DeepSeekSearchProvider.available()` returns true whenever a credential
+#      resolver exists, and `@deepseek-ai/dsh-web-search-deepseek` always
+#      supplies one — so the route can never skip it at selection time.
+#   2. Its call then 401s: it posts to the Anthropic-compatible Messages
+#      endpoint (`https://api.deepseek.com/anthropic/v1/messages`) with the
+#      native `web_search_20250305` server tool, and every key here is rejected
+#      there ("Authentication Fails, Your api key ... is invalid").
+# Sitting last in the search route, it turned any moment the pool could not
+# serve into a hard WEB_PROVIDER_CHAIN_FAILED instead of a clean failure.
+# The row's id is also removed from `web-fork`'s route below: the fork seam
+# treats a route naming an unregistered provider as
+# WEB_PROVIDER_CONFIGURED_MISSING, not as a missing fallback to skip.
+- id: web-search-deepseek
+  name: '@deepseek-ai/dsh-web-search-deepseek'
+  disabled: true
+
 # Web-app disables the host compaction row because standard agent presets own
 # it. The launcher supplies a generated fork-standard preset whose nested row
 # points at the fork compaction implementation.
@@ -83,12 +101,20 @@
     - id: ui-agent-modes-fork
       name: '@deepseek-ai/dsh-fork-client-ui-agent-modes'
 
-    # Fork web search transport and providers. custom-pool is first; an empty
-    # or exhausted pool falls through to the official DeepSeek search route.
+    # Fork web search transport and providers. custom-pool leads: it is the
+    # only route whose credentials resolve from the managed store, so it is
+    # the one that actually serves. brave stays registered as a key-less
+    # fallback — it lights up on its own if its key ever appears in the
+    # launch environment, and an unavailable provider is simply skipped by
+    # the route. deepseek-official is gone (see the disable above).
+    # firecrawl-fork removed: its keys live in the credentials store, but the
+    # fork provider reads them from the launch environment (process env /
+    # .env), so it was permanently unavailable. The pool's own firecrawl keys
+    # are served by custom-pool instead.
     - id: web-fork
       name: '@deepseek-ai/dsh-fork-web'
       config:
-        searchProviders: [custom-pool, brave, firecrawl, deepseek-official]
+        searchProviders: [custom-pool, brave]
         fetchProvider: http
     - id: web-fetch-fork
       name: '@deepseek-ai/dsh-fork-web-fetch-http'
@@ -96,9 +122,6 @@
       name: '@deepseek-ai/dsh-fork-web-search-pool'
     - id: web-search-brave-fork
       name: '@deepseek-ai/dsh-fork-web-search-brave'
-      config: {}
-    - id: web-search-firecrawl-fork
-      name: '@deepseek-ai/dsh-fork-web-search-firecrawl'
       config: {}
 
     # Fork browser add-ons restore the old mode panel and web-search/key-pool

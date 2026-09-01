@@ -23,6 +23,15 @@
   name: '@deepseek-ai/dsh-web'
   disabled: true
 
+# The stock DeepSeek search route is dead in this deployment: its provider
+# reports itself available unconditionally, then 401s against the
+# Anthropic-compatible Messages endpoint. Disabled rather than repaired; the
+# row's id is also dropped from `web-fork`'s route, because a route naming an
+# unregistered provider is a hard WEB_PROVIDER_CONFIGURED_MISSING.
+- id: web-search-deepseek
+  name: '@deepseek-ai/dsh-web-search-deepseek'
+  disabled: true
+
 # The fork ships its own fetch provider and always exposes `web_fetch`, so the
 # official row (configured `fetch: false` by the base layer) is replaced.
 - id: tool-web
@@ -105,10 +114,11 @@
     - id: web-fork
       name: '@deepseek-ai/dsh-fork-web'
       # The pool leads the route so user-configured keys are preferred; an
-      # empty, exhausted, or cooling pool is skipped and the official DeepSeek
-      # provider answers instead.
+      # empty, exhausted, or cooling pool now fails with a plain
+      # WEB_PROVIDER_CONFIGURED_UNAVAILABLE instead of falling through to the
+      # dead official DeepSeek route.
       config:
-        searchProviders: [custom-pool, deepseek-official]
+        searchProviders: [custom-pool]
 
     - id: web-fetch-fork
       name: '@deepseek-ai/dsh-fork-web-fetch-http'
@@ -174,10 +184,6 @@
 
     - id: web-search-brave-fork
       name: '@deepseek-ai/dsh-fork-web-search-brave'
-      config: {}
-
-    - id: web-search-firecrawl-fork
-      name: '@deepseek-ai/dsh-fork-web-search-firecrawl'
       config: {}
 
     - id: web-search-pool

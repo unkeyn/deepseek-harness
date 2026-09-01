@@ -59,7 +59,7 @@ describe('fork bundle composition', () => {
     }
 
     expect(all.find(entry => entry.id === 'web-fork')).toMatchObject({
-      config: { searchProviders: ['custom-pool', 'deepseek-official'] },
+      config: { searchProviders: ['custom-pool'] },
     })
     expect(all.find(entry => entry.id === 'tool-web')).toMatchObject({
       name: '@deepseek-ai/dsh-tool-web',
@@ -75,7 +75,7 @@ describe('fork bundle composition', () => {
     for (const id of [
       'model-catalog-fork', 'compaction-policy-fork', 'budget-context', 'key-pool',
       'web-search-brave-fork',
-      'web-search-firecrawl-fork', 'web-search-pool',
+      'web-search-pool',
     ]) expect(all.some(entry => entry.id === id)).toBe(true)
     expect(all.find(entry => entry.id === 'budget-context')).toMatchObject({
       name: '@deepseek-ai/dsh-fork-budget-context',
