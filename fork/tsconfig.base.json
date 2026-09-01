@@ -892,15 +892,6 @@
       "@deepseek-ai/dsh-fork-client-ui-conversation/src/*": [
         "packages/client/ui-conversation/src/*"
       ],
-      "@deepseek-ai/dsh-fork-client-ui-harvest": [
-        "packages/harvest/ui-harvest/src"
-      ],
-      "@deepseek-ai/dsh-fork-client-ui-harvest/*": [
-        "packages/harvest/ui-harvest/src/*"
-      ],
-      "@deepseek-ai/dsh-fork-client-ui-harvest/src/*": [
-        "packages/harvest/ui-harvest/src/*"
-      ],
       "@deepseek-ai/dsh-fork-client-ui-oauth-grid": [
         "packages/client/ui-oauth-grid/src"
       ],
@@ -1062,15 +1053,6 @@
       ],
       "@deepseek-ai/dsh-fork-credential-pool-store/src/*": [
         "packages/credentials/credential-pool-store/src/*"
-      ],
-      "@deepseek-ai/dsh-fork-harvest-engine": [
-        "packages/harvest/engine/src"
-      ],
-      "@deepseek-ai/dsh-fork-harvest-engine/*": [
-        "packages/harvest/engine/src/*"
-      ],
-      "@deepseek-ai/dsh-fork-harvest-engine/src/*": [
-        "packages/harvest/engine/src/*"
       ],
       "@deepseek-ai/dsh-fork-key-pool": [
         "packages/credentials/key-pool/src"

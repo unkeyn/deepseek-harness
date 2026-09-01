@@ -153,13 +153,6 @@
     - id: ui-settings-plugins-fork
       name: '@deepseek-ai/dsh-fork-client-ui-settings-plugins'
 
-    # Harvest-mode console: the browser half of the OSINT dashboard. It gates
-    # itself on the session's agentPreset === 'harvest', so it renders nothing
-    # outside a harvest session. The engine half is mounted by the preset
-    # (see the launcher's generated harvest agent preset), not here.
-    - id: ui-harvest-fork
-      name: '@deepseek-ai/dsh-fork-client-ui-harvest'
-
     - id: model-catalog-fork
       name: '@deepseek-ai/dsh-fork-model-catalog'
 

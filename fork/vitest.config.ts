@@ -118,12 +118,6 @@ export default defineConfig({
       'packages/web/web-search-brave/tests/**/*.spec.ts',
       'packages/web/web-search-firecrawl/tests/**/*.spec.ts',
       'packages/web/web-search-pool/tests/**/*.spec.ts',
-      // Harvest: the engine's argv/artifact readers and the console's preset
-      // gate. Listed explicitly like every other package — an unlisted test
-      // directory is a test suite that silently never runs.
-      'packages/harvest/engine/tests/**/*.spec.ts',
-      'packages/harvest/ui-harvest/tests/**/*.spec.ts',
-      'packages/harvest/ui-harvest/tests/**/*.spec.tsx',
     ],
   },
 })

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { createElement } from 'react'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -74,12 +74,14 @@ describe('OAuthGridCard', () => {
     renderGrid()
     expect(screen.getByRole('button', { name: /Anthropic/ })).toBeDefined()
     expect(screen.getByRole('button', { name: /OpenAI Codex/ })).toBeDefined()
-    expect(screen.queryByRole('region')).toBeNull()
+    // The outer panel is itself a named region ("OAuth accounts"); the
+    // per-provider drawer region must be absent until a card is toggled.
+    expect(screen.queryByRole('region', { name: /Anthropic/ })).toBeNull()
   })
 
   it('opens the horizontal drawer when a provider card is clicked', () => {
     renderGrid()
-    fireClick(screen.getByRole('button', { name: /Anthropic/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Anthropic/ }))
     const region = screen.getByRole('region', { name: /Anthropic/ })
     expect(region).toBeDefined()
     expect(region.querySelector('[role="list"]')).toBeDefined()
@@ -119,15 +121,12 @@ describe('OAuthGridCard', () => {
       ...actions,
     } as unknown as OAuthGridCardProps
     render(createElement(OAuthGridCard, props))
-    fireClick(screen.getByRole('button', { name: /Anthropic/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Anthropic/ }))
     expect(actions.refreshAccounts).toHaveBeenCalledWith(anthropic.key)
-    expect(screen.getByText('adie@anthropic.example')).toBeDefined()
+    // The email appears as both the card label (no explicit label set) and
+    // the email line; assert on the account card itself.
+    expect(screen.getByRole('listitem', { name: 'adie@anthropic.example' })).toBeDefined()
     expect(screen.getByRole('button', { name: /Refresh limits/ })).toBeDefined()
     expect(screen.getByRole('button', { name: /Remove/ })).toBeDefined()
   })
 })
-
-function fireClick(target: HTMLElement): void {
-  const event = new window.MouseEvent('click', { bubbles: true, cancelable: true })
-  target.dispatchEvent(event)
-}

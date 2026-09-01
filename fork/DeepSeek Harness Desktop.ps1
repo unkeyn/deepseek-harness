@@ -1,4 +1,10 @@
-param()
+param(
+  # One-time bootstrap for a fresh clone: install dependencies and build the
+  # repository plus the fork workspace before launching. The desktop launcher
+  # passes it when built artifacts are missing; a ready checkout skips every
+  # step in seconds.
+  [switch]$Bootstrap
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -16,6 +22,57 @@ $profileName = 'desktop'
 $dshHome = Join-Path $env:USERPROFILE '.dsh'
 $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'DeepSeek Harness.lnk'
 $launcherPath = $MyInvocation.MyCommand.Path
+
+# Harvest is the owner-local plugin that stays untracked (see .gitignore): a
+# published clone has no harvest sources, so every launcher-owned mount below
+# is conditional and the composition falls back to standard mode without them.
+$harvestEngineRoot = Join-Path $root 'fork\packages\harvest\engine'
+$harvestUiRoot = Join-Path $root 'fork\packages\harvest\ui-harvest'
+$hasHarvest = (Test-Path -LiteralPath (Join-Path $harvestEngineRoot 'package.json') -PathType Leaf) -and
+  (Test-Path -LiteralPath (Join-Path $harvestUiRoot 'package.json') -PathType Leaf)
+
+function Invoke-FirstRunSetup {
+  # A fresh clone has no node_modules and no built artifacts. Sentinel checks
+  # mirror Assert-LaunchArtifacts so each step runs only when something is
+  # genuinely missing; the assert after this function stays the final gate.
+  $rootInstallSentinel = Join-Path $root 'node_modules\tsx\package.json'
+  $rootBuildSentinels = @(
+    (Join-Path $root 'packages\bundle\web-app\lib\index.js'),
+    (Join-Path $root 'apps\web\dist\index.html')
+  )
+  $forkInstallSentinel = Join-Path $root 'fork\node_modules\.pnpm'
+  $forkBuildSentinel = Join-Path $root 'fork\packages\web\web\lib\index.js'
+
+  $pnpm = Get-Command pnpm -ErrorAction SilentlyContinue
+  if (-not $pnpm) {
+    throw 'pnpm is required to build DeepSeek Harness. Install Node.js 22.19+ or 24+, then run "corepack enable" (or "npm install -g pnpm"), and start again.'
+  }
+
+  if (-not (Test-Path -LiteralPath $rootInstallSentinel -PathType Leaf)) {
+    Write-Host 'Installing repository dependencies (pnpm install)...'
+    & $pnpm.Source --dir $root install
+    if ($LASTEXITCODE -ne 0) { throw "pnpm install failed for $root (exit $LASTEXITCODE)." }
+  }
+
+  $rootNeedsBuild = @($rootBuildSentinels | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) }).Count -gt 0
+  if ($rootNeedsBuild) {
+    Write-Host 'Building the repository (pnpm run build). This can take several minutes...'
+    & $pnpm.Source --dir $root run build
+    if ($LASTEXITCODE -ne 0) { throw "pnpm run build failed for $root (exit $LASTEXITCODE)." }
+  }
+
+  if (-not (Test-Path -LiteralPath $forkInstallSentinel -PathType Container)) {
+    Write-Host 'Installing fork workspace dependencies (pnpm install)...'
+    & $pnpm.Source --dir (Join-Path $root 'fork') install
+    if ($LASTEXITCODE -ne 0) { throw "pnpm install failed for the fork workspace (exit $LASTEXITCODE)." }
+  }
+
+  if (-not (Test-Path -LiteralPath $forkBuildSentinel -PathType Leaf)) {
+    Write-Host 'Building the fork workspace (pnpm run build:lib)...'
+    & $pnpm.Source --dir (Join-Path $root 'fork') run build:lib
+    if ($LASTEXITCODE -ne 0) { throw "pnpm run build:lib failed for the fork workspace (exit $LASTEXITCODE)." }
+  }
+}
 
 function Show-DesktopError([string]$message) {
   Add-Type -AssemblyName PresentationFramework
@@ -131,18 +188,30 @@ function Resolve-PythonExecutable {
   return $null
 }
 
-function Ensure-HarvestAgentPreset {
-  $source = Join-Path $root 'packages\preset\agent-presets\presets\standard\agent.cordis.yml'
-  if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
-    throw "The upstream standard agent preset is missing: $source"
-  }
-
-  # Harvest replaced `fork-standard` outright, so the generated preset no
-  # longer has a sibling to fall back to: drop the stale directory rather
-  # than leave a second, unmaintained roster row in the mode picker.
+function Ensure-AgentPresetRoster {
+  # Legacy fork-standard cleanup: Harvest replaced it outright, so a stale
+  # directory would leave a second, unmaintained roster row in the mode
+  # picker. Runs on every checkout regardless of plugin presence.
   $legacyRoot = Join-Path $dshHome '.agent-presets\fork-standard'
   if (Test-Path -LiteralPath $legacyRoot) {
     [System.IO.Directory]::Delete($legacyRoot, $true)
+  }
+
+  if (-not $hasHarvest) {
+    # A previously generated harvest preset on a checkout that has since lost
+    # the plugin would publish a broken roster row (its engine package cannot
+    # resolve); the profile patch no longer selects it either. The generated
+    # directory is launcher-owned, so removing it restores a clean roster.
+    $stalePreset = Join-Path $dshHome '.agent-presets\harvest'
+    if (Test-Path -LiteralPath $stalePreset) {
+      [System.IO.Directory]::Delete($stalePreset, $true)
+    }
+    return
+  }
+
+  $source = Join-Path $root 'packages\preset\agent-presets\presets\standard\agent.cordis.yml'
+  if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+    throw "The upstream standard agent preset is missing: $source"
   }
 
   $presetRoot = Join-Path $dshHome '.agent-presets\harvest'
@@ -269,15 +338,18 @@ function Ensure-DesktopProfile {
   [System.IO.Directory]::CreateDirectory($profileRoot) | Out-Null
   [System.IO.Directory]::CreateDirectory($scopeRoot) | Out-Null
 
-  # A profile resolves packages from its own node_modules. The two Harvest
-  # packages need junctions the bundle does not give them: the engine is
-  # mounted BY THE PRESET rather than by any bundle row, and the console's
-  # bundle row is only linked by the healer after a real `pnpm install`.
-  # Pinning both here keeps the composition resolvable without one.
+  # A profile resolves packages from its own node_modules. The desktop bundle
+  # row is pinned unconditionally. The two Harvest packages need junctions no
+  # bundle row gives them — the engine is mounted BY THE PRESET rather than
+  # by any bundle row, and the console's row is inserted by this launcher's
+  # profile patch — but only when the untracked plugin exists in the
+  # checkout; a published clone composes standard mode without them.
   $links = [ordered]@{
     'dsh-fork-desktop-bundle' = (Join-Path $root 'fork\desktop-bundle')
-    'dsh-fork-harvest-engine' = (Join-Path $root 'fork\packages\harvest\engine')
-    'dsh-fork-client-ui-harvest' = (Join-Path $root 'fork\packages\harvest\ui-harvest')
+  }
+  if ($hasHarvest) {
+    $links['dsh-fork-harvest-engine'] = $harvestEngineRoot
+    $links['dsh-fork-client-ui-harvest'] = $harvestUiRoot
   }
 
   $dependencies = [ordered]@{}
@@ -312,18 +384,31 @@ function Ensure-DesktopProfile {
     [System.IO.File]::WriteAllText($cordisPath, "[]`n", [System.Text.UTF8Encoding]::new($false))
   }
 
-  # This profile patch is launcher-owned: it selects the generated preset
-  # without touching the upstream preset file or requiring a rebuild.
-  # `harvest` is the launcher's only generated preset — Harvest mode replaced
-  # `fork-standard`, whose composition was the same standard roster minus the
-  # OSINT engine.
-  $profilePatch = @"
+  # This profile patch is launcher-owned. Without the plugin it only pins the
+  # shipped standard preset. With it, the patch selects the generated harvest
+  # preset and inserts the console row the desktop bundle no longer carries
+  # (see the comment in desktop-bundle's patch); the insert composes over
+  # every bundle layer because the profile patch applies last.
+  if ($hasHarvest) {
+    $profilePatch = @"
 # Managed by DeepSeek Harness Desktop.
 - id: agent-presets
   name: '@deepseek-ai/dsh-agent-presets'
   config:
     default: harvest
+- insert:
+    - id: ui-harvest-fork
+      name: '@deepseek-ai/dsh-fork-client-ui-harvest'
 "@
+  } else {
+    $profilePatch = @"
+# Managed by DeepSeek Harness Desktop.
+- id: agent-presets
+  name: '@deepseek-ai/dsh-agent-presets'
+  config:
+    default: standard
+"@
+  }
   [System.IO.File]::WriteAllText(
     (Join-Path $profileRoot 'cordis.patch.yml'),
     $profilePatch,
@@ -481,8 +566,11 @@ function Start-HarnessHost([string]$node) {
 }
 
 try {
+if ($Bootstrap) {
+  Invoke-FirstRunSetup
+}
 Assert-LaunchArtifacts
-Ensure-HarvestAgentPreset
+Ensure-AgentPresetRoster
 Ensure-DesktopProfile
 Ensure-DesktopShortcut
 

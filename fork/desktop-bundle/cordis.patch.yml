@@ -117,9 +117,8 @@
       name: '@deepseek-ai/dsh-fork-client-ui-oauth-grid'
       disabled: true
 
-    # Harvest-mode console: the browser half of the OSINT dashboard. It gates
-    # itself on the session's agentPreset === 'harvest', so it renders nothing
-    # outside a harvest session. The engine half is mounted by the preset
-    # (see the launcher's generated harvest agent preset), not here.
-    - id: ui-harvest-fork
-      name: '@deepseek-ai/dsh-fork-client-ui-harvest'
+    # The harvest console row is NOT tracked here: `fork/packages/harvest/`
+    # stays untracked, so the published bundle would name a package a fresh
+    # clone cannot resolve. The desktop launcher inserts this row into its
+    # profile patch layer when the checkout has the plugin (see
+    # `DeepSeek Harness Desktop.ps1`).

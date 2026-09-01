@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { defineConfig } from 'tsdown'
 import { typertPlugin } from '../packages/typert/generator/lib/types/tsdown-plugin.js'
 
@@ -43,8 +44,13 @@ export default defineConfig(({ env }) => {
       'packages/credentials/credential-oauth',
       'packages/credentials/credential-pool-store',
       'packages/credentials/key-pool',
-      'packages/harvest/engine',
-      'packages/harvest/ui-harvest',
+      // Harvest is the owner-local plugin that stays untracked (see
+      // .gitignore): join its packages into the graph only when this checkout
+      // has them. The tracked build stays complete without them; the owner
+      // build reaches them through scripts/build-harvest.mjs first.
+      ...(existsSync(new URL('./packages/harvest/engine/package.json', import.meta.url))
+        ? ['packages/harvest/engine', 'packages/harvest/ui-harvest']
+        : []),
       'packages/llm/llm',
       'packages/llm/llm-credential-broker',
       'packages/llm/llm-bearer',
